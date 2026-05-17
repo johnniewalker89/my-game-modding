@@ -1,0 +1,13 @@
+# Runtime outputs
+backups/
+reports/
+*.bak
+
+# Local test/staging files
+*.test.ini
+global.ini
+
+# Windows noise
+Thumbs.db
+Desktop.ini
+
