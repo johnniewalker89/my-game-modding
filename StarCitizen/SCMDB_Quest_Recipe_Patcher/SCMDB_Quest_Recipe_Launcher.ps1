@@ -88,8 +88,19 @@ function Invoke-Patcher {
         Add-LogLine "== $Mode =="
         Add-LogLine "LIVE: $livePath"
 
-        $arguments = @('-LivePath', $livePath) + $ExtraArgs
-        $output = & $PatchScript @arguments 2>&1
+        $parameters = @{
+            LivePath = $livePath
+        }
+
+        foreach ($arg in $ExtraArgs) {
+            switch ($arg) {
+                '-DryRun' { $parameters['DryRun'] = $true }
+                '-RestoreLatestBackup' { $parameters['RestoreLatestBackup'] = $true }
+                default { throw "Unsupported launcher argument: $arg" }
+            }
+        }
+
+        $output = & $PatchScript @parameters 2>&1
         foreach ($line in $output) {
             Add-LogLine ([string]$line)
             if ([string]$line -match '^Report:\s*(.+)$') {
