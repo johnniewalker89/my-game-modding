@@ -2,16 +2,16 @@
 
 Моды и патчеры для Star Citizen.
 
-## SCMDB Quest Recipe Patcher
+## Скачать
 
-[SCMDB Quest Recipe Patcher](SCMDB_Quest_Recipe_Patcher/README.md) дополняет русскую локализацию Star Citizen:
+### SCMDB Quest Recipe Patcher
 
-- показывает метку `[ЧЕРТЁЖ]` у контрактов с наградами-рецептами;
-- добавляет в описание контрактов список рецептов из SCMDB;
-- в v2 группирует рецепты по типам и добавляет краткое описание предмета.
+Показывает в контрактах, какие чертежи/рецепты можно получить за миссию.
 
-Обязательное требование: сначала установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru), затем запускайте патчер.
+1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
+2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.0.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.0.0).
+3. Распакуйте архив.
+4. Запустите `SCMDB_Quest_Recipe_Patcher.bat`.
+5. Выберите папку `StarCitizen\LIVE` и нажмите `Пропатчить`.
 
-## Релизы
-
-История изменений по Star Citizen: [RELEASES.md](RELEASES.md).
+Подробная инструкция: [SCMDB_Quest_Recipe_Patcher/README.md](SCMDB_Quest_Recipe_Patcher/README.md).

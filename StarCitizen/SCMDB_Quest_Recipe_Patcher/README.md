@@ -1,39 +1,23 @@
 # SCMDB Quest Recipe Patcher
 
-Патчер для русской локализации Star Citizen. Он добавляет в контракты информацию о рецептах/чертежах, которые можно получить за выполнение миссий.
+Патчер показывает в контрактах Star Citizen, какие чертежи/рецепты можно получить за миссию.
 
-## Обязательное требование
+## Установка
 
-Сначала должен быть установлен русский перевод Star Citizen.
-
-Рекомендуемый русификатор: [RuSC](https://www.expanseunion.com/sc/locru).
-
-Обычный порядок:
-
-1. Обновить Star Citizen.
-2. Запустить RuSC, чтобы он создал свежий `global.ini`.
-3. Запустить этот патчер.
-
-Патчер не заменяет русификатор. Он только дополняет уже готовый файл локализации.
-
-## Что скачать
-
-Для обычной установки скачайте архив `SCMDB_Quest_Recipe_Patcher_v2.0.0.zip` из GitHub Releases, распакуйте его в удобную папку и запустите `SCMDB_Quest_Recipe_Patcher.bat`.
-
-## Как запустить
-
-Самый простой вариант:
-
-1. Запустите `SCMDB_Quest_Recipe_Patcher.bat`.
-2. В открывшемся окне выберите папку `StarCitizen\LIVE`.
-3. Нажмите `Проверить`.
-4. Если проверка выглядит нормально, нажмите `Пропатчить`.
+1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
+2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.0.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.0.0).
+3. Распакуйте архив в любую удобную папку.
+4. Запустите `SCMDB_Quest_Recipe_Patcher.bat`.
+5. В открывшемся окне выберите папку `StarCitizen\LIVE`.
+6. Нажмите `Пропатчить`.
 
 Путь обычно выглядит так:
 
 ```text
 C:\Games\StarCitizen\LIVE
 ```
+
+Патчер не заменяет русификатор. Сначала запускайте RuSC, потом этот патчер.
 
 ## Что изменяется
 
@@ -79,6 +63,12 @@ StarCitizen\LIVE\data\Localization\korean_(south_korea)\global.ini
 Возможные чертежи (SCMDB)
 ```
 
+## После обновления игры или русификатора
+
+1. Обновите Star Citizen.
+2. Запустите RuSC.
+3. Снова запустите `SCMDB_Quest_Recipe_Patcher.bat`.
+
 ## Источники данных
 
 - [SCMDB](https://scmdb.net/) — связь контрактов и рецептов.
@@ -86,50 +76,3 @@ StarCitizen\LIVE\data\Localization\korean_(south_korea)\global.ini
 - `data/blueprint-overrides.ru.json` — локальные подтверждённые правки и исключения.
 
 Если внешний источник временно недоступен, патчер использует локальный cache и fallback-распознавание.
-
-## Backup и rollback
-
-Перед реальной записью создаётся backup:
-
-```text
-backups\global.ini.YYYYMMDD-HHMMSS.scmdb-recipes.bak
-```
-
-В launcher есть кнопка `Откатить backup`, которая восстанавливает последний backup.
-
-## Отчёты
-
-Отчёты пишутся в:
-
-```text
-reports\
-```
-
-В отчёте есть:
-
-- версия SCMDB;
-- сколько строк изменено;
-- сколько рецептов найдено через Wiki API;
-- сколько найдено через overrides;
-- сколько распознано паттернами;
-- список `unknownBlueprints`.
-
-## Продвинутый запуск
-
-Проверка без изменения файла:
-
-```powershell
-.\SCMDB_Quest_Recipe_Patcher.ps1 "C:\Games\StarCitizen\LIVE" -DryRun
-```
-
-Запуск без Wiki API:
-
-```powershell
-.\SCMDB_Quest_Recipe_Patcher.ps1 "C:\Games\StarCitizen\LIVE" -NoWikiEnrichment
-```
-
-Откат последнего backup:
-
-```powershell
-.\SCMDB_Quest_Recipe_Patcher.ps1 "C:\Games\StarCitizen\LIVE" -RestoreLatestBackup
-```

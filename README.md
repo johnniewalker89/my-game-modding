@@ -8,8 +8,4 @@
 
 - [Star Citizen](StarCitizen/README.md)
 
-## Релизы
-
-История изменений ведётся в [RELEASES.md](RELEASES.md).
-
 Готовые пользовательские архивы будут публиковаться через GitHub Releases.
