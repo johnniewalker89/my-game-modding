@@ -62,6 +62,86 @@ function Add-LogLine {
     [System.Windows.Forms.Application]::DoEvents()
 }
 
+function Get-LatestReportPath {
+    $reportDir = Join-Path $ScriptDir 'reports'
+    if (-not (Test-Path -LiteralPath $reportDir -PathType Container)) {
+        return $null
+    }
+
+    $latest = Get-ChildItem -LiteralPath $reportDir -Filter 'scmdb-recipe-patch-*.json' -File |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if ($latest) {
+        return $latest.FullName
+    }
+
+    return $null
+}
+
+function Add-ReportSummary {
+    param(
+        [string]$Mode,
+        [string]$ReportPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ReportPath) -or -not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) {
+        Add-LogLine 'Итог: отчёт не найден. Если выше нет ERROR, операция могла пройти, но сводку прочитать не удалось.'
+        return
+    }
+
+    try {
+        $report = Get-Content -Raw -LiteralPath $ReportPath | ConvertFrom-Json
+        $unknownCount = @($report.unknownBlueprints).Count
+        $missingDescriptions = [int]$report.missingDescriptionKeys
+        $missingTitles = [int]$report.missingTitleKeys
+        $hasWarnings = $unknownCount -gt 0 -or $missingDescriptions -gt 0 -or $missingTitles -gt 0
+
+        Add-LogLine ''
+        if ($hasWarnings) {
+            Add-LogLine 'Итог: ГОТОВО, но есть предупреждения.'
+        }
+        elseif ($report.dryRun) {
+            if ([int]$report.changedLines -eq 0) {
+                Add-LogLine 'Итог: OK. Файл уже выглядит пропатченным, изменений не требуется.'
+            }
+            else {
+                Add-LogLine "Итог: OK. Проверка прошла, можно патчить. Будет изменено строк: $($report.changedLines)."
+            }
+        }
+        else {
+            if ([int]$report.changedLines -eq 0) {
+                Add-LogLine 'Итог: OK. Изменений не требовалось.'
+            }
+            else {
+                Add-LogLine "Итог: OK. Патч применён. Изменено строк: $($report.changedLines)."
+            }
+        }
+
+        Add-LogLine "SCMDB: $($report.scmdbVersion)"
+        Add-LogLine "Контрактов с рецептами: $($report.scmdbRewardContracts)"
+        Add-LogLine "Ключей описаний найдено: $($report.matchedDescriptionKeys) из $($report.scmdbRewardDescriptionKeys)"
+        Add-LogLine "Ключей названий найдено: $($report.matchedTitleKeys) из $($report.scmdbRewardTitleKeys)"
+        Add-LogLine "Рецептов: Wiki $($report.wikiMatched), overrides $($report.overrideMatched), fallback $($report.patternMatched), unknown $unknownCount"
+
+        if ($unknownCount -gt 0) {
+            Add-LogLine ('Не распознано: ' + ((@($report.unknownBlueprints) | Select-Object -First 8) -join '; '))
+        }
+        if ($missingDescriptions -gt 0) {
+            Add-LogLine "Проблема: не найдены ключи описаний: $missingDescriptions"
+        }
+        if ($missingTitles -gt 0) {
+            Add-LogLine "Проблема: не найдены ключи названий: $missingTitles"
+        }
+
+        Add-LogLine "Отчёт: $ReportPath"
+    }
+    catch {
+        Add-LogLine "Итог: отчёт найден, но не удалось прочитать сводку: $($_.Exception.Message)"
+        Add-LogLine "Отчёт: $ReportPath"
+    }
+}
+
 function Invoke-Patcher {
     param(
         [string]$Mode,
@@ -84,6 +164,9 @@ function Invoke-Patcher {
     $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
 
     try {
+        $script:LastReportPath = $null
+        $beforeReportPath = Get-LatestReportPath
+
         Add-LogLine ''
         Add-LogLine "== $Mode =="
         Add-LogLine "LIVE: $livePath"
@@ -100,7 +183,7 @@ function Invoke-Patcher {
             }
         }
 
-        $output = & $PatchScript @parameters 2>&1
+        $output = & $PatchScript @parameters *>&1
         foreach ($line in $output) {
             Add-LogLine ([string]$line)
             if ([string]$line -match '^Report:\s*(.+)$') {
@@ -111,6 +194,16 @@ function Invoke-Patcher {
         if ($LASTEXITCODE -ne 0) {
             Add-LogLine "Exit code: $LASTEXITCODE"
         }
+
+        $reportPath = $script:LastReportPath
+        if (-not $reportPath) {
+            $latestReportPath = Get-LatestReportPath
+            if ($latestReportPath -and $latestReportPath -ne $beforeReportPath) {
+                $reportPath = $latestReportPath
+                $script:LastReportPath = $latestReportPath
+            }
+        }
+        Add-ReportSummary -Mode $Mode -ReportPath $reportPath
 
         [System.Windows.Forms.MessageBox]::Show(
             "$Mode завершено. Подробности в окне лога.",
