@@ -1,6 +1,8 @@
 # Runtime outputs
 backups/
 reports/
+cache/
+dist/
 *.bak
 
 # Local test/staging files
@@ -10,4 +12,3 @@ global.ini
 # Windows noise
 Thumbs.db
 Desktop.ini
-

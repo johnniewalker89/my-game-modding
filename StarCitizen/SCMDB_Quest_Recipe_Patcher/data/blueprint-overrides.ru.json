@@ -1,0 +1,14 @@
+﻿{
+  "VK-00": {
+    "category": "Корабельные компоненты",
+    "type": "квантовый двигатель",
+    "size": "1",
+    "grade": "A",
+    "class": "Military",
+    "manufacturer": "Wei-Tek"
+  },
+  "Metamaterial Test #146": {
+    "category": "Материалы/особое",
+    "type": "метаматериал Wikelo"
+  }
+}
