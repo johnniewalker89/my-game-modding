@@ -15,3 +15,9 @@
 5. Выберите папку `StarCitizen\LIVE` и нажмите `Пропатчить`.
 
 Подробная инструкция: [SCMDB_Quest_Recipe_Patcher/README.md](SCMDB_Quest_Recipe_Patcher/README.md).
+
+## Как выглядит в игре
+
+![Список рецептов брони и оружия](SCMDB_Quest_Recipe_Patcher/docs/images/scmdb-recipe-patcher-armor.png)
+
+![Список корабельных компонентов и орудий](SCMDB_Quest_Recipe_Patcher/docs/images/scmdb-recipe-patcher-components.png)
