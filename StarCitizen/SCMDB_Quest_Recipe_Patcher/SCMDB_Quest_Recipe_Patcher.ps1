@@ -12,6 +12,8 @@
 
     [switch]$NoWikiEnrichment,
 
+    [switch]$NoCraftIntel,
+
     [switch]$NoCache,
 
     [switch]$KeepExistingBlueprintBlocks,
@@ -22,7 +24,9 @@
 
     [string]$OverridesPath,
 
-    [string]$WikiCachePath
+    [string]$WikiCachePath,
+
+    [string]$BlueprintCachePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,14 +37,54 @@ $WikiApiBaseUrl = 'https://api.star-citizen.wiki/api'
 $LocalizationRelativePath = 'data\Localization\korean_(south_korea)\global.ini'
 
 $CategoryOrder = @(
-    'Броня/одежда',
-    'Оружие',
     'Корабельные компоненты',
     'Корабельные орудия',
+    'Броня/одежда',
+    'Оружие',
     'Снаряжение/расходники',
     'Материалы/особое',
     'Не распознано'
 )
+
+$ArmorSubcategoryOrder = @(
+    'Тяжёлая броня',
+    'Средняя броня',
+    'Лёгкая броня',
+    'Андерсьюты/костюмы',
+    'Прочее'
+)
+
+$FpsWeaponSubcategoryOrder = @(
+    'Винтовки',
+    'Снайперские винтовки',
+    'Пистолеты',
+    'Пистолеты-пулемёты',
+    'Дробовики',
+    'Пулемёты',
+    'Арбалеты',
+    'Прочее'
+)
+
+$ShipComponentSubcategoryOrder = @(
+    'Щиты',
+    'Квантовые двигатели',
+    'Силовые установки',
+    'Охладители',
+    'Радары',
+    'Топливные форсунки',
+    'Прочее'
+)
+
+$ShipWeaponSubcategoryOrder = @(
+    'Энергетика',
+    'Баллистика',
+    'Гибрид',
+    'Добывающие лазеры',
+    'Прочее'
+)
+
+$SubcategoryEmphasisTag = 'EM4'
+$ShipMiningMethodTag = 'EM4'
 
 if (-not $OverridesPath) {
     $OverridesPath = Join-Path $ScriptDir 'data\blueprint-overrides.ru.json'
@@ -48,6 +92,10 @@ if (-not $OverridesPath) {
 
 if (-not $WikiCachePath) {
     $WikiCachePath = Join-Path $ScriptDir 'cache\wiki-items-cache.json'
+}
+
+if (-not $BlueprintCachePath) {
+    $BlueprintCachePath = Join-Path $ScriptDir 'cache\wiki-blueprints-cache.json'
 }
 
 function ConvertTo-Array {
@@ -180,6 +228,17 @@ function Remove-BlueprintBlock {
     }
 
     return $clean
+}
+
+function Remove-CraftIntelBlock {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    return [regex]::Replace(
+        $Value,
+        '\\n\\n<EM\d>Крафт-подсказка \(SCMDB\)</EM\d>.*$',
+        '',
+        [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
 }
 
 function Remove-TitleMarker {
@@ -402,12 +461,18 @@ function ConvertTo-RussianItemType {
         'Radar' = 'радар'
         'Laser Cannon' = 'лазерная пушка'
         'Ballistic Cannon' = 'баллистическая пушка'
+        'Neutron Cannon' = 'нейтронная пушка'
+        'Tachyon Cannon' = 'тахионная пушка'
+        'Mass Driver Cannon' = 'масс-драйвер'
         'Laser Repeater' = 'лазерный повторитель'
+        'Ballistic Repeater' = 'баллистический повторитель'
+        'Distortion Repeater' = 'дисторсионный повторитель'
         'Ballistic Gatling' = 'баллистический гатлинг'
         'Distortion Cannon' = 'дисторсионная пушка'
         'Scattergun' = 'разбросное орудие'
         'Mining Laser' = 'добывающий лазер'
         'Scraper Module' = 'скребковый модуль'
+        'Fuel Nozzle' = 'топливная форсунка'
         'Missile' = 'ракета'
         'Bomb' = 'бомба'
         'Sniper Rifle' = 'снайперская винтовка'
@@ -486,11 +551,11 @@ function Get-CategoryFromWikiItem {
         return 'Оружие'
     }
 
-    if ($itemType -match 'Shield|Quantum Drive|Power Plant|Cooler|Radar' -or $type -match 'Shield|QuantumDrive|PowerPlant|Cooler|Radar') {
+    if ($itemType -match 'Shield|Quantum Drive|Power Plant|Cooler|Radar|Fuel Nozzle' -or $type -match 'Shield|QuantumDrive|PowerPlant|Cooler|Radar|FuelNozzle') {
         return 'Корабельные компоненты'
     }
 
-    if ($itemType -match 'Cannon|Repeater|Gatling|Scattergun|Missile|Bomb|Mining Laser' -or $type -match 'WeaponGun|Missile|Bomb|WeaponMining') {
+    if ($itemType -match 'Cannon|Repeater|Gatling|Scattergun|Missile|Bomb|Mining Laser|Mass Driver' -or $type -match 'WeaponGun|Missile|Bomb|WeaponMining') {
         return 'Корабельные орудия'
     }
 
@@ -541,6 +606,9 @@ function New-EnrichmentFromWikiItem {
         grade = $grade
         class = $class
         manufacturer = $manufacturer
+        blueprintUuid = if ($Item.blueprint -and $Item.blueprint.uuid) { [string]$Item.blueprint.uuid } else { $null }
+        blueprintLink = if ($Item.blueprint -and $Item.blueprint.link) { [string]$Item.blueprint.link } else { $null }
+        isCraftable = [bool]$Item.is_craftable
     }
 }
 
@@ -577,6 +645,9 @@ function Get-PatternEnrichment {
             grade = $null
             class = $null
             manufacturer = $null
+            blueprintUuid = $null
+            blueprintLink = $null
+            isCraftable = $false
         }
     }
 
@@ -590,6 +661,9 @@ function Get-PatternEnrichment {
         grade = $null
         class = $null
         manufacturer = $null
+        blueprintUuid = $null
+        blueprintLink = $null
+        isCraftable = $false
     }
 }
 
@@ -671,6 +745,9 @@ function Merge-OverrideEnrichment {
             grade = $Base.grade
             class = $Base.class
             manufacturer = $Base.manufacturer
+            blueprintUuid = $Base.blueprintUuid
+            blueprintLink = $Base.blueprintLink
+            isCraftable = $Base.isCraftable
         }
     }
     else {
@@ -684,6 +761,9 @@ function Merge-OverrideEnrichment {
             grade = $null
             class = $null
             manufacturer = $null
+            blueprintUuid = $null
+            blueprintLink = $null
+            isCraftable = $false
         }
     }
 
@@ -713,6 +793,10 @@ function New-EnrichmentMap {
             }
             else {
                 $result[$name] = $cached
+            }
+
+            if (-not $cached.PSObject.Properties['blueprintUuid']) {
+                $namesForWiki.Add($name)
             }
         }
         else {
@@ -763,8 +847,1470 @@ function New-EnrichmentMap {
     return $result
 }
 
+function Format-Quantity {
+    param($Ingredient)
+
+    if ($null -ne $Ingredient.quantity_scu) {
+        $value = [decimal]$Ingredient.quantity_scu
+        return ($value.ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture) + ' SCU')
+    }
+
+    if ($null -ne $Ingredient.quantity) {
+        return ([string]$Ingredient.quantity + ' шт.')
+    }
+
+    return $null
+}
+
+function Format-SubcategoryLabel {
+    param([Parameter(Mandatory = $true)][string]$Label)
+
+    return "<$SubcategoryEmphasisTag>${Label}</$SubcategoryEmphasisTag>"
+}
+
+function Format-ShipMiningMethodLabel {
+    return "<$ShipMiningMethodTag>[К]</$ShipMiningMethodTag>"
+}
+
+function ConvertTo-MinutesLabel {
+    param([int]$Seconds)
+
+    if ($Seconds -le 0) {
+        return $null
+    }
+
+    $minutes = [Math]::Round($Seconds / 60, 1)
+    return ($minutes.ToString('0.#', [System.Globalization.CultureInfo]::InvariantCulture) + ' мин')
+}
+
+function ConvertTo-IngredientSummary {
+    param($Ingredient)
+
+    return [pscustomobject]@{
+        name = [string]$Ingredient.name
+        kind = [string]$Ingredient.kind
+        quantity = Format-Quantity -Ingredient $Ingredient
+    }
+}
+
+function Get-WikiBlueprintByUuid {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uuid,
+        [Parameter(Mandatory = $true)][hashtable]$Cache
+    )
+
+    if (-not $NoCache -and $Cache.ContainsKey($Uuid)) {
+        return $Cache[$Uuid]
+    }
+
+    if ($NoWikiEnrichment) {
+        return [pscustomobject]@{
+            found = $false
+            source = 'disabled'
+        }
+    }
+
+    try {
+        $response = Invoke-RestMethod -Uri "$WikiApiBaseUrl/blueprints/$Uuid" -UseBasicParsing -TimeoutSec 30
+        $blueprint = $response.data
+        $ingredients = New-Object System.Collections.Generic.List[object]
+        foreach ($ingredient in (ConvertTo-Array $blueprint.ingredients)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$ingredient.name)) {
+                $ingredients.Add((ConvertTo-IngredientSummary -Ingredient $ingredient))
+            }
+        }
+
+        $summary = [pscustomobject]@{
+            found = $true
+            source = 'wiki'
+            uuid = [string]$blueprint.uuid
+            outputName = [string]$blueprint.output_name
+            craftTime = ConvertTo-MinutesLabel -Seconds ([int]$blueprint.craft_time_seconds)
+            ingredientCount = [int]$blueprint.ingredient_count
+            ingredients = $ingredients.ToArray()
+        }
+
+        if (-not $NoCache) {
+            $Cache[$Uuid] = $summary
+        }
+
+        return $summary
+    }
+    catch {
+        Write-Warning "Wiki blueprint lookup failed for ${Uuid}: $($_.Exception.Message)"
+        $miss = [pscustomobject]@{
+            found = $false
+            source = 'wiki-miss'
+        }
+        if (-not $NoCache) {
+            $Cache[$Uuid] = $miss
+        }
+        return $miss
+    }
+}
+
+function New-BlueprintCraftMap {
+    param(
+        [string[]]$Names,
+        [hashtable]$EnrichmentMap
+    )
+
+    $result = @{}
+    if ($NoCraftIntel -or $NoWikiEnrichment) {
+        return $result
+    }
+
+    $cache = if ($NoCache) { @{} } else { Read-JsonHashtable -Path $BlueprintCachePath }
+    $craftableNames = @(
+        $Names |
+            Where-Object {
+                $EnrichmentMap.ContainsKey($_) -and
+                -not [string]::IsNullOrWhiteSpace([string]$EnrichmentMap[$_].blueprintUuid)
+            } |
+            Sort-Object -Unique
+    )
+
+    if ($craftableNames.Count -gt 0) {
+        Write-Host "Querying Star Citizen Wiki API for $($craftableNames.Count) blueprint recipes..."
+    }
+
+    foreach ($name in $craftableNames) {
+        $info = $EnrichmentMap[$name]
+        $blueprint = $null
+        $blueprintUuids = @(
+            ([string]$info.blueprintUuid -split '\s+') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                Sort-Object -Unique
+        )
+        foreach ($blueprintUuid in $blueprintUuids) {
+            $candidate = Get-WikiBlueprintByUuid -Uuid $blueprintUuid -Cache $cache
+            if ($candidate.found -and @($candidate.ingredients).Count -gt 0) {
+                $blueprint = $candidate
+                break
+            }
+        }
+
+        if ($blueprint.found -and @($blueprint.ingredients).Count -gt 0) {
+            $result[$name] = [pscustomobject]@{
+                name = $name
+                category = if ($info.category) { [string]$info.category } else { 'Не распознано' }
+                type = $info.type
+                slot = $info.slot
+                size = $info.size
+                grade = $info.grade
+                class = $info.class
+                craftTime = $blueprint.craftTime
+                ingredients = @($blueprint.ingredients)
+            }
+        }
+    }
+
+    if (-not $NoCache) {
+        Write-JsonHashtable -Path $BlueprintCachePath -Value $cache
+    }
+
+    return $result
+}
+
+function Normalize-ResourceName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $null
+    }
+
+    $clean = (($Name -replace '\\n', ' ') -replace '\s*\([^)]*\)\s*$', '').Trim()
+    $aliases = @{
+        'Alumium' = 'Aluminum'
+        'Aluminium' = 'Aluminum'
+        'Hephasestanite' = 'Hephaestanite'
+        'Hephestanite' = 'Hephaestanite'
+        'Beryls' = 'Beryl'
+        'Beradom' = 'Beradon'
+        'Borэйс' = 'Borase'
+        'Борэйс' = 'Borase'
+    }
+
+    if ($aliases.ContainsKey($clean)) {
+        return $aliases[$clean]
+    }
+
+    return $clean
+}
+
+function Get-MethodLabel {
+    param([string]$Method)
+
+    if ($Method -eq 'К') { return 'корабль' }
+    if ($Method -eq 'Т') { return 'наземная техника' }
+    if ($Method -eq 'М') { return 'мультитул' }
+    return 'неизвестно'
+}
+
+function Get-ResourceMethodsFromDescription {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    $result = @{}
+    $method = $null
+    foreach ($part in ($Value -split '\\n')) {
+        $line = $part.Trim()
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        if ($line -match 'Потенциально добываемые ресурсы\s*\(корабль\)') {
+            $method = 'К'
+            continue
+        }
+        if ($line -match 'Потенциально добываемые ресурсы\s*\(наземная техника\)') {
+            $method = 'Т'
+            continue
+        }
+        if ($line -match 'Потенциально добываемые ресурсы\s*\(ручная добыча\)') {
+            $method = 'М'
+            continue
+        }
+        if ($line -match '^Потенциально ') {
+            $method = $null
+            continue
+        }
+
+        if (-not $method) {
+            continue
+        }
+
+        $resource = Normalize-ResourceName -Name $line
+        if ([string]::IsNullOrWhiteSpace($resource)) {
+            continue
+        }
+
+        if (-not $result.ContainsKey($resource)) {
+            $result[$resource] = @{}
+        }
+        $result[$resource][$method] = $true
+    }
+
+    return $result
+}
+
+function New-LineValueMap {
+    param([string[]]$Lines)
+
+    $map = @{}
+    foreach ($line in $Lines) {
+        $separator = $line.IndexOf('=')
+        if ($separator -le 0) {
+            continue
+        }
+
+        $key = Get-NormalizedIniKey -LineKey ($line.Substring(0, $separator))
+        if (-not $map.ContainsKey($key)) {
+            $map[$key] = $line.Substring($separator + 1)
+        }
+    }
+
+    return $map
+}
+
+function Get-DescriptionBaseKey {
+    param([string]$Key)
+
+    return ($Key -replace '(?i)_desc$', '' -replace '(?i)_description$', '')
+}
+
+function Get-LocationDisplayName {
+    param(
+        [string]$DescriptionKey,
+        [hashtable]$LineValues
+    )
+
+    $baseKey = Get-DescriptionBaseKey -Key $DescriptionKey
+    if ($LineValues.ContainsKey($baseKey)) {
+        return [string]$LineValues[$baseKey]
+    }
+
+    return $baseKey
+}
+
+function New-ResourceLocationMap {
+    param(
+        [string[]]$Lines,
+        [hashtable]$LineValues
+    )
+
+    $map = @{}
+    foreach ($line in $Lines) {
+        $separator = $line.IndexOf('=')
+        if ($separator -le 0) {
+            continue
+        }
+
+        $rawKey = $line.Substring(0, $separator)
+        $key = Get-NormalizedIniKey -LineKey $rawKey
+        if ($key -notmatch '(?i)_desc$') {
+            continue
+        }
+
+        $value = $line.Substring($separator + 1)
+        if ($value -notmatch 'Потенциально добываемые ресурсы') {
+            continue
+        }
+
+        $location = (Format-DisplayName -Name (Get-LocationDisplayName -DescriptionKey $key -LineValues $LineValues)).Trim()
+        $resources = Get-ResourceMethodsFromDescription -Value $value
+        foreach ($resource in $resources.Keys) {
+            if (-not $map.ContainsKey($resource)) {
+                $map[$resource] = @{
+                    'К' = @{}
+                    'Т' = @{}
+                    'М' = @{}
+                }
+            }
+
+            foreach ($method in $resources[$resource].Keys) {
+                $map[$resource][$method][$location] = $true
+            }
+        }
+    }
+
+    return $map
+}
+
+function New-ResourceRecipeMap {
+    param([hashtable]$BlueprintCraftMap)
+
+    $map = @{}
+    foreach ($entry in $BlueprintCraftMap.GetEnumerator()) {
+        $recipeName = [string]$entry.Key
+        foreach ($ingredient in @($entry.Value.ingredients)) {
+            $resource = Normalize-ResourceName -Name ([string]$ingredient.name)
+            if ([string]::IsNullOrWhiteSpace($resource)) {
+                continue
+            }
+
+            if (-not $map.ContainsKey($resource)) {
+                $map[$resource] = @{}
+            }
+            $map[$resource][$recipeName] = $true
+        }
+    }
+
+    return $map
+}
+
+function Format-LocationHint {
+    param(
+        [string]$Resource,
+        [hashtable]$ResourceLocationMap
+    )
+
+    $resource = Normalize-ResourceName -Name $Resource
+    if (-not $ResourceLocationMap.ContainsKey($resource)) {
+        return '[?] места см. в справочнике добычи'
+    }
+
+    $parts = New-Object System.Collections.Generic.List[string]
+    foreach ($method in @('К', 'Т', 'М')) {
+        $locations = @($ResourceLocationMap[$resource][$method].Keys | Sort-Object)
+        if ($locations.Count -eq 0) {
+            continue
+        }
+
+        $shown = @($locations | Select-Object -First 5)
+        $suffix = if ($locations.Count -gt 5) { ' +' + ($locations.Count - 5) } else { '' }
+        $parts.Add("[$method] " + ($shown -join ', ') + $suffix)
+    }
+
+    if ($parts.Count -eq 0) {
+        return '[?] места см. в справочнике добычи'
+    }
+
+    return ($parts -join '; ')
+}
+
+function Format-RecipeHeader {
+    param(
+        [string]$Name,
+        $CraftInfo
+    )
+
+    $details = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace([string]$CraftInfo.type)) {
+        $details.Add((ConvertTo-RussianItemType -Value ([string]$CraftInfo.type)))
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$CraftInfo.slot)) {
+        $details.Add([string]$CraftInfo.slot)
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$CraftInfo.size)) {
+        $details.Add("S$($CraftInfo.size)")
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$CraftInfo.grade)) {
+        $details.Add("Grade $($CraftInfo.grade)")
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$CraftInfo.class)) {
+        $details.Add([string]$CraftInfo.class)
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$CraftInfo.craftTime)) {
+        $details.Add([string]$CraftInfo.craftTime)
+    }
+
+    if ($details.Count -eq 0) {
+        return (Format-DisplayName -Name $Name)
+    }
+
+    return (Format-DisplayName -Name $Name) + ' — ' + ($details -join ', ')
+}
+
+function Format-CraftGuide {
+    param(
+        [hashtable]$BlueprintCraftMap,
+        [hashtable]$ResourceLocationMap
+    )
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('КРАФТОВЫЙ СПРАВОЧНИК SCMDB')
+    $lines.Add('')
+    $lines.Add('Как читать: [К] корабль | [Т] наземная техника | [М] мультитул.')
+    $lines.Add('Количество ресурсов указано по данным Star Citizen Wiki API. Места добычи берутся из описаний планет и лун.')
+    $lines.Add('')
+
+    foreach ($category in $CategoryOrder) {
+        $recipes = @(
+            $BlueprintCraftMap.GetEnumerator() |
+                Where-Object { $_.Value.category -eq $category } |
+                Sort-Object Key
+        )
+        if ($recipes.Count -eq 0) {
+            continue
+        }
+
+        $lines.Add("<EM4>$category</EM4>")
+        foreach ($recipe in $recipes) {
+            $name = [string]$recipe.Key
+            $craftInfo = $recipe.Value
+            $lines.Add((Format-RecipeHeader -Name $name -CraftInfo $craftInfo))
+            foreach ($ingredient in @($craftInfo.ingredients)) {
+                $quantity = if ($ingredient.quantity) { ' ' + [string]$ingredient.quantity } else { '' }
+                $hint = Format-LocationHint -Resource ([string]$ingredient.name) -ResourceLocationMap $ResourceLocationMap
+                $lines.Add("- $($ingredient.name)$quantity — $hint")
+            }
+            $lines.Add('')
+        }
+    }
+
+    return ($lines -join '\n').TrimEnd()
+}
+
+function ConvertFrom-RomanNumeral {
+    param([string]$Value)
+
+    $roman = ([string]$Value).ToUpperInvariant()
+    if ([string]::IsNullOrWhiteSpace($roman) -or $roman -notmatch '^[IVXLCDM]+$') {
+        return $null
+    }
+
+    $map = @{
+        'I' = 1
+        'V' = 5
+        'X' = 10
+        'L' = 50
+        'C' = 100
+        'D' = 500
+        'M' = 1000
+    }
+    $total = 0
+    $previous = 0
+    for ($i = $roman.Length - 1; $i -ge 0; $i--) {
+        $current = $map[[string]$roman[$i]]
+        if ($current -lt $previous) {
+            $total -= $current
+        }
+        else {
+            $total += $current
+            $previous = $current
+        }
+    }
+
+    return $total
+}
+
+function Format-NumberSpan {
+    param([object[]]$Values)
+
+    $numbers = @($Values | ForEach-Object { [int]$_ } | Sort-Object -Unique)
+    if ($numbers.Count -eq 0) {
+        return $null
+    }
+
+    $isSequential = $numbers.Count -gt 2
+    if ($isSequential) {
+        for ($i = 1; $i -lt $numbers.Count; $i++) {
+            if ($numbers[$i] -ne ($numbers[$i - 1] + 1)) {
+                $isSequential = $false
+                break
+            }
+        }
+    }
+
+    if ($isSequential) {
+        return "$($numbers[0])-$($numbers[$numbers.Count - 1])"
+    }
+
+    return ($numbers -join '/')
+}
+
+function Format-RomanSpan {
+    param([string[]]$Values)
+
+    $items = @(
+        $Values |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            ForEach-Object {
+                [pscustomobject]@{
+                    label = $_.ToUpperInvariant()
+                    value = ConvertFrom-RomanNumeral -Value $_
+                }
+            } |
+            Where-Object { $null -ne $_.value } |
+            Sort-Object value -Unique
+    )
+
+    if ($items.Count -eq 0) {
+        return $null
+    }
+
+    $isSequential = $items.Count -gt 2
+    if ($isSequential) {
+        for ($i = 1; $i -lt $items.Count; $i++) {
+            if ($items[$i].value -ne ($items[$i - 1].value + 1)) {
+                $isSequential = $false
+                break
+            }
+        }
+    }
+
+    if ($isSequential) {
+        return "$($items[0].label)-$($items[$items.Count - 1].label)"
+    }
+
+    return (($items | ForEach-Object { $_.label }) -join '/')
+}
+
+function Get-PlanetRecipeFamily {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [string]$Category
+    )
+
+    $displayName = (Format-DisplayName -Name $Name).Trim()
+
+    if ($Category -eq 'Броня/одежда') {
+        $base = $displayName
+        $base = $base -replace '\s*\([^)]*\)', ''
+        $base = $base -replace '\b(Arms|Core|Helmet|Legs|Backpack)\b.*$', ''
+        $base = $base -replace '\b(Exploration Suit|Flight Suit|Undersuit|Suit)\b.*$', ''
+        $base = $base.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($base) -and $base -ne $displayName) {
+            return [pscustomobject]@{
+                key = "armor:$base"
+                label = $base
+                family = 'armor'
+                token = $null
+                original = $displayName
+            }
+        }
+    }
+
+    if ($displayName -match '^Attrition-(\d+)\s+Repeater$') {
+        return [pscustomobject]@{
+            key = 'weapon:Attrition Repeater'
+            label = 'Attrition Repeaters'
+            family = 'numbered'
+            token = [int]$Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^CF-(\d+)\s+.+\s+Repeater$') {
+        return [pscustomobject]@{
+            key = 'weapon:CF Repeater'
+            label = 'CF Repeaters'
+            family = 'number-list'
+            token = [int]$Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Deadbolt\s+([IVXLCDM]+)\s+Cannon$') {
+        return [pscustomobject]@{
+            key = 'weapon:Deadbolt Cannon'
+            label = 'Deadbolt Cannons'
+            family = 'roman'
+            token = $Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Lightstrike\s+([IVXLCDM]+)\s+Cannon$') {
+        return [pscustomobject]@{
+            key = 'weapon:Lightstrike Cannon'
+            label = 'Lightstrike Cannons'
+            family = 'roman'
+            token = $Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Omnisky\s+([IVXLCDM]+)\s+') {
+        return [pscustomobject]@{
+            key = 'weapon:Omnisky'
+            label = 'Omnisky'
+            family = 'roman'
+            token = $Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Sledge\s+([IVXLCDM]+)\s+Mass Driver Cannon$') {
+        return [pscustomobject]@{
+            key = 'weapon:Sledge Mass Driver Cannon'
+            label = 'Sledge Mass Driver Cannons'
+            family = 'roman'
+            token = $Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Singe\s+Cannon\s+\(S(\d+)\)$') {
+        return [pscustomobject]@{
+            key = 'weapon:Singe Cannon'
+            label = 'Singe Cannons'
+            family = 'size'
+            token = [int]$Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Suckerpunch(?:-(L|XL))?\s+Cannon$') {
+        $token = 1
+        if ($Matches[1] -eq 'L') {
+            $token = 2
+        }
+        elseif ($Matches[1] -eq 'XL') {
+            $token = 3
+        }
+        return [pscustomobject]@{
+            key = 'weapon:Suckerpunch Cannon'
+            label = 'Suckerpunch Cannons'
+            family = 'size'
+            token = $token
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^SW16BR(\d+)\s+[\"“”][^\"“”]+[\"“”]\s+Repeater$') {
+        return [pscustomobject]@{
+            key = 'weapon:SW16BR Repeater'
+            label = 'SW16BR Repeaters'
+            family = 'numbered'
+            token = [int]$Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Arbor\s+MH(2|V)\s+Mining Laser$') {
+        return [pscustomobject]@{
+            key = 'weapon:Arbor Mining Laser'
+            label = 'Arbor MH2/MHV Mining Lasers'
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Lancet\s+MH([12])\s+Mining Laser$') {
+        return [pscustomobject]@{
+            key = 'weapon:Lancet Mining Laser'
+            label = 'Lancet MH1/MH2 Mining Lasers'
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Tarantula\s+GT-870\s+Mark\s+(\d+)\s+Cannon$') {
+        return [pscustomobject]@{
+            key = 'weapon:Tarantula GT-870 Cannon'
+            label = 'Tarantula GT-870 Cannons Mk'
+            family = 'numbered'
+            token = [int]$Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^(\d+)-Series\s+(Longsword|Broadsword|Greatsword)\s+Cannon$') {
+        return [pscustomobject]@{
+            key = 'weapon:Sword Series Cannon'
+            label = 'Sword-series Cannons'
+            family = 'number-list'
+            token = [int]$Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^M(\d+)A\s+Cannon$') {
+        return [pscustomobject]@{
+            key = 'weapon:MA Cannon'
+            label = 'M-series Cannons'
+            family = 'suffix-list'
+            token = "$($Matches[1])A"
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^AD(\d+)B\s+Ballistic Gatling$') {
+        return [pscustomobject]@{
+            key = 'weapon:AD Ballistic Gatling'
+            label = 'AD Ballistic Gatlings'
+            family = 'suffix-list'
+            token = "$($Matches[1])B"
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^(.+?)-(\d+)\s+(Repeater|Scattergun|Cannon)$') {
+        $base = $Matches[1].Trim()
+        $kind = $Matches[3].Trim()
+        return [pscustomobject]@{
+            key = "weapon:$base $kind"
+            label = "$base ${kind}s"
+            family = 'numbered'
+            token = [int]$Matches[2]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^DR Model-XJ(\d+)\s+Repeater$') {
+        return [pscustomobject]@{
+            key = 'weapon:DR Model-XJ Repeater'
+            label = 'DR Model-XJ Repeaters'
+            family = 'numbered'
+            token = [int]$Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^FL-(\d+)\s+Cannon$') {
+        return [pscustomobject]@{
+            key = 'weapon:FL Cannon'
+            label = 'FL Cannons'
+            family = 'number-list'
+            token = [int]$Matches[1]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^(Hofstede|Klein)-S(\d+)\s+Mining Laser$') {
+        $base = $Matches[1]
+        return [pscustomobject]@{
+            key = "weapon:$base Mining Laser"
+            label = $base
+            family = 'mining-laser-list'
+            token = [int]$Matches[2]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^(Helix|Impact)\s+([IVXLCDM]+)\s+Mining Laser$') {
+        $base = $Matches[1]
+        return [pscustomobject]@{
+            key = "weapon:$base Mining Laser"
+            label = $base
+            family = 'mining-laser-list'
+            token = $Matches[2]
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^S0+\s+(Helix|Hofstede)$') {
+        $base = $Matches[1]
+        return [pscustomobject]@{
+            key = "weapon:$base Mining Laser"
+            label = $base
+            family = 'mining-laser-list'
+            token = ($displayName -replace "\s+$base$", '')
+            original = $displayName
+        }
+    }
+
+    if ($Category -eq 'Корабельные компоненты') {
+        if ($displayName -match '^([567])(CA|MA|SA)\s+''[^'']+''$') {
+            $series = $Matches[1]
+            return [pscustomobject]@{
+                key = "component:$series-series"
+                label = "${series}CA/${series}MA/${series}SA"
+                family = 'variant'
+                token = $null
+                original = $displayName
+            }
+        }
+
+        if ($displayName -match '^JS-\d+$') {
+            return [pscustomobject]@{
+                key = 'component:JS-series'
+                label = 'JS-300/400'
+                family = 'variant'
+                token = $null
+                original = $displayName
+            }
+        }
+
+        if ($displayName -match '^V801-\d+$') {
+            return [pscustomobject]@{
+                key = 'component:V801-series'
+                label = 'V801-11/12'
+                family = 'variant'
+                token = $null
+                original = $displayName
+            }
+        }
+
+        $componentVariantBases = @(
+            'BroadSpec',
+            'Cryo-Star',
+            'Frost-Star',
+            'FullForce',
+            'FullSpec',
+            'IonSurge',
+            'SparkJet',
+            'Surveyor',
+            'Winter-Star'
+        )
+
+        if ($componentVariantBases -contains $displayName) {
+            return [pscustomobject]@{
+                key = "component:$displayName"
+                label = "$displayName variants"
+                family = 'variant'
+                token = $null
+                original = $displayName
+            }
+        }
+
+        if ($displayName -match '^(.+?)(?:\s+(EX|SL|XL|Pro))$') {
+            $base = $Matches[1].Trim()
+            return [pscustomobject]@{
+                key = "component:$base"
+                label = "$base variants"
+                family = 'variant'
+                token = $null
+                original = $displayName
+            }
+        }
+
+        if ($displayName -match '^(.+?)-(Go|Max|Lite)$') {
+            $base = $Matches[1].Trim()
+            return [pscustomobject]@{
+                key = "component:$base"
+                label = "$base variants"
+                family = 'variant'
+                token = $null
+                original = $displayName
+            }
+        }
+    }
+
+    if ($displayName -match '^Pulse\s+(Laser\s+)?Pistol$') {
+        return [pscustomobject]@{
+            key = 'weapon:Pulse Pistol'
+            label = 'Pulse / Pulse Laser Pistol'
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^Pulse\s+"[^"]+"\s+Pistol$') {
+        return [pscustomobject]@{
+            key = 'weapon:Pulse Pistol'
+            label = 'Pulse / Pulse Laser Pistol'
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^(.+?)\s+"[^"]+"\s+(.+)$') {
+        $base = ($Matches[1] + ' ' + $Matches[2]).Trim()
+        return [pscustomobject]@{
+            key = "variant:$base"
+            label = "$base variants"
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    if ($Category -eq 'Оружие' -and $displayName -match '^(.+?)\s+(Energy Assault Rifle|Laser Sniper Rifle|Laser Shotgun|Sniper Rifle|Twin Shotgun|Energy LMG|Pistol|SMG|Rifle|Shotgun|Crossbow|LMG)$') {
+        return [pscustomobject]@{
+            key = "variant:$displayName"
+            label = "$displayName variants"
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^(Abrade|Cinch|Trawler)\s+Scraper Module$') {
+        return [pscustomobject]@{
+            key = 'equipment:Scraper Modules'
+            label = 'Abrade/Cinch/Trawler Scraper Modules'
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^(.+?)\s+Battery\s+\([^)]+\)$') {
+        $base = $Matches[1].Trim()
+        return [pscustomobject]@{
+            key = "battery:$base"
+            label = "$base batteries"
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    if ($displayName -match '^(.+?)\s+Magazine\s+\([^)]+\)$') {
+        $base = $Matches[1].Trim()
+        return [pscustomobject]@{
+            key = "magazine:$base"
+            label = "$base magazines"
+            family = 'variant'
+            token = $null
+            original = $displayName
+        }
+    }
+
+    return [pscustomobject]@{
+        key = "exact:$displayName"
+        label = $displayName
+        family = 'exact'
+        token = $null
+        original = $displayName
+    }
+}
+
+function Format-PlanetRecipeFamilyLabel {
+    param($Group)
+
+    if ($Group.names.Count -le 1 -or $Group.family -eq 'exact') {
+        return [string]$Group.names[0]
+    }
+
+    if ($Group.family -eq 'armor') {
+        return "$($Group.label) set"
+    }
+
+    if ($Group.family -eq 'numbered') {
+        $span = Format-NumberSpan -Values $Group.tokens
+        if ($span) {
+            return "$($Group.label) $span"
+        }
+    }
+
+    if ($Group.family -eq 'number-list') {
+        $span = Format-NumberSpan -Values $Group.tokens
+        if ($span) {
+            return "$($Group.label) $span"
+        }
+    }
+
+    if ($Group.family -eq 'roman') {
+        $span = Format-RomanSpan -Values $Group.tokens
+        if ($span) {
+            return "$($Group.label) $span"
+        }
+    }
+
+    if ($Group.family -eq 'size') {
+        $span = Format-NumberSpan -Values $Group.tokens
+        if ($span) {
+            if ($span -match '^(\d+)-(\d+)$') {
+                return "$($Group.label) S$($Matches[1])-S$($Matches[2])"
+            }
+            return "$($Group.label) S$span"
+        }
+    }
+
+    if ($Group.family -eq 'suffix-list') {
+        $tokens = @($Group.tokens | Sort-Object -Unique)
+        if ($tokens.Count -gt 0) {
+            return "$($Group.label) " + ($tokens -join '/')
+        }
+    }
+
+    if ($Group.family -eq 'mining-laser-list') {
+        $tokens = @(
+            $Group.tokens |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        )
+        if ($tokens.Count -gt 0) {
+            return "$($Group.label) " + ($tokens -join '/') + ' Mining Lasers'
+        }
+    }
+
+    return ([string]$Group.label) -replace '\s+variants$', ''
+}
+
+function Get-ShipComponentSubcategory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        $CraftInfo
+    )
+
+    $displayName = (Format-DisplayName -Name $Name).Trim()
+    $type = if ($CraftInfo -and $CraftInfo.type) { [string]$CraftInfo.type } else { '' }
+
+    if ($type -match 'щит' -or $displayName -match '(?i)\b(Shield|5CA|5MA|5SA|6CA|6MA|6SA|7CA|7MA|7SA|FR-|BLOC|GUARD|HAVEN|HEX|INK|PIN|RPEL|STOP|WEB|Palisade|Rampart|Umbra|Mirage|Veil)\b') {
+        return 'Щиты'
+    }
+
+    if ($type -match 'квантовый' -or $displayName -match '(?i)\b(Quantum|VK-00|XL-1|TS-2|Spectre|Spicule|Siren|Yeager|Zephyr|Colossus|Huracan|Bolt|Balandin|Agni)\b') {
+        return 'Квантовые двигатели'
+    }
+
+    if ($type -match 'силовая установка' -or $displayName -match '(?i)\b(Power|JS-|FullForce|IonSurge|SparkJet|DuraJet|DeltaMax|DynaFlux|ZapJet|Fulgur|Bolide|Eclipse|Slipstream)\b') {
+        return 'Силовые установки'
+    }
+
+    if ($type -match 'охладитель' -or $displayName -match '(?i)\b(Cooler|Cryo-Star|Frost-Star|Winter-Star|Cold|Frost|Glacier|Gelid|Avalanche|Permafrost|SnowBlind|WhiteOut|Tempest|Aufeis)\b') {
+        return 'Охладители'
+    }
+
+    if ($type -match 'радар' -or $displayName -match '(?i)\b(Radar|BroadSpec|FullSpec|Surveyor|V801|V880|V60|Tige|Sens|Vigilance)\b') {
+        return 'Радары'
+    }
+
+    if ($type -match 'топливная форсунка' -or $displayName -match '(?i)\b(Fuel Nozzle)\b') {
+        return 'Топливные форсунки'
+    }
+
+    return 'Прочее'
+}
+
+function Get-ShipComponentSubcategoryRank {
+    param([string]$Subcategory)
+
+    $index = [array]::IndexOf($ShipComponentSubcategoryOrder, $Subcategory)
+    if ($index -lt 0) {
+        return 999
+    }
+
+    return $index
+}
+
+function Get-ArmorSubcategory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        $CraftInfo
+    )
+
+    $displayName = (Format-DisplayName -Name $Name).Trim()
+    $type = if ($CraftInfo -and $CraftInfo.type) { [string]$CraftInfo.type } else { '' }
+
+    if ($type -match 'тяж') {
+        return 'Тяжёлая броня'
+    }
+
+    if ($type -match 'сред') {
+        return 'Средняя броня'
+    }
+
+    if ($type -match 'л[её]г') {
+        return 'Лёгкая броня'
+    }
+
+    if ($type -match 'нижний костюм|Undersuit' -or $displayName -match '(?i)\b(Undersuit|Flight Suit|Racing|Novikov|Pembroke|Stirling|Testudo|Tailwind|BlackFire|BlueFlame|WhiteHot)\b') {
+        return 'Андерсьюты/костюмы'
+    }
+
+    return 'Прочее'
+}
+
+function Get-ArmorSubcategoryRank {
+    param([string]$Subcategory)
+
+    $index = [array]::IndexOf($ArmorSubcategoryOrder, $Subcategory)
+    if ($index -lt 0) {
+        return 999
+    }
+
+    return $index
+}
+
+function Get-FpsWeaponSubcategory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        $CraftInfo
+    )
+
+    $displayName = (Format-DisplayName -Name $Name).Trim()
+    $type = if ($CraftInfo -and $CraftInfo.type) { [string]$CraftInfo.type } else { '' }
+
+    if ($type -match 'снайпер' -or $displayName -match '(?i)\b(Sniper Rifle|Arrowhead|Atzkav|Scalpel|Zenith|P6-LR|A03)\b') {
+        return 'Снайперские винтовки'
+    }
+
+    if ($type -match 'винтовка' -or $displayName -match '(?i)\b(Rifle|Energy Assault Rifle|Gallant|Karna|Killshot|P8-AR|Parallax|S71)\b') {
+        return 'Винтовки'
+    }
+
+    if ($type -match 'пистолет-пулем' -or $displayName -match '(?i)\b(SMG|C54|Custodian|Lumin|P8-SC|Quartz|Ripper)\b') {
+        return 'Пистолеты-пулемёты'
+    }
+
+    if ($type -match 'пистолет' -or $displayName -match '(?i)\b(Pistol|Arclight|Coda|LH86|Pulse|Tripledown|Yubarev)\b') {
+        return 'Пистолеты'
+    }
+
+    if ($type -match 'дробовик' -or $displayName -match '(?i)\b(Shotgun|BR-2|Deadrig|Devastator|Prism|R97|Ravager)\b') {
+        return 'Дробовики'
+    }
+
+    if ($type -match 'пулем' -or $displayName -match '(?i)\b(LMG|F55|Fresnel|FS-9|Pulverizer)\b') {
+        return 'Пулемёты'
+    }
+
+    if ($type -match 'Crossbow|арбалет' -or $displayName -match '(?i)\b(Crossbow|Novian)\b') {
+        return 'Арбалеты'
+    }
+
+    return 'Прочее'
+}
+
+function Get-FpsWeaponSubcategoryRank {
+    param([string]$Subcategory)
+
+    $index = [array]::IndexOf($FpsWeaponSubcategoryOrder, $Subcategory)
+    if ($index -lt 0) {
+        return 999
+    }
+
+    return $index
+}
+
+function Get-ShipWeaponSubcategory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        $CraftInfo
+    )
+
+    $displayName = (Format-DisplayName -Name $Name).Trim()
+    $type = if ($CraftInfo -and $CraftInfo.type) { [string]$CraftInfo.type } else { '' }
+
+    if ($type -match 'добывающий лазер|Mining Laser' -or $displayName -match '(?i)\b(Mining Laser|Helix|Hofstede|Klein|Lancet|Arbor|Pitman|Lawson|S0 Helix|S00 Hofstede)\b') {
+        return 'Добывающие лазеры'
+    }
+
+    if ($type -match 'Mass Driver' -or $displayName -match '(?i)\b(Mass Driver|Sledge|Strife)\b') {
+        return 'Гибрид'
+    }
+
+    if ($type -match 'баллист' -or $type -match 'Ballistic' -or $displayName -match '(?i)\b(Deadbolt|Tarantula|C-788|Greatsword|Broadsword|Longsword|AD[456]B|Draugar|Mantis|Revenant|Scorpion|Tigerstrike|YellowJacket|SW16BR)\b') {
+        return 'Баллистика'
+    }
+
+    if ($type -match 'лазер|нейтрон|тахион|дисторсион|разброс' -or $type -match 'Laser|Neutron|Tachyon|Distortion|Scattergun' -or $displayName -match '(?i)\b(Attrition|CF-|FL-|Lightstrike|M[3-8]A|Omnisky|Quarreler|DR Model|Suckerpunch|Dominance|Havoc|Hellion|Predator|NN-|Singe)\b') {
+        return 'Энергетика'
+    }
+
+    return 'Прочее'
+}
+
+function Get-ShipWeaponSubcategoryRank {
+    param([string]$Subcategory)
+
+    $index = [array]::IndexOf($ShipWeaponSubcategoryOrder, $Subcategory)
+    if ($index -lt 0) {
+        return 999
+    }
+
+    return $index
+}
+
+function Get-BlueprintSubcategory {
+    param(
+        [string]$Category,
+        [string]$Name,
+        $CraftInfo
+    )
+
+    if ($Category -eq 'Корабельные компоненты') {
+        return Get-ShipComponentSubcategory -Name $Name -CraftInfo $CraftInfo
+    }
+
+    if ($Category -eq 'Корабельные орудия') {
+        return Get-ShipWeaponSubcategory -Name $Name -CraftInfo $CraftInfo
+    }
+
+    if ($Category -eq 'Броня/одежда') {
+        return Get-ArmorSubcategory -Name $Name -CraftInfo $CraftInfo
+    }
+
+    if ($Category -eq 'Оружие') {
+        return Get-FpsWeaponSubcategory -Name $Name -CraftInfo $CraftInfo
+    }
+
+    return $null
+}
+
+function Get-BlueprintSubcategoryRank {
+    param(
+        [string]$Category,
+        [string]$Subcategory
+    )
+
+    if ($Category -eq 'Корабельные компоненты') {
+        return Get-ShipComponentSubcategoryRank -Subcategory $Subcategory
+    }
+
+    if ($Category -eq 'Корабельные орудия') {
+        return Get-ShipWeaponSubcategoryRank -Subcategory $Subcategory
+    }
+
+    if ($Category -eq 'Броня/одежда') {
+        return Get-ArmorSubcategoryRank -Subcategory $Subcategory
+    }
+
+    if ($Category -eq 'Оружие') {
+        return Get-FpsWeaponSubcategoryRank -Subcategory $Subcategory
+    }
+
+    return 999
+}
+
+function Test-UseBlueprintSubcategories {
+    param([string]$Category)
+
+    return $Category -in @('Корабельные компоненты', 'Корабельные орудия', 'Броня/одежда', 'Оружие')
+}
+
+function Test-IncludePlanetRecipe {
+    param(
+        [string]$Name,
+        [string]$Category,
+        $CraftInfo
+    )
+
+    if ($Category -eq 'Снаряжение/расходники') {
+        return $false
+    }
+
+    if ($Category -eq 'Оружие') {
+        $fpsWeaponSubcategory = Get-FpsWeaponSubcategory -Name $Name -CraftInfo $CraftInfo
+        return $fpsWeaponSubcategory -notin @('Пистолеты', 'Дробовики')
+    }
+
+    if ($Category -ne 'Корабельные компоненты') {
+        return $true
+    }
+
+    $componentClass = ([string]$CraftInfo.class).Trim()
+    return ([string]$CraftInfo.grade) -eq 'A' -and $componentClass -in @('Military', 'Stealth')
+}
+
+function Format-PlanetCraftBlock {
+    param(
+        [hashtable]$ResourceMethods,
+        [hashtable]$BlueprintCraftMap
+    )
+
+    $lines = New-Object System.Collections.Generic.List[string]
+
+    foreach ($category in $CategoryOrder) {
+        $groupMap = @{}
+        $recipes = @(
+            $BlueprintCraftMap.GetEnumerator() |
+                Where-Object { $_.Value.category -eq $category } |
+                Sort-Object Key
+        )
+
+        foreach ($recipe in $recipes) {
+            if (-not (Test-IncludePlanetRecipe -Name ([string]$recipe.Key) -Category $category -CraftInfo $recipe.Value)) {
+                continue
+            }
+
+            $methodResources = @{
+                'К' = @{}
+                'Т' = @{}
+                'М' = @{}
+            }
+
+            foreach ($ingredient in @($recipe.Value.ingredients)) {
+                $resource = Normalize-ResourceName -Name ([string]$ingredient.name)
+                if ([string]::IsNullOrWhiteSpace($resource) -or -not $ResourceMethods.ContainsKey($resource)) {
+                    continue
+                }
+
+                foreach ($method in @('К', 'Т', 'М')) {
+                    if ($ResourceMethods[$resource].ContainsKey($method)) {
+                        $methodResources[$method][$resource] = $true
+                    }
+                }
+            }
+
+            $parts = New-Object System.Collections.Generic.List[string]
+            foreach ($method in @('К', 'Т', 'М')) {
+                $resources = @($methodResources[$method].Keys | Sort-Object)
+                if ($resources.Count -gt 0) {
+                    $methodLabel = if ($method -eq 'К') { Format-ShipMiningMethodLabel } else { "[$method]" }
+                    $parts.Add("$methodLabel " + ($resources -join ', '))
+                }
+            }
+
+            if ($parts.Count -gt 0) {
+                $family = Get-PlanetRecipeFamily -Name ([string]$recipe.Key) -Category $category
+                $recipeDisplayName = (Format-DisplayName -Name ([string]$recipe.Key)).Trim()
+                if ($recipeDisplayName -match '^Pulse\s+(Laser\s+)?Pistol$') {
+                    $family = [pscustomobject]@{
+                        key = 'weapon:Pulse Pistol'
+                        label = 'Pulse / Pulse Laser Pistol'
+                        family = 'variant'
+                        token = $null
+                        original = $recipeDisplayName
+                    }
+                }
+
+                $resourceText = $parts -join ' | '
+                $groupKey = "$($family.key)|$resourceText"
+                if (-not $groupMap.ContainsKey($groupKey)) {
+                    $groupMap[$groupKey] = [pscustomobject]@{
+                        label = $family.label
+                        family = $family.family
+                        armorSubcategory = if ($category -eq 'Броня/одежда') { Get-ArmorSubcategory -Name ([string]$recipe.Key) -CraftInfo $recipe.Value } else { $null }
+                        fpsWeaponSubcategory = if ($category -eq 'Оружие') { Get-FpsWeaponSubcategory -Name ([string]$recipe.Key) -CraftInfo $recipe.Value } else { $null }
+                        subcategory = if ($category -eq 'Корабельные компоненты') { Get-ShipComponentSubcategory -Name ([string]$recipe.Key) -CraftInfo $recipe.Value } else { $null }
+                        weaponSubcategory = if ($category -eq 'Корабельные орудия') { Get-ShipWeaponSubcategory -Name ([string]$recipe.Key) -CraftInfo $recipe.Value } else { $null }
+                        resourceText = $resourceText
+                        names = New-Object System.Collections.Generic.List[string]
+                        tokens = New-Object System.Collections.Generic.List[object]
+                    }
+                }
+
+                $groupMap[$groupKey].names.Add([string]$family.original)
+                if ($null -ne $family.token) {
+                    $groupMap[$groupKey].tokens.Add($family.token)
+                }
+            }
+        }
+
+        if ($groupMap.Count -gt 0) {
+            $lines.Add("<EM4>$category</EM4>")
+            if ($category -eq 'Корабельные компоненты') {
+                $subgroups = @(
+                    $groupMap.Values |
+                        Group-Object -Property subcategory |
+                        Sort-Object { Get-ShipComponentSubcategoryRank -Subcategory ([string]$_.Name) }, Name
+                )
+
+                foreach ($subgroup in $subgroups) {
+                    $subcategory = if ([string]::IsNullOrWhiteSpace([string]$subgroup.Name)) { 'Прочее' } else { [string]$subgroup.Name }
+                    $lines.Add((Format-SubcategoryLabel -Label "${subcategory}:"))
+                    $groups = @($subgroup.Group | Sort-Object { Format-PlanetRecipeFamilyLabel -Group $_ })
+                    foreach ($group in $groups) {
+                        $label = Format-PlanetRecipeFamilyLabel -Group $group
+                        $lines.Add("- ${label}: $($group.resourceText)")
+                    }
+                }
+            }
+            elseif ($category -eq 'Корабельные орудия') {
+                $subgroups = @(
+                    $groupMap.Values |
+                        Group-Object -Property weaponSubcategory |
+                        Sort-Object { Get-ShipWeaponSubcategoryRank -Subcategory ([string]$_.Name) }, Name
+                )
+
+                foreach ($subgroup in $subgroups) {
+                    $subcategory = if ([string]::IsNullOrWhiteSpace([string]$subgroup.Name)) { 'Прочее' } else { [string]$subgroup.Name }
+                    $lines.Add((Format-SubcategoryLabel -Label "${subcategory}:"))
+                    $groups = @($subgroup.Group | Sort-Object { Format-PlanetRecipeFamilyLabel -Group $_ })
+                    foreach ($group in $groups) {
+                        $label = Format-PlanetRecipeFamilyLabel -Group $group
+                        $lines.Add("- ${label}: $($group.resourceText)")
+                    }
+                }
+            }
+            elseif ($category -eq 'Броня/одежда') {
+                $subgroups = @(
+                    $groupMap.Values |
+                        Group-Object -Property armorSubcategory |
+                        Sort-Object { Get-ArmorSubcategoryRank -Subcategory ([string]$_.Name) }, Name
+                )
+
+                foreach ($subgroup in $subgroups) {
+                    $subcategory = if ([string]::IsNullOrWhiteSpace([string]$subgroup.Name)) { 'Прочее' } else { [string]$subgroup.Name }
+                    $lines.Add((Format-SubcategoryLabel -Label "${subcategory}:"))
+                    $groups = @($subgroup.Group | Sort-Object { Format-PlanetRecipeFamilyLabel -Group $_ })
+                    foreach ($group in $groups) {
+                        $label = Format-PlanetRecipeFamilyLabel -Group $group
+                        $lines.Add("- ${label}: $($group.resourceText)")
+                    }
+                }
+            }
+            elseif ($category -eq 'Оружие') {
+                $subgroups = @(
+                    $groupMap.Values |
+                        Group-Object -Property fpsWeaponSubcategory |
+                        Sort-Object { Get-FpsWeaponSubcategoryRank -Subcategory ([string]$_.Name) }, Name
+                )
+
+                foreach ($subgroup in $subgroups) {
+                    $subcategory = if ([string]::IsNullOrWhiteSpace([string]$subgroup.Name)) { 'Прочее' } else { [string]$subgroup.Name }
+                    $lines.Add((Format-SubcategoryLabel -Label "${subcategory}:"))
+                    $groups = @($subgroup.Group | Sort-Object { Format-PlanetRecipeFamilyLabel -Group $_ })
+                    foreach ($group in $groups) {
+                        $label = Format-PlanetRecipeFamilyLabel -Group $group
+                        $lines.Add("- ${label}: $($group.resourceText)")
+                    }
+                }
+            }
+            else {
+                $groups = @($groupMap.Values | Sort-Object { Format-PlanetRecipeFamilyLabel -Group $_ })
+                foreach ($group in $groups) {
+                    $label = Format-PlanetRecipeFamilyLabel -Group $group
+                    $lines.Add("- ${label}: $($group.resourceText)")
+                }
+            }
+            $lines.Add('')
+        }
+    }
+
+    if ($lines.Count -eq 0) {
+        return $null
+    }
+
+    $block = New-Object System.Collections.Generic.List[string]
+    $block.Add('<EM4>Крафт-подсказка (SCMDB)</EM4>')
+    $block.Add('Показаны рецепты, для которых здесь добывается хотя бы один ресурс.')
+    $block.Add('Это не полный рецепт — только ресурсы этой локации.')
+    $shipMiningLabel = Format-ShipMiningMethodLabel
+    $block.Add("Легенда: $shipMiningLabel корабль, [Т] наземная техника, [М] мультитул.")
+    $block.Add('Фильтры: компоненты только Grade A Military/Stealth; FPS-оружие без пистолетов и дробовиков.')
+    foreach ($line in $lines) {
+        $block.Add($line)
+    }
+
+    return ($block -join '\n').TrimEnd()
+}
+
 function Format-BlueprintLine {
-    param([Parameter(Mandatory = $true)][string]$Name)
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [switch]$OmitType
+    )
 
     $info = $script:BlueprintEnrichment[$Name]
     if ($null -eq $info -or -not $info.found) {
@@ -772,7 +2318,7 @@ function Format-BlueprintLine {
     }
 
     $details = New-Object System.Collections.Generic.List[string]
-    if (-not [string]::IsNullOrWhiteSpace($info.type)) {
+    if (-not $OmitType -and -not [string]::IsNullOrWhiteSpace($info.type)) {
         $details.Add((ConvertTo-RussianItemType -Value ([string]$info.type)))
     }
     if (-not [string]::IsNullOrWhiteSpace($info.slot)) {
@@ -847,9 +2393,33 @@ function Format-RewardBlock {
         }
 
         $blockLines.Add('')
-        $blockLines.Add("${category}:")
-        foreach ($name in ($groups[$category] | Sort-Object)) {
-            $blockLines.Add((Format-BlueprintLine -Name $name))
+        $blockLines.Add("<EM4>$category</EM4>")
+        if (Test-UseBlueprintSubcategories -Category $category) {
+            $subcategoryGroups = @{}
+            foreach ($name in ($groups[$category] | Sort-Object)) {
+                $info = $script:BlueprintEnrichment[$name]
+                $subcategory = Get-BlueprintSubcategory -Category $category -Name $name -CraftInfo $info
+                if ([string]::IsNullOrWhiteSpace($subcategory)) {
+                    $subcategory = 'Прочее'
+                }
+                if (-not $subcategoryGroups.ContainsKey($subcategory)) {
+                    $subcategoryGroups[$subcategory] = New-Object System.Collections.Generic.List[string]
+                }
+                $subcategoryGroups[$subcategory].Add($name)
+            }
+
+            foreach ($subcategory in ($subcategoryGroups.Keys | Sort-Object { Get-BlueprintSubcategoryRank -Category $category -Subcategory $_ }, { $_ })) {
+                $blockLines.Add((Format-SubcategoryLabel -Label "${subcategory}:"))
+                $omitType = $category -in @('Корабельные компоненты', 'Броня/одежда', 'Оружие')
+                foreach ($name in ($subcategoryGroups[$subcategory] | Sort-Object)) {
+                    $blockLines.Add((Format-BlueprintLine -Name $name -OmitType:$omitType))
+                }
+            }
+        }
+        else {
+            foreach ($name in ($groups[$category] | Sort-Object)) {
+                $blockLines.Add((Format-BlueprintLine -Name $name))
+            }
         }
     }
 
@@ -933,14 +2503,22 @@ $script:BlueprintEnrichment = New-EnrichmentMap -Names $uniqueBlueprintNames
 $enrichmentStats = Get-EnrichmentStats -Map $script:BlueprintEnrichment
 
 $lines = [System.IO.File]::ReadAllLines($globalPath, $encodingInfo.Encoding)
+$lineValues = New-LineValueMap -Lines $lines
+$resourceLocationMap = New-ResourceLocationMap -Lines $lines -LineValues $lineValues
+$blueprintCraftMap = New-BlueprintCraftMap -Names $uniqueBlueprintNames -EnrichmentMap $script:BlueprintEnrichment
+
 $changedLines = 0
 $changedDescriptionLines = 0
 $changedTitleLines = 0
+$changedPlanetDescriptionLines = 0
+$changedCraftGuideLines = 0
 $cleanedExistingBlocks = 0
+$cleanedExistingCraftIntelBlocks = 0
 $missingDescriptionKeys = New-Object System.Collections.Generic.List[string]
 $missingTitleKeys = New-Object System.Collections.Generic.List[string]
 $modifiedDescriptionKeys = New-Object System.Collections.Generic.List[string]
 $modifiedTitleKeys = New-Object System.Collections.Generic.List[string]
+$modifiedPlanetKeys = New-Object System.Collections.Generic.List[string]
 $conflictKeys = New-Object System.Collections.Generic.List[string]
 $seenDescriptionKeys = @{}
 $seenTitleKeys = @{}
@@ -955,6 +2533,28 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
     $rawKey = $line.Substring(0, $separator)
     $key = Get-NormalizedIniKey -LineKey $rawKey
     $currentValue = $line.Substring($separator + 1)
+
+    if (-not $NoCraftIntel) {
+        if ($key -match '(?i)_desc$' -and $currentValue -match 'Потенциально добываемые ресурсы') {
+            $cleanCraftValue = Remove-CraftIntelBlock -Value $currentValue
+            if ($cleanCraftValue -ne $currentValue) {
+                $cleanedExistingCraftIntelBlocks++
+            }
+
+            $resourceMethods = Get-ResourceMethodsFromDescription -Value $cleanCraftValue
+            $craftBlock = Format-PlanetCraftBlock -ResourceMethods $resourceMethods -BlueprintCraftMap $blueprintCraftMap
+            if (-not [string]::IsNullOrWhiteSpace($craftBlock)) {
+                $newValue = $cleanCraftValue + '\n\n' + $craftBlock
+                if ($newValue -ne $currentValue) {
+                    $lines[$i] = $rawKey + '=' + $newValue
+                    $changedLines++
+                    $changedPlanetDescriptionLines++
+                    $modifiedPlanetKeys.Add($key)
+                    $currentValue = $newValue
+                }
+            }
+        }
+    }
 
     if ($descriptionRewardMap.ContainsKey($key)) {
         $seenDescriptionKeys[$key] = $true
@@ -1027,6 +2627,9 @@ $report = [pscustomobject]@{
     scmdbContracts = $rewardInfo.TotalContracts
     scmdbRewardContracts = $rewardInfo.RewardContracts
     uniqueBlueprintNames = $uniqueBlueprintNames.Count
+    craftIntelEnabled = -not [bool]$NoCraftIntel
+    blueprintRecipesMatched = $blueprintCraftMap.Keys.Count
+    resourceLocationEntries = $resourceLocationMap.Keys.Count
     titleMarker = $TitleMarker
     scmdbRewardDescriptionKeys = $descriptionRewardMap.Keys.Count
     scmdbRewardTitleKeys = $titleRewardMap.Keys.Count
@@ -1035,7 +2638,10 @@ $report = [pscustomobject]@{
     changedLines = $changedLines
     changedDescriptionLines = $changedDescriptionLines
     changedTitleLines = $changedTitleLines
+    changedPlanetDescriptionLines = $changedPlanetDescriptionLines
+    changedCraftGuideLines = $changedCraftGuideLines
     cleanedExistingBlocks = $cleanedExistingBlocks
+    cleanedExistingCraftIntelBlocks = $cleanedExistingCraftIntelBlocks
     conflictingSharedDescriptionKeys = $conflictKeys.Count
     missingDescriptionKeys = $missingDescriptionKeys.Count
     missingTitleKeys = $missingTitleKeys.Count
@@ -1045,6 +2651,7 @@ $report = [pscustomobject]@{
     unknownBlueprints = $enrichmentStats.unknownBlueprints
     modifiedDescriptionKeysSample = @($modifiedDescriptionKeys | Select-Object -First 20)
     modifiedTitleKeysSample = @($modifiedTitleKeys | Select-Object -First 20)
+    modifiedPlanetKeysSample = @($modifiedPlanetKeys | Select-Object -First 20)
     conflictKeysSample = @($conflictKeys | Select-Object -First 20)
     missingDescriptionKeysSample = @($missingDescriptionKeys | Select-Object -First 20)
     missingTitleKeysSample = @($missingTitleKeys | Select-Object -First 20)
@@ -1061,6 +2668,7 @@ if ($changedLines -eq 0) {
     Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
+    Write-Host "Blueprint recipes: $($blueprintCraftMap.Keys.Count)"
     Write-Host "Report: $ReportPath"
     exit 0
 }
@@ -1073,6 +2681,7 @@ if ($DryRun) {
     Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
+    Write-Host "Blueprint recipes: $($blueprintCraftMap.Keys.Count)"
     Write-Host "Report: $ReportPath"
     exit 0
 }
@@ -1096,5 +2705,6 @@ Write-Host "Wiki matched: $($enrichmentStats.wikiMatched)"
 Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
 Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
 Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
+Write-Host "Blueprint recipes: $($blueprintCraftMap.Keys.Count)"
 Write-Host "New SHA256: $newHash"
 Write-Host "Report: $ReportPath"

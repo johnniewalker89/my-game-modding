@@ -10,5 +10,45 @@
   "Metamaterial Test #146": {
     "category": "Материалы/особое",
     "type": "метаматериал Wikelo"
+  },
+  "Bendix": {
+    "category": "Корабельные компоненты",
+    "type": "топливная форсунка",
+    "manufacturer": "Shubin Interstellar"
+  },
+  "Ezra": {
+    "category": "Корабельные компоненты",
+    "type": "топливная форсунка",
+    "manufacturer": "Shubin Interstellar"
+  },
+  "Harkin": {
+    "category": "Корабельные компоненты",
+    "type": "топливная форсунка",
+    "manufacturer": "Greycat Industrial"
+  },
+  "Lindstrom": {
+    "category": "Корабельные компоненты",
+    "type": "топливная форсунка",
+    "manufacturer": "Greycat Industrial"
+  },
+  "Marlin": {
+    "category": "Корабельные компоненты",
+    "type": "топливная форсунка",
+    "manufacturer": "Greycat Industrial"
+  },
+  "Norfield": {
+    "category": "Корабельные компоненты",
+    "type": "топливная форсунка",
+    "manufacturer": "Greycat Industrial"
+  },
+  "RN-7s": {
+    "category": "Корабельные компоненты",
+    "type": "топливная форсунка",
+    "manufacturer": "MISC"
+  },
+  "Torrez": {
+    "category": "Корабельные компоненты",
+    "type": "топливная форсунка",
+    "manufacturer": "Shubin Interstellar"
   }
 }

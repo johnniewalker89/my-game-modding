@@ -123,6 +123,15 @@ function Add-ReportSummary {
         Add-LogLine "Ключей описаний найдено: $($report.matchedDescriptionKeys) из $($report.scmdbRewardDescriptionKeys)"
         Add-LogLine "Ключей названий найдено: $($report.matchedTitleKeys) из $($report.scmdbRewardTitleKeys)"
         Add-LogLine "Рецептов: Wiki $($report.wikiMatched), overrides $($report.overrideMatched), fallback $($report.patternMatched), unknown $unknownCount"
+        if ($report.PSObject.Properties['blueprintRecipesMatched']) {
+            Add-LogLine "Крафт-справочник: рецептов $($report.blueprintRecipesMatched), локационных ресурсов $($report.resourceLocationEntries)"
+        }
+        if ($report.PSObject.Properties['changedPlanetDescriptionLines'] -and [int]$report.changedPlanetDescriptionLines -gt 0) {
+            Add-LogLine "Подсказки в описаниях планет/лун: $($report.changedPlanetDescriptionLines)"
+        }
+        if ($report.PSObject.Properties['changedCraftGuideLines'] -and [int]$report.changedCraftGuideLines -gt 0) {
+            Add-LogLine "Строк справочника в журнале: $($report.changedCraftGuideLines)"
+        }
 
         if ($unknownCount -gt 0) {
             Add-LogLine ('Не распознано: ' + ((@($report.unknownBlueprints) | Select-Object -First 8) -join '; '))

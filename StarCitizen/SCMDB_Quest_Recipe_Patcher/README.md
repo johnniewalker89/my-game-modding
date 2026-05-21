@@ -1,11 +1,12 @@
 # SCMDB Quest Recipe Patcher
 
 Патчер показывает в контрактах Star Citizen, какие чертежи/рецепты можно получить за миссию.
+Также он добавляет внутриигровые крафт-подсказки в карту Mobiglas.
 
 ## Установка
 
 1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
-2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.0.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.0.0).
+2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.1.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.1.0).
 3. Распакуйте архив в любую удобную папку.
 4. Запустите `SCMDB_Quest_Recipe_Patcher.bat`.
 5. В открывшемся окне выберите папку `StarCitizen\LIVE`.
@@ -42,16 +43,18 @@ StarCitizen\LIVE\data\Localization\korean_(south_korea)\global.ini
 ```text
 Доступные чертежи (SCMDB)
 
-Броня/одежда:
-- Antium Core Maroon — тяжёлая броня, корпус
-- Antium Helmet Jet — тяжёлая броня, шлем
+Корабельные компоненты
+Щиты:
+- FR-66 — S1, Grade A, Military
 
-Корабельные компоненты:
-- VK-00 — квантовый двигатель, S1, Grade A, Military
-- FR-66 — щит, S1, Grade A, Military
-
-Корабельные орудия:
+Корабельные орудия
+Энергетика:
 - M3A Cannon — лазерная пушка, S1
+
+Броня/одежда
+Тяжёлая броня:
+- Antium Core Maroon — корпус
+- Antium Helmet Jet — шлем
 
 Материалы/особое:
 - Metamaterial Test #146 — метаматериал Wikelo
@@ -63,6 +66,33 @@ StarCitizen\LIVE\data\Localization\korean_(south_korea)\global.ini
 Возможные чертежи (SCMDB)
 ```
 
+В описаниях планет и лун появляется подсказка, для каких рецептов используются местные ресурсы:
+
+```text
+Крафт-подсказка (SCMDB)
+Показаны рецепты, для которых здесь добывается хотя бы один ресурс.
+Это не полный рецепт — только ресурсы этой локации.
+Легенда: [К] корабль, [Т] наземная техника, [М] мультитул.
+Фильтры: компоненты только Grade A Military/Stealth; FPS-оружие без пистолетов и дробовиков.
+
+Корабельные компоненты
+Квантовые двигатели:
+- VK-00: [К] Borase
+- XL-1: [К] Borase
+
+Корабельные орудия
+Энергетика:
+- Attrition Repeaters 1-6: [К] Agricium | [М] Hadanite
+Баллистика:
+- Deadbolt Cannons I-VI: [К] Iron
+
+Оружие
+Винтовки:
+- Karna Rifle: [К] Beryl
+```
+
+Однотипные рецепты, размеры и скины схлопываются в серии или наборы, например `Attrition Repeaters 1-6`, `Lightstrike Cannons I-VI`, `Artimex set`.
+
 ## После обновления игры или русификатора
 
 1. Обновите Star Citizen.
@@ -72,7 +102,7 @@ StarCitizen\LIVE\data\Localization\korean_(south_korea)\global.ini
 ## Источники данных
 
 - [SCMDB](https://scmdb.net/) — связь контрактов и рецептов.
-- [Star Citizen Wiki API](https://api.star-citizen.wiki/) — типы предметов, размеры, grade, class и производители.
+- [Star Citizen Wiki API](https://api.star-citizen.wiki/) — типы предметов, размеры, grade, class, производители и состав рецептов.
 - `data/blueprint-overrides.ru.json` — локальные подтверждённые правки и исключения.
 
 Если внешний источник временно недоступен, патчер использует локальный cache и fallback-распознавание.
