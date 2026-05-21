@@ -19,6 +19,16 @@ function Test-LivePath {
     return (Test-Path -LiteralPath $globalIni -PathType Leaf)
 }
 
+function Get-GlobalIniPath {
+    param([string]$LivePath)
+
+    if ([string]::IsNullOrWhiteSpace($LivePath)) {
+        return $null
+    }
+
+    return (Join-Path $LivePath $LocalizationRelativePath)
+}
+
 function Find-DefaultLivePath {
     $candidates = @(
         'C:\Games\StarCitizen\LIVE',
@@ -151,6 +161,70 @@ function Add-ReportSummary {
     }
 }
 
+function Invoke-LightCheck {
+    $livePath = $pathBox.Text.Trim()
+    $globalIni = Get-GlobalIniPath -LivePath $livePath
+
+    Add-LogLine ''
+    Add-LogLine '== Проверка пути =='
+    Add-LogLine "LIVE: $livePath"
+
+    if ([string]::IsNullOrWhiteSpace($livePath) -or -not (Test-Path -LiteralPath $livePath -PathType Container)) {
+        Add-LogLine 'Итог: путь LIVE не найден.'
+        [System.Windows.Forms.MessageBox]::Show(
+            "Выберите папку StarCitizen\LIVE.",
+            'SCMDB Quest Recipe Patcher',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+        return
+    }
+
+    Add-LogLine "global.ini: $globalIni"
+    if (-not (Test-Path -LiteralPath $globalIni -PathType Leaf)) {
+        Add-LogLine 'Итог: global.ini не найден. Выберите именно папку StarCitizen\LIVE.'
+        [System.Windows.Forms.MessageBox]::Show(
+            "Не найден global.ini. Выберите именно папку StarCitizen\LIVE.",
+            'SCMDB Quest Recipe Patcher',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+        return
+    }
+
+    try {
+        $stream = [System.IO.File]::Open($globalIni, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        $stream.Dispose()
+    }
+    catch {
+        Add-LogLine "Итог: global.ini найден, но не читается: $($_.Exception.Message)"
+        [System.Windows.Forms.MessageBox]::Show(
+            "global.ini найден, но не читается. Закройте программы, которые могли заблокировать файл, и попробуйте снова.",
+            'SCMDB Quest Recipe Patcher',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
+        return
+    }
+
+    $reportDir = Join-Path $ScriptDir 'reports'
+    $backupDir = Join-Path $ScriptDir 'backups'
+    New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+
+    Add-LogLine 'Итог: OK. Путь подходит, global.ini найден и читается.'
+    Add-LogLine 'Это быстрая проверка без загрузки SCMDB/Wiki. Для полной проверки используйте консольный dry-run из README.'
+    Add-LogLine "Отчёты: $reportDir"
+    Add-LogLine "Backups: $backupDir"
+
+    [System.Windows.Forms.MessageBox]::Show(
+        "Путь подходит. Можно нажимать `"Пропатчить`".",
+        'SCMDB Quest Recipe Patcher',
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Information
+    ) | Out-Null
+}
+
 function Invoke-Patcher {
     param(
         [string]$Mode,
@@ -250,7 +324,7 @@ $titleLabel.Location = New-Object System.Drawing.Point(16, 14)
 $form.Controls.Add($titleLabel)
 
 $hintLabel = New-Object System.Windows.Forms.Label
-$hintLabel.Text = 'Выберите папку StarCitizen\LIVE. Перед патчем рекомендуется нажать "Проверить".'
+$hintLabel.Text = 'Выберите папку StarCitizen\LIVE. "Проверить путь" не загружает SCMDB/Wiki.'
 $hintLabel.AutoSize = $true
 $hintLabel.Location = New-Object System.Drawing.Point(18, 48)
 $form.Controls.Add($hintLabel)
@@ -276,10 +350,10 @@ $browseButton.Add_Click({
 $form.Controls.Add($browseButton)
 
 $checkButton = New-Object System.Windows.Forms.Button
-$checkButton.Text = 'Проверить'
+$checkButton.Text = 'Проверить путь'
 $checkButton.Location = New-Object System.Drawing.Point(20, 118)
 $checkButton.Size = New-Object System.Drawing.Size(130, 34)
-$checkButton.Add_Click({ Invoke-Patcher -Mode 'Проверка' -ExtraArgs @('-DryRun') })
+$checkButton.Add_Click({ Invoke-LightCheck })
 $form.Controls.Add($checkButton)
 
 $patchButton = New-Object System.Windows.Forms.Button
@@ -335,7 +409,7 @@ $logBox.ReadOnly = $true
 $logBox.Font = New-Object System.Drawing.Font('Consolas', 9)
 $form.Controls.Add($logBox)
 
-Add-LogLine 'Готово. Выберите LIVE и нажмите "Проверить" или "Пропатчить".'
+Add-LogLine 'Готово. Выберите LIVE и нажмите "Проверить путь" или "Пропатчить".'
 if ($pathBox.Text) {
     Add-LogLine "Найден путь: $($pathBox.Text)"
 }

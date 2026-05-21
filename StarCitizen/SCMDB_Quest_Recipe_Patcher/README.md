@@ -6,11 +6,12 @@
 ## Установка
 
 1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
-2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.1.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.1.0).
+2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.1.1.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.1.1).
 3. Распакуйте архив в любую удобную папку.
 4. Запустите `SCMDB_Quest_Recipe_Patcher.bat`.
 5. В открывшемся окне выберите папку `StarCitizen\LIVE`.
-6. Нажмите `Пропатчить`.
+6. Можно нажать `Проверить путь`, чтобы быстро проверить выбранную папку без загрузки SCMDB/Wiki.
+7. Нажмите `Пропатчить`.
 
 Путь обычно выглядит так:
 
@@ -19,6 +20,18 @@ C:\Games\StarCitizen\LIVE
 ```
 
 Патчер не заменяет русификатор. Сначала запускайте RuSC, потом этот патчер.
+
+## Полная проверка без установки
+
+Кнопка `Проверить путь` в launcher делает только быструю локальную проверку: путь `LIVE`, наличие и доступность `global.ini`.
+
+Если нужен полный dry-run с загрузкой SCMDB/Wiki и подробным JSON-отчётом, запустите патчер из консоли:
+
+```bat
+SCMDB_Quest_Recipe_Patcher.bat -LivePath "C:\Games\StarCitizen\LIVE" -DryRun
+```
+
+Полный dry-run может занять несколько минут при первом запуске, потому что подтягивает данные SCMDB и Star Citizen Wiki API.
 
 ## Что изменяется
 
