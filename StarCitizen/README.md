@@ -6,10 +6,10 @@
 
 ### SCMDB Quest Recipe Patcher
 
-Показывает в контрактах, какие чертежи/рецепты можно получить за миссию.
+Показывает в контрактах, какие чертежи/рецепты можно получить за миссию, где встречаются пилоты-асы и где дают обменные scrip/coin-награды.
 
 1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
-2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.1.1.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.1.1).
+2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.2.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.2.0).
 3. Распакуйте архив.
 4. Запустите `SCMDB_Quest_Recipe_Patcher.bat`.
 5. Выберите папку `StarCitizen\LIVE` и нажмите `Пропатчить`.
@@ -22,4 +22,4 @@
 
 ![Список корабельных компонентов и орудий](SCMDB_Quest_Recipe_Patcher/docs/images/scmdb-recipe-patcher-components.png)
 
-![Подсказки крафта на карте Mobiglas: microTech](SCMDB_Quest_Recipe_Patcher/docs/images/scmdb-recipe-patcher-planet-hints-microtech.png)
+![Подсказки крафта на карте Mobiglas: Lyria](SCMDB_Quest_Recipe_Patcher/docs/images/scmdb-recipe-patcher-planet-hints-lyria.png)

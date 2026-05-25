@@ -132,6 +132,13 @@ function Add-ReportSummary {
         Add-LogLine "Контрактов с рецептами: $($report.scmdbRewardContracts)"
         Add-LogLine "Ключей описаний найдено: $($report.matchedDescriptionKeys) из $($report.scmdbRewardDescriptionKeys)"
         Add-LogLine "Ключей названий найдено: $($report.matchedTitleKeys) из $($report.scmdbRewardTitleKeys)"
+        if (
+            $report.PSObject.Properties['titleKeysWithBlueprintMarker'] -or
+            $report.PSObject.Properties['titleKeysWithAcePilotMarker'] -or
+            $report.PSObject.Properties['titleKeysWithScripMarker']
+        ) {
+            Add-LogLine "Метки названий: [Ч] $($report.titleKeysWithBlueprintMarker), [А] $($report.titleKeysWithAcePilotMarker), [С] $($report.titleKeysWithScripMarker)"
+        }
         Add-LogLine "Рецептов: Wiki $($report.wikiMatched), overrides $($report.overrideMatched), fallback $($report.patternMatched), unknown $unknownCount"
         if ($report.PSObject.Properties['blueprintRecipesMatched']) {
             Add-LogLine "Крафт-справочник: рецептов $($report.blueprintRecipesMatched), локационных ресурсов $($report.resourceLocationEntries)"

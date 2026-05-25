@@ -18,7 +18,7 @@
 
     [switch]$KeepExistingBlueprintBlocks,
 
-    [string]$TitleMarker = '[ЧЕРТЁЖ]',
+    [string]$TitleMarker = '[Ч]',
 
     [string]$ReportPath,
 
@@ -85,6 +85,8 @@ $ShipWeaponSubcategoryOrder = @(
 
 $SubcategoryEmphasisTag = 'EM4'
 $ShipMiningMethodTag = 'EM4'
+$AcePilotTitleMarker = '<EM4>[А]</EM4>'
+$ScripTitleMarker = '[С]'
 
 if (-not $OverridesPath) {
     $OverridesPath = Join-Path $ScriptDir 'data\blueprint-overrides.ru.json'
@@ -252,19 +254,47 @@ function Remove-TitleMarker {
         '^\s*<EM\d>\[ЧЕРТЕЖ\]</EM\d>\s*',
         '^\s*<EM\d>\[ЧЕРТЁЖ\]</EM\d>\s*',
         '^\s*<EM\d>\[Чертежи\]\*?</EM\d>\s*',
+        '^\s*<EM\d>\[А\]</EM\d>\s*',
+        '^\s*<EM\d>\[С\]</EM\d>\s*',
         '^\s*\[BP\]\s*',
         '^\s*\[Ч\]\s*',
         '^\s*\[ЧЕРТ\]\s*',
         '^\s*\[ЧЕРТЕЖ\]\s*',
         '^\s*\[ЧЕРТЁЖ\]\s*',
-        '^\s*\[Чертежи\]\*?\s*'
+        '^\s*\[Чертежи\]\*?\s*',
+        '^\s*\[А\]\s*',
+        '^\s*\[С\]\s*'
     )
 
-    foreach ($pattern in $patterns) {
-        $clean = [regex]::Replace($clean, $pattern, '')
+    do {
+        $before = $clean
+        foreach ($pattern in $patterns) {
+            $clean = [regex]::Replace($clean, $pattern, '')
+        }
     }
+    while ($clean -ne $before)
 
     return $clean
+}
+
+function Format-TitleMarkers {
+    param($TitleInfo)
+
+    $markers = New-Object System.Collections.Generic.List[string]
+
+    if ($TitleInfo.HasBlueprint -and -not [string]::IsNullOrWhiteSpace($TitleMarker)) {
+        $markers.Add($TitleMarker)
+    }
+
+    if ($TitleInfo.HasAcePilot) {
+        $markers.Add($AcePilotTitleMarker)
+    }
+
+    if ($TitleInfo.HasScrip) {
+        $markers.Add($ScripTitleMarker)
+    }
+
+    return (($markers | ForEach-Object { [string]$_ }) -join ' ')
 }
 
 function Get-ScmdbData {
@@ -307,6 +337,54 @@ function Add-NameToPool {
     }
 }
 
+function Get-ContractLocKey {
+    param(
+        $Contract,
+        [string]$LocKeyProperty,
+        [string]$FallbackKeyProperty
+    )
+
+    $locKey = $Contract.$LocKeyProperty
+    if (-not $locKey -and $Contract.$FallbackKeyProperty) {
+        $locKey = ([string]$Contract.$FallbackKeyProperty -replace '^@', '')
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$locKey)) {
+        return $null
+    }
+
+    return [string]$locKey
+}
+
+function Test-AcePilotContract {
+    param($Contract)
+
+    $json = $Contract | ConvertTo-Json -Depth 80 -Compress
+    return ($json -match '"role"\s*:\s*"AcePilot"' -or $json -match 'AcePilot_')
+}
+
+function Test-ScripRewardName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $false
+    }
+
+    return ($Name -match '(?i)\b(Scrip|Coin)$')
+}
+
+function Test-ScripRewardContract {
+    param($Contract)
+
+    foreach ($reward in (ConvertTo-Array $Contract.itemRewards)) {
+        if (Test-ScripRewardName -Name ([string]$reward.name)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function New-RewardMap {
     param([Parameter(Mandatory = $true)]$Scmdb)
 
@@ -320,27 +398,41 @@ function New-RewardMap {
     $rewardContractCount = 0
 
     foreach ($contract in $contracts) {
+        $titleKey = Get-ContractLocKey -Contract $contract -LocKeyProperty 'titleLocKey' -FallbackKeyProperty 'titleKey'
         $rewards = ConvertTo-Array $contract.blueprintRewards
+        $hasBlueprintRewards = $rewards.Count -gt 0
+        $hasAcePilot = Test-AcePilotContract -Contract $contract
+        $hasScripReward = Test-ScripRewardContract -Contract $contract
+
+        if (
+            -not [string]::IsNullOrWhiteSpace($titleKey) -and
+            ($hasBlueprintRewards -or $hasAcePilot -or $hasScripReward)
+        ) {
+            if (-not $titleMap.ContainsKey($titleKey)) {
+                $titleMap[$titleKey] = @{
+                    Key = $titleKey
+                    HasBlueprint = $false
+                    HasAcePilot = $false
+                    HasScrip = $false
+                    Contracts = @{}
+                }
+            }
+
+            $titleEntry = $titleMap[$titleKey]
+            $titleEntry.HasBlueprint = [bool]($titleEntry.HasBlueprint -or $hasBlueprintRewards)
+            $titleEntry.HasAcePilot = [bool]($titleEntry.HasAcePilot -or $hasAcePilot)
+            $titleEntry.HasScrip = [bool]($titleEntry.HasScrip -or $hasScripReward)
+            $debugNameForTitle = if ($contract.debugName) { [string]$contract.debugName } else { '<unknown>' }
+            $titleEntry.Contracts[$debugNameForTitle] = $true
+        }
+
         if ($rewards.Count -eq 0) {
             continue
         }
 
         $rewardContractCount++
 
-        $descKey = $contract.descriptionLocKey
-        if (-not $descKey -and $contract.descriptionKey) {
-            $descKey = ($contract.descriptionKey -replace '^@', '')
-        }
-
-        $titleKey = $contract.titleLocKey
-        if (-not $titleKey -and $contract.titleKey) {
-            $titleKey = ($contract.titleKey -replace '^@', '')
-        }
-
-        if (-not [string]::IsNullOrWhiteSpace($titleKey)) {
-            $titleMap[$titleKey] = $true
-        }
-
+        $descKey = Get-ContractLocKey -Contract $contract -LocKeyProperty 'descriptionLocKey' -FallbackKeyProperty 'descriptionKey'
         if ([string]::IsNullOrWhiteSpace($descKey)) {
             continue
         }
@@ -2582,11 +2674,10 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
 
     if ($titleRewardMap.ContainsKey($key)) {
         $seenTitleKeys[$key] = $true
+        $titleInfo = $titleRewardMap[$key]
         $cleanTitle = Remove-TitleMarker -Value $currentValue
-        $newTitle = $cleanTitle
-        if (-not [string]::IsNullOrWhiteSpace($TitleMarker)) {
-            $newTitle = "$TitleMarker $cleanTitle"
-        }
+        $titleMarkers = Format-TitleMarkers -TitleInfo $titleInfo
+        $newTitle = if ([string]::IsNullOrWhiteSpace($titleMarkers)) { $cleanTitle } else { "$titleMarkers $cleanTitle" }
 
         if ($newTitle -ne $currentValue) {
             $lines[$i] = $rawKey + '=' + $newTitle
@@ -2631,8 +2722,13 @@ $report = [pscustomobject]@{
     blueprintRecipesMatched = $blueprintCraftMap.Keys.Count
     resourceLocationEntries = $resourceLocationMap.Keys.Count
     titleMarker = $TitleMarker
+    acePilotTitleMarker = $AcePilotTitleMarker
+    scripTitleMarker = $ScripTitleMarker
     scmdbRewardDescriptionKeys = $descriptionRewardMap.Keys.Count
     scmdbRewardTitleKeys = $titleRewardMap.Keys.Count
+    titleKeysWithBlueprintMarker = @($titleRewardMap.Values | Where-Object { $_.HasBlueprint }).Count
+    titleKeysWithAcePilotMarker = @($titleRewardMap.Values | Where-Object { $_.HasAcePilot }).Count
+    titleKeysWithScripMarker = @($titleRewardMap.Values | Where-Object { $_.HasScrip }).Count
     matchedDescriptionKeys = $seenDescriptionKeys.Keys.Count
     matchedTitleKeys = $seenTitleKeys.Keys.Count
     changedLines = $changedLines

@@ -1,12 +1,12 @@
 # SCMDB Quest Recipe Patcher
 
-Патчер показывает в контрактах Star Citizen, какие чертежи/рецепты можно получить за миссию.
+Патчер показывает в контрактах Star Citizen, какие чертежи/рецепты можно получить за миссию, где встречаются пилоты-асы и где дают обменные scrip/coin-награды.
 Также он добавляет внутриигровые крафт-подсказки в карту Mobiglas.
 
 ## Установка
 
 1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
-2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.1.1.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.1.1).
+2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.2.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.2.0).
 3. Распакуйте архив в любую удобную папку.
 4. Запустите `SCMDB_Quest_Recipe_Patcher.bat`.
 5. В открывшемся окне выберите папку `StarCitizen\LIVE`.
@@ -45,11 +45,17 @@ StarCitizen\LIVE\data\Localization\korean_(south_korea)\global.ini
 
 ## Что будет в игре
 
-В списке контрактов у заданий с наградами-чертежами появится префикс:
+В списке контрактов у полезных заданий появятся короткие метки:
 
 ```text
-[ЧЕРТЁЖ]
+[Ч] <EM4>[А]</EM4> [С]
 ```
+
+Порядок меток всегда такой:
+
+- `[Ч]` — задание даёт чертёж/рецепт SCMDB;
+- `<EM4>[А]</EM4>` — в задании может встретиться пилот-ас;
+- `[С]` — задание даёт scrip/coin-награду для обмена у Wikelo.
 
 Внизу описания контракта появится блок с рецептами:
 
