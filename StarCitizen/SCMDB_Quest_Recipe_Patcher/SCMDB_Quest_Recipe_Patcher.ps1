@@ -299,7 +299,7 @@ function Format-TitleMarkers {
 
 function Get-ScmdbData {
     Write-Host 'Downloading SCMDB version index...'
-    $versions = ConvertTo-Array (Invoke-RestMethod -Uri "$ScmdbBaseUrl/game-versions.json" -UseBasicParsing)
+    $versions = @(ConvertTo-Array (Invoke-RestMethod -Uri "$ScmdbBaseUrl/game-versions.json" -UseBasicParsing))
     if ($versions.Count -eq 0) {
         throw 'SCMDB version index is empty.'
     }
@@ -370,7 +370,7 @@ function Test-ScripRewardName {
         return $false
     }
 
-    return ($Name -match '(?i)\b(Scrip|Coin)$')
+    return (@('MG Scrip', 'Council Scrip') -contains $Name.Trim())
 }
 
 function Test-ScripRewardContract {
@@ -390,8 +390,8 @@ function New-RewardMap {
 
     $data = $Scmdb.Data
     $contracts = @()
-    $contracts += ConvertTo-Array $data.contracts
-    $contracts += ConvertTo-Array $data.legacyContracts
+    $contracts += @(ConvertTo-Array $data.contracts)
+    $contracts += @(ConvertTo-Array $data.legacyContracts)
 
     $descriptionMap = @{}
     $titleMap = @{}
@@ -399,7 +399,7 @@ function New-RewardMap {
 
     foreach ($contract in $contracts) {
         $titleKey = Get-ContractLocKey -Contract $contract -LocKeyProperty 'titleLocKey' -FallbackKeyProperty 'titleKey'
-        $rewards = ConvertTo-Array $contract.blueprintRewards
+        $rewards = @(ConvertTo-Array $contract.blueprintRewards)
         $hasBlueprintRewards = $rewards.Count -gt 0
         $hasAcePilot = Test-AcePilotContract -Contract $contract
         $hasScripReward = Test-ScripRewardContract -Contract $contract
