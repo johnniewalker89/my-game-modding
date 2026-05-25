@@ -110,6 +110,29 @@ function Quote-PowerShellLiteral {
     return "'" + ($Value -replace "'", "''") + "'"
 }
 
+function Update-ProgressFromLine {
+    param([string]$Line)
+
+    if ($Line -match '^Downloading SCMDB') {
+        Set-ProgressBusy -Text "${script:CurrentMode}: загрузка SCMDB..."
+    }
+    elseif ($Line -match '^Querying Star Citizen Wiki API for \d+ blueprint names') {
+        Set-ProgressBusy -Text "${script:CurrentMode}: загрузка данных Wiki..."
+    }
+    elseif ($Line -match '^(Querying Star Citizen Wiki API|Loading Star Citizen Wiki recipe data) for \d+ blueprint recipes') {
+        Set-ProgressBusy -Text "${script:CurrentMode}: загрузка рецептов Wiki..."
+    }
+    elseif ($Line -match '^Wiki recipe progress:\s*(\d+)/(\d+)') {
+        Set-ProgressPercent -Current ([int]$Matches[1]) -Total ([int]$Matches[2]) -Text "${script:CurrentMode}: рецепты Wiki"
+    }
+    elseif ($Line -match '^Backup') {
+        Set-ProgressBusy -Text "${script:CurrentMode}: backup..."
+    }
+    elseif ($Line -match '^(Patched|Dry run complete|Restored backup|No modifications were necessary)') {
+        Set-ProgressPercent -Current 100 -Total 100 -Text "${script:CurrentMode}: завершение"
+    }
+}
+
 function Get-LatestReportPath {
     $reportDir = Join-Path $ScriptDir 'reports'
     if (-not (Test-Path -LiteralPath $reportDir -PathType Container)) {
@@ -290,6 +313,7 @@ function Invoke-Patcher {
     $buttons = @($checkButton, $patchButton, $restoreButton, $browseButton, $openReportsButton)
     foreach ($button in $buttons) { $button.Enabled = $false }
     $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    $script:CurrentMode = $Mode
     Set-ProgressBusy -Text "${Mode}: подготовка..."
 
     try {
@@ -304,18 +328,6 @@ function Invoke-Patcher {
             Add-LogLine 'Окно не зависло: лог ниже будет обновляться по ходу работы.'
         }
 
-        $parameters = @{
-            LivePath = $livePath
-        }
-
-        foreach ($arg in $ExtraArgs) {
-            switch ($arg) {
-                '-DryRun' { $parameters['DryRun'] = $true }
-                '-RestoreLatestBackup' { $parameters['RestoreLatestBackup'] = $true }
-                default { throw "Unsupported launcher argument: $arg" }
-            }
-        }
-
         $powerShellExe = Join-Path $PSHOME 'powershell.exe'
         if (-not (Test-Path -LiteralPath $powerShellExe -PathType Leaf)) {
             $powerShellExe = 'powershell.exe'
@@ -323,18 +335,35 @@ function Invoke-Patcher {
 
         $scriptArgs = @("-LivePath $(Quote-PowerShellLiteral -Value $livePath)")
         foreach ($arg in $ExtraArgs) {
-            $scriptArgs += $arg
+            switch ($arg) {
+                '-DryRun' { $scriptArgs += $arg }
+                '-RestoreLatestBackup' { $scriptArgs += $arg }
+                default { throw "Unsupported launcher argument: $arg" }
+            }
         }
 
+        $reportDir = Join-Path $ScriptDir 'reports'
+        New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
+        $runStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $runLogPath = Join-Path $reportDir "launcher-run-$runStamp.log"
+        Set-Content -LiteralPath $runLogPath -Value $null -Encoding UTF8
+
         $command = @"
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+`$logPath = $(Quote-PowerShellLiteral -Value $runLogPath)
+function Write-LauncherRunLog {
+    param([string]`$Text)
+    Add-Content -LiteralPath `$logPath -Value `$Text -Encoding UTF8
+}
+
 try {
-    & $(Quote-PowerShellLiteral -Value $PatchScript) $($scriptArgs -join ' ')
+    & $(Quote-PowerShellLiteral -Value $PatchScript) $($scriptArgs -join ' ') *>&1 | ForEach-Object {
+        Write-LauncherRunLog ([string]`$_)
+    }
     if (`$global:LASTEXITCODE) { exit `$global:LASTEXITCODE }
     exit 0
 }
 catch {
-    Write-Error `$_.Exception.Message
+    Write-LauncherRunLog ("ERROR: " + `$_.Exception.Message)
     exit 1
 }
 "@
@@ -344,74 +373,48 @@ catch {
         $processInfo.FileName = $powerShellExe
         $processInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCommand"
         $processInfo.UseShellExecute = $false
-        $processInfo.RedirectStandardOutput = $true
-        $processInfo.RedirectStandardError = $true
+        $processInfo.RedirectStandardOutput = $false
+        $processInfo.RedirectStandardError = $false
         $processInfo.CreateNoWindow = $true
-        $processInfo.StandardOutputEncoding = [System.Text.Encoding]::UTF8
-        $processInfo.StandardErrorEncoding = [System.Text.Encoding]::UTF8
 
         $process = New-Object System.Diagnostics.Process
         $process.StartInfo = $processInfo
 
-        $handleLine = [System.Action[string]]{
-            param([string]$Line)
+        [void]$process.Start()
 
-            if ([string]::IsNullOrWhiteSpace($Line)) {
+        $script:RunLogSeenLineCount = 0
+        $readRunLog = {
+            if (-not (Test-Path -LiteralPath $runLogPath -PathType Leaf)) {
                 return
             }
 
-            Add-LogLine $Line
-            if ($Line -match '^Downloading SCMDB') {
-                Set-ProgressBusy -Text "${Mode}: загрузка SCMDB..."
-            }
-            elseif ($Line -match '^Querying Star Citizen Wiki API for \d+ blueprint names') {
-                Set-ProgressBusy -Text "${Mode}: загрузка данных Wiki..."
-            }
-            elseif ($Line -match '^(Querying Star Citizen Wiki API|Loading Star Citizen Wiki recipe data) for \d+ blueprint recipes') {
-                Set-ProgressBusy -Text "${Mode}: загрузка рецептов Wiki..."
-            }
-            elseif ($Line -match '^Wiki recipe progress:\s*(\d+)/(\d+)') {
-                Set-ProgressPercent -Current ([int]$Matches[1]) -Total ([int]$Matches[2]) -Text "${Mode}: рецепты Wiki"
-            }
-            elseif ($Line -match '^Backup') {
-                Set-ProgressBusy -Text "${Mode}: backup..."
-            }
-            elseif ($Line -match '^(Patched|Dry run complete|Restored backup)') {
-                Set-ProgressPercent -Current 100 -Total 100 -Text "${Mode}: завершение"
+            $lines = @(Get-Content -LiteralPath $runLogPath -ErrorAction SilentlyContinue)
+            if ($lines.Count -le $script:RunLogSeenLineCount) {
+                return
             }
 
-            if ($Line -match '^Report:\s*(.+)$') {
-                $script:LastReportPath = $Matches[1].Trim()
+            foreach ($line in @($lines[$script:RunLogSeenLineCount..($lines.Count - 1)])) {
+                if ([string]::IsNullOrWhiteSpace($line)) {
+                    continue
+                }
+
+                Add-LogLine ([string]$line)
+                Update-ProgressFromLine -Line ([string]$line)
+                if ([string]$line -match '^Report:\s*(.+)$') {
+                    $script:LastReportPath = $Matches[1].Trim()
+                }
             }
+
+            $script:RunLogSeenLineCount = $lines.Count
         }
-
-        $outputHandler = [System.Diagnostics.DataReceivedEventHandler]{
-            param($Sender, $EventArgs)
-
-            if ($null -ne $EventArgs.Data) {
-                $form.BeginInvoke($handleLine, @([string]$EventArgs.Data)) | Out-Null
-            }
-        }
-        $errorHandler = [System.Diagnostics.DataReceivedEventHandler]{
-            param($Sender, $EventArgs)
-
-            if ($null -ne $EventArgs.Data) {
-                $form.BeginInvoke($handleLine, @([string]$EventArgs.Data)) | Out-Null
-            }
-        }
-
-        $process.add_OutputDataReceived($outputHandler)
-        $process.add_ErrorDataReceived($errorHandler)
-
-        [void]$process.Start()
-        $process.BeginOutputReadLine()
-        $process.BeginErrorReadLine()
 
         while (-not $process.HasExited) {
+            & $readRunLog
             [System.Windows.Forms.Application]::DoEvents()
-            Start-Sleep -Milliseconds 100
+            Start-Sleep -Milliseconds 250
         }
         $process.WaitForExit()
+        & $readRunLog
         [System.Windows.Forms.Application]::DoEvents()
 
         if ($process.ExitCode -ne 0) {
