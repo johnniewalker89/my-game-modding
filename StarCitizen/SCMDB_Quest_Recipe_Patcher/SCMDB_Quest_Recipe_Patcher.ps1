@@ -1063,10 +1063,16 @@ function New-BlueprintCraftMap {
     )
 
     if ($craftableNames.Count -gt 0) {
-        Write-Host "Querying Star Citizen Wiki API for $($craftableNames.Count) blueprint recipes..."
+        Write-Host "Loading Star Citizen Wiki recipe data for $($craftableNames.Count) blueprint recipes..."
     }
 
+    $craftableIndex = 0
     foreach ($name in $craftableNames) {
+        $craftableIndex++
+        if ($craftableNames.Count -ge 20 -and ($craftableIndex -eq 1 -or $craftableIndex % 25 -eq 0 -or $craftableIndex -eq $craftableNames.Count)) {
+            Write-Host "Wiki recipe progress: $craftableIndex/$($craftableNames.Count)"
+        }
+
         $info = $EnrichmentMap[$name]
         $blueprint = $null
         $blueprintUuids = @(

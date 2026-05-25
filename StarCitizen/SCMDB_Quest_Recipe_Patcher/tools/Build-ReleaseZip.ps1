@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = 'v2.2.0'
+    [string]$Version = 'v2.2.1'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +22,8 @@ $include = @(
     'SCMDB_Quest_Recipe_Patcher.bat',
     'SCMDB_Quest_Recipe_Patcher.ps1',
     'SCMDB_Quest_Recipe_Launcher.ps1',
-    'data'
+    'data',
+    'cache'
 )
 
 foreach ($item in $include) {

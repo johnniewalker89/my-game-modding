@@ -6,7 +6,7 @@
 ## Установка
 
 1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
-2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.2.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.2.0).
+2. Скачайте `SCMDB_Quest_Recipe_Patcher_v2.2.1.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/v2.2.1).
 3. Распакуйте архив в любую удобную папку.
 4. Запустите `SCMDB_Quest_Recipe_Patcher.bat`.
 5. В открывшемся окне выберите папку `StarCitizen\LIVE`.

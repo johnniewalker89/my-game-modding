@@ -72,6 +72,44 @@ function Add-LogLine {
     [System.Windows.Forms.Application]::DoEvents()
 }
 
+function Set-ProgressIdle {
+    $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Blocks
+    $progressBar.Value = 0
+    $progressLabel.Text = 'Готово'
+}
+
+function Set-ProgressBusy {
+    param([string]$Text)
+
+    $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
+    $progressBar.MarqueeAnimationSpeed = 35
+    $progressLabel.Text = $Text
+}
+
+function Set-ProgressPercent {
+    param(
+        [int]$Current,
+        [int]$Total,
+        [string]$Text
+    )
+
+    if ($Total -le 0) {
+        Set-ProgressBusy -Text $Text
+        return
+    }
+
+    $percent = [Math]::Max(0, [Math]::Min(100, [int][Math]::Round(($Current * 100.0) / $Total)))
+    $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Blocks
+    $progressBar.Value = $percent
+    $progressLabel.Text = "$Text ($Current/$Total)"
+}
+
+function Quote-PowerShellLiteral {
+    param([string]$Value)
+
+    return "'" + ($Value -replace "'", "''") + "'"
+}
+
 function Get-LatestReportPath {
     $reportDir = Join-Path $ScriptDir 'reports'
     if (-not (Test-Path -LiteralPath $reportDir -PathType Container)) {
@@ -252,6 +290,7 @@ function Invoke-Patcher {
     $buttons = @($checkButton, $patchButton, $restoreButton, $browseButton, $openReportsButton)
     foreach ($button in $buttons) { $button.Enabled = $false }
     $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    Set-ProgressBusy -Text "${Mode}: подготовка..."
 
     try {
         $script:LastReportPath = $null
@@ -260,6 +299,10 @@ function Invoke-Patcher {
         Add-LogLine ''
         Add-LogLine "== $Mode =="
         Add-LogLine "LIVE: $livePath"
+        if ($Mode -eq 'Патч') {
+            Add-LogLine 'Первый запуск может занять несколько минут: патчер скачивает SCMDB/Wiki и заполняет cache.'
+            Add-LogLine 'Окно не зависло: лог ниже будет обновляться по ходу работы.'
+        }
 
         $parameters = @{
             LivePath = $livePath
@@ -273,16 +316,106 @@ function Invoke-Patcher {
             }
         }
 
-        $output = & $PatchScript @parameters *>&1
-        foreach ($line in $output) {
-            Add-LogLine ([string]$line)
-            if ([string]$line -match '^Report:\s*(.+)$') {
+        $powerShellExe = Join-Path $PSHOME 'powershell.exe'
+        if (-not (Test-Path -LiteralPath $powerShellExe -PathType Leaf)) {
+            $powerShellExe = 'powershell.exe'
+        }
+
+        $scriptArgs = @("-LivePath $(Quote-PowerShellLiteral -Value $livePath)")
+        foreach ($arg in $ExtraArgs) {
+            $scriptArgs += $arg
+        }
+
+        $command = @"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+try {
+    & $(Quote-PowerShellLiteral -Value $PatchScript) $($scriptArgs -join ' ')
+    if (`$global:LASTEXITCODE) { exit `$global:LASTEXITCODE }
+    exit 0
+}
+catch {
+    Write-Error `$_.Exception.Message
+    exit 1
+}
+"@
+
+        $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($command))
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = $powerShellExe
+        $processInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCommand"
+        $processInfo.UseShellExecute = $false
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardError = $true
+        $processInfo.CreateNoWindow = $true
+        $processInfo.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+        $processInfo.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $processInfo
+
+        $handleLine = [System.Action[string]]{
+            param([string]$Line)
+
+            if ([string]::IsNullOrWhiteSpace($Line)) {
+                return
+            }
+
+            Add-LogLine $Line
+            if ($Line -match '^Downloading SCMDB') {
+                Set-ProgressBusy -Text "${Mode}: загрузка SCMDB..."
+            }
+            elseif ($Line -match '^Querying Star Citizen Wiki API for \d+ blueprint names') {
+                Set-ProgressBusy -Text "${Mode}: загрузка данных Wiki..."
+            }
+            elseif ($Line -match '^(Querying Star Citizen Wiki API|Loading Star Citizen Wiki recipe data) for \d+ blueprint recipes') {
+                Set-ProgressBusy -Text "${Mode}: загрузка рецептов Wiki..."
+            }
+            elseif ($Line -match '^Wiki recipe progress:\s*(\d+)/(\d+)') {
+                Set-ProgressPercent -Current ([int]$Matches[1]) -Total ([int]$Matches[2]) -Text "${Mode}: рецепты Wiki"
+            }
+            elseif ($Line -match '^Backup') {
+                Set-ProgressBusy -Text "${Mode}: backup..."
+            }
+            elseif ($Line -match '^(Patched|Dry run complete|Restored backup)') {
+                Set-ProgressPercent -Current 100 -Total 100 -Text "${Mode}: завершение"
+            }
+
+            if ($Line -match '^Report:\s*(.+)$') {
                 $script:LastReportPath = $Matches[1].Trim()
             }
         }
 
-        if ($LASTEXITCODE -ne 0) {
-            Add-LogLine "Exit code: $LASTEXITCODE"
+        $outputHandler = [System.Diagnostics.DataReceivedEventHandler]{
+            param($Sender, $EventArgs)
+
+            if ($null -ne $EventArgs.Data) {
+                $form.BeginInvoke($handleLine, @([string]$EventArgs.Data)) | Out-Null
+            }
+        }
+        $errorHandler = [System.Diagnostics.DataReceivedEventHandler]{
+            param($Sender, $EventArgs)
+
+            if ($null -ne $EventArgs.Data) {
+                $form.BeginInvoke($handleLine, @([string]$EventArgs.Data)) | Out-Null
+            }
+        }
+
+        $process.add_OutputDataReceived($outputHandler)
+        $process.add_ErrorDataReceived($errorHandler)
+
+        [void]$process.Start()
+        $process.BeginOutputReadLine()
+        $process.BeginErrorReadLine()
+
+        while (-not $process.HasExited) {
+            [System.Windows.Forms.Application]::DoEvents()
+            Start-Sleep -Milliseconds 100
+        }
+        $process.WaitForExit()
+        [System.Windows.Forms.Application]::DoEvents()
+
+        if ($process.ExitCode -ne 0) {
+            Add-LogLine "Exit code: $($process.ExitCode)"
         }
 
         $reportPath = $script:LastReportPath
@@ -313,6 +446,7 @@ function Invoke-Patcher {
     }
     finally {
         $form.Cursor = [System.Windows.Forms.Cursors]::Default
+        Set-ProgressIdle
         foreach ($button in $buttons) { $button.Enabled = $true }
     }
 }
@@ -398,6 +532,21 @@ $openReportsButton.Add_Click({
 })
 $form.Controls.Add($openReportsButton)
 
+$progressLabel = New-Object System.Windows.Forms.Label
+$progressLabel.Text = 'Готово'
+$progressLabel.Location = New-Object System.Drawing.Point(20, 162)
+$progressLabel.Size = New-Object System.Drawing.Size(702, 20)
+$progressLabel.Anchor = 'Top,Left,Right'
+$form.Controls.Add($progressLabel)
+
+$progressBar = New-Object System.Windows.Forms.ProgressBar
+$progressBar.Location = New-Object System.Drawing.Point(20, 184)
+$progressBar.Size = New-Object System.Drawing.Size(702, 18)
+$progressBar.Anchor = 'Top,Left,Right'
+$progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Blocks
+$progressBar.Value = 0
+$form.Controls.Add($progressBar)
+
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = 'Выход'
 $exitButton.Location = New-Object System.Drawing.Point(618, 118)
@@ -407,8 +556,8 @@ $exitButton.Add_Click({ $form.Close() })
 $form.Controls.Add($exitButton)
 
 $logBox = New-Object System.Windows.Forms.TextBox
-$logBox.Location = New-Object System.Drawing.Point(20, 168)
-$logBox.Size = New-Object System.Drawing.Size(702, 292)
+$logBox.Location = New-Object System.Drawing.Point(20, 214)
+$logBox.Size = New-Object System.Drawing.Size(702, 246)
 $logBox.Anchor = 'Top,Bottom,Left,Right'
 $logBox.Multiline = $true
 $logBox.ScrollBars = 'Vertical'
