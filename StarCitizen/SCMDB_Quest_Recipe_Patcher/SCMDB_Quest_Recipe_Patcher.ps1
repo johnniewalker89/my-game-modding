@@ -243,6 +243,29 @@ function Remove-CraftIntelBlock {
     )
 }
 
+function Repair-EmphasisTags {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    $repaired = $Value
+
+    for ($tagNumber = 1; $tagNumber -le 5; $tagNumber++) {
+        $tag = "EM$tagNumber"
+        $repaired = [regex]::Replace(
+            $repaired,
+            "<$tag>(~mission\([^)]+\))<$tag>",
+            "<$tag>`$1</$tag>"
+        )
+    }
+
+    $repaired = [regex]::Replace(
+        $repaired,
+        '</EM([1-5])(?=[\s\.,;:!?\)]|\\n|$)',
+        '</EM$1>'
+    )
+
+    return $repaired
+}
+
 function Remove-TitleMarker {
     param([Parameter(Mandatory = $true)][string]$Value)
 
@@ -2612,11 +2635,13 @@ $changedPlanetDescriptionLines = 0
 $changedCraftGuideLines = 0
 $cleanedExistingBlocks = 0
 $cleanedExistingCraftIntelBlocks = 0
+$fixedMalformedEmphasisLines = 0
 $missingDescriptionKeys = New-Object System.Collections.Generic.List[string]
 $missingTitleKeys = New-Object System.Collections.Generic.List[string]
 $modifiedDescriptionKeys = New-Object System.Collections.Generic.List[string]
 $modifiedTitleKeys = New-Object System.Collections.Generic.List[string]
 $modifiedPlanetKeys = New-Object System.Collections.Generic.List[string]
+$fixedMalformedEmphasisKeys = New-Object System.Collections.Generic.List[string]
 $conflictKeys = New-Object System.Collections.Generic.List[string]
 $seenDescriptionKeys = @{}
 $seenTitleKeys = @{}
@@ -2639,6 +2664,13 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
                 $cleanedExistingCraftIntelBlocks++
             }
 
+            $repairedCraftValue = Repair-EmphasisTags -Value $cleanCraftValue
+            if ($repairedCraftValue -ne $cleanCraftValue) {
+                $fixedMalformedEmphasisLines++
+                $fixedMalformedEmphasisKeys.Add($key)
+                $cleanCraftValue = $repairedCraftValue
+            }
+
             $resourceMethods = Get-ResourceMethodsFromDescription -Value $cleanCraftValue
             $craftBlock = Format-PlanetCraftBlock -ResourceMethods $resourceMethods -BlueprintCraftMap $blueprintCraftMap
             if (-not [string]::IsNullOrWhiteSpace($craftBlock)) {
@@ -2659,6 +2691,13 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
         $cleanValue = Remove-BlueprintBlock -Value $currentValue
         if ($cleanValue -ne $currentValue) {
             $cleanedExistingBlocks++
+        }
+
+        $repairedValue = Repair-EmphasisTags -Value $cleanValue
+        if ($repairedValue -ne $cleanValue) {
+            $fixedMalformedEmphasisLines++
+            $fixedMalformedEmphasisKeys.Add($key)
+            $cleanValue = $repairedValue
         }
 
         $group = $descriptionRewardMap[$key]
@@ -2744,6 +2783,7 @@ $report = [pscustomobject]@{
     changedCraftGuideLines = $changedCraftGuideLines
     cleanedExistingBlocks = $cleanedExistingBlocks
     cleanedExistingCraftIntelBlocks = $cleanedExistingCraftIntelBlocks
+    fixedMalformedEmphasisLines = $fixedMalformedEmphasisLines
     conflictingSharedDescriptionKeys = $conflictKeys.Count
     missingDescriptionKeys = $missingDescriptionKeys.Count
     missingTitleKeys = $missingTitleKeys.Count
@@ -2754,6 +2794,7 @@ $report = [pscustomobject]@{
     modifiedDescriptionKeysSample = @($modifiedDescriptionKeys | Select-Object -First 20)
     modifiedTitleKeysSample = @($modifiedTitleKeys | Select-Object -First 20)
     modifiedPlanetKeysSample = @($modifiedPlanetKeys | Select-Object -First 20)
+    fixedMalformedEmphasisKeysSample = @($fixedMalformedEmphasisKeys | Select-Object -First 20)
     conflictKeysSample = @($conflictKeys | Select-Object -First 20)
     missingDescriptionKeysSample = @($missingDescriptionKeys | Select-Object -First 20)
     missingTitleKeysSample = @($missingTitleKeys | Select-Object -First 20)
