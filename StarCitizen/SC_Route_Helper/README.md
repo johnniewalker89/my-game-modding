@@ -14,7 +14,7 @@ Helper не запускает zapret сам и не меняет файлы Sta
 
 ## Установка
 
-1. Скачайте `SC_Route_Helper_v0.1.0.zip`.
+1. Скачайте `SC_Route_Helper_v0.1.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-route-helper-v0.1.0).
 2. Распакуйте архив в любую удобную папку.
 3. Запустите `SC_Route_Helper.bat`.
 4. Выберите папку `StarCitizen\LIVE`.
