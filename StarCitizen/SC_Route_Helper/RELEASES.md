@@ -1,6 +1,6 @@
 # SC Route Helper Releases
 
-## v0.1.0
+## v1.0.0
 
 - Первый рабочий MVP.
 - WinForms launcher на PowerShell.
