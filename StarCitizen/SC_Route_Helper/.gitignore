@@ -1,0 +1,7 @@
+state/
+reports/
+evidence/
+dist/
+data/candidates.json
+data/ipset-starcitizen.txt
+*_SC_*.bat
