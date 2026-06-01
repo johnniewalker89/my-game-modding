@@ -8,15 +8,16 @@
 
 Помогает игроку поймать сетевую ошибку `30000` в `Game.log`, накопить IP-кандидаты Star Citizen и создать новый zapret bat на основе уже рабочего bat-файла.
 
-1. Скачайте `SC_Route_Helper_v1.0.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-route-helper-v1.0.0).
-2. Распакуйте архив.
-3. Запустите `SC_Route_Helper.bat`.
-4. Выберите папку `StarCitizen\LIVE`.
-5. Выберите рабочий zapret `.bat`, на основе которого нужно создать новый.
-6. Нажмите `Проверить игру`.
-7. Нажмите `Начать запись`, запустите Star Citizen и доведите игру до ошибки `30000`.
-8. Вернитесь в helper и нажмите `Остановить и разобрать`.
-9. Нажмите `Создать bat` и запускайте созданный `_SC_...bat` вместо старого.
+1. Установите и настройте [zapret](https://github.com/flowseal/zapret-discord-youtube), чтобы у вас уже был рабочий zapret `.bat`.
+2. Скачайте `SC_Route_Helper_v1.0.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-route-helper-v1.0.0).
+3. Распакуйте архив.
+4. Запустите `SC_Route_Helper.bat`.
+5. Выберите папку `StarCitizen\LIVE`.
+6. Выберите рабочий zapret `.bat`, на основе которого нужно создать новый.
+7. Нажмите `Проверить игру`.
+8. Нажмите `Начать запись`, запустите Star Citizen и доведите игру до ошибки `30000`.
+9. Вернитесь в helper и нажмите `Остановить и разобрать`.
+10. Нажмите `Создать bat` и запускайте созданный `_SC_...bat` вместо старого.
 
 Подробная инструкция: [SC_Route_Helper/README.md](SC_Route_Helper/README.md).
 
