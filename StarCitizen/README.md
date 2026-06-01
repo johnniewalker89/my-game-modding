@@ -9,7 +9,7 @@
 Помогает игроку поймать сетевую ошибку `30000` в `Game.log`, накопить IP-кандидаты Star Citizen и создать новый zapret bat на основе уже рабочего bat-файла.
 
 1. Установите и настройте [zapret](https://github.com/flowseal/zapret-discord-youtube), чтобы у вас уже был рабочий zapret `.bat`.
-2. Скачайте [SC_Route_Helper_v1.0.0.zip](https://github.com/johnniewalker89/my-game-modding/releases/download/sc-route-helper-v1.0.0/SC_Route_Helper_v1.0.0.zip).
+2. Скачайте `SC_Route_Helper_v1.0.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-route-helper-v1.0.0).
 3. Распакуйте архив.
 4. Запустите `SC_Route_Helper.bat`.
 5. Выберите папку `StarCitizen\LIVE`.
