@@ -132,7 +132,6 @@ try {
         'SignatureButton',
         'OverviewNavButton',
         'ModulesNavButton',
-        'CheckUpdatesButton',
         'InstallUpdateButton',
         'ScreenTitleText',
         'LogBox'
@@ -153,7 +152,6 @@ try {
         SignatureButton = 'Johnnie на связи'
         OverviewNavButton = 'Обзор'
         ModulesNavButton = 'Модули'
-        CheckUpdatesButton = 'Проверить обновления'
         InstallUpdateButton = 'Обновить'
     }
 

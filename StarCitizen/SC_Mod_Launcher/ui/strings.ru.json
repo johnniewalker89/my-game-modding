@@ -26,7 +26,6 @@
   "deleteSelectedBackup": "Удалить выбранный",
   "modulesTitle": "Модульная сборка",
   "modulesSubtitle": "Выбери, какое добро причинить. Патч собирается одним общим набором правок.",
-  "checkUpdates": "Проверить обновления",
   "installUpdate": "Обновить",
   "updatesScaffold": "ZIP + SHA-256.",
   "logTitle": "Бортовой журнал",

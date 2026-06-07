@@ -42,7 +42,7 @@
 ### Release asset
 
 - Файл: `SC_Mod_Launcher_1.0.0.zip`
-- SHA-256: `A603AB46A35A2CD0BED193DDDC577EF0CAB9F03576FC9F625DE54E3870903F31`
+- SHA-256: `CCBFCD6891C42051A5FFA681005E522F56204F7E381CF3AAE6BFE42E161046E9`
 - Сборка: `tools\Build-ReleaseZip.ps1 -Version 1.0.0`
 - Проверено: scaffold backend, WPF smoke, update installer mirror/preserve cleanup.
 

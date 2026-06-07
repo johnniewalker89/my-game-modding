@@ -65,6 +65,7 @@ public partial class MainWindow : Window
         AddMetricLog(string.Format(T("modulesFound"), _modules.Count) + ".");
         AddMetricLog("Активные модули: " + string.Join("; ", _modules.Select(module => module.Name)) + ".");
         ShowOverview(this, new RoutedEventArgs());
+        Loaded += async (_, _) => await CheckUpdatesAsync();
     }
 
     private string T(string key)
@@ -163,7 +164,6 @@ public partial class MainWindow : Window
         WarmCacheButton.Content = T("warmCache");
         ApplyLiveButton.Content = T("applyLive");
         RestoreBackupButton.Content = T("restoreBackup");
-        CheckUpdatesButton.Content = T("checkUpdates");
         InstallUpdateButton.Content = T("installUpdate");
         UpdatesScaffoldText.Text = T("updatesScaffold");
         BackupInfoText.Text = T("backupInfoEmpty");
@@ -173,7 +173,7 @@ public partial class MainWindow : Window
         DeleteSelectedBackupButton.Content = T("deleteSelectedBackup");
         LiveStatusText.Text = T("ready");
         ModulesStatusText.Text = string.Join("; ", _modules.Select(module => module.Name));
-        UpdateStatusText.Text = "Канал обновлений готов.";
+        UpdateStatusText.Text = "Канал обновлений проверяется.";
     }
 
     private void LoadVisualAssets()
@@ -1703,9 +1703,8 @@ public partial class MainWindow : Window
         return $"{Math.Round(value.TotalSeconds)} сек";
     }
 
-    private async void CheckUpdates(object sender, RoutedEventArgs e)
+    private async Task CheckUpdatesAsync()
     {
-        CheckUpdatesButton.IsEnabled = false;
         InstallUpdateButton.IsEnabled = false;
         _latestLauncherRelease = null;
         _verifiedUpdatePackagePath = null;
@@ -1757,15 +1756,12 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            var message = "GitHub Releases недоступны: " + ShortError(ex.Message);
-            UpdatesScaffoldText.Foreground = (Brush)FindResource("SignalRed");
+            var message = "GitHub временно недоступен: " + ShortError(ex.Message);
+            UpdatesScaffoldText.Foreground = (Brush)FindResource("SignalAmber");
             UpdatesScaffoldText.Text = message;
-            UpdateStatusText.Text = "Ошибка канала обновлений.";
-            AddError(message);
-        }
-        finally
-        {
-            CheckUpdatesButton.IsEnabled = true;
+            UpdateStatusText.Text = "Канал обновлений недоступен.";
+            SetJournalState("Канал обновлений временно недоступен.");
+            AddMetricLog(message);
         }
     }
 
@@ -1941,7 +1937,6 @@ public partial class MainWindow : Window
             return false;
         }
 
-        CheckUpdatesButton.IsEnabled = false;
         InstallUpdateButton.IsEnabled = false;
         _verifiedUpdatePackagePath = null;
         _verifiedUpdateSha256 = null;
@@ -2008,7 +2003,6 @@ public partial class MainWindow : Window
         }
         finally
         {
-            CheckUpdatesButton.IsEnabled = true;
             InstallUpdateButton.IsEnabled = _latestLauncherRelease is not null &&
                 !string.IsNullOrWhiteSpace(_latestLauncherRelease.ExpectedSha256);
         }
