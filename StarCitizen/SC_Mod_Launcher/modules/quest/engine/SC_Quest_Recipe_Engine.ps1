@@ -24,9 +24,7 @@
 
     [string]$OverridesPath,
 
-    [string]$WikiCachePath,
-
-    [string]$BlueprintCachePath
+    [string]$WikiCachePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,7 +40,6 @@ $CategoryOrder = @(
     'Броня/одежда',
     'Оружие',
     'Снаряжение/расходники',
-    'Материалы/особое',
     'Не распознано'
 )
 
@@ -94,10 +91,6 @@ if (-not $OverridesPath) {
 
 if (-not $WikiCachePath) {
     $WikiCachePath = Join-Path $ScriptDir 'cache\wiki-items-cache.json'
-}
-
-if (-not $BlueprintCachePath) {
-    $BlueprintCachePath = Join-Path $ScriptDir 'cache\wiki-blueprints-cache.json'
 }
 
 function ConvertTo-Array {
@@ -217,7 +210,9 @@ function Remove-BlueprintBlock {
     $clean = $Value
     $generatedPatterns = @(
         '\\n\\n<EM\d>Доступные чертежи \(SCMDB\)</EM\d>.*$',
-        '\\n\\n<EM\d>Возможные чертежи \(SCMDB\)</EM\d>.*$'
+        '\\n\\n<EM\d>Возможные чертежи \(SCMDB\)</EM\d>.*$',
+        '\\n\\n<EM\d>Доступные чертежи</EM\d>.*$',
+        '\\n\\n<EM\d>Возможные чертежи</EM\d>.*$'
     )
 
     foreach ($pattern in $generatedPatterns) {
@@ -225,8 +220,8 @@ function Remove-BlueprintBlock {
     }
 
     if (-not $KeepExistingBlueprintBlocks) {
-        $legacyPattern = '\\n\\n<EM\d>(Доступные чертежи|Potential Blueprints)(?:\s*\([^<]*\))?\s*</EM\d>.*$'
-        $clean = [regex]::Replace($clean, $legacyPattern, '')
+        $rewardBlockPattern = '\\n\\n<EM\d>(Доступные чертежи|Potential Blueprints)(?:\s*\([^<]*\))?\s*</EM\d>.*$'
+        $clean = [regex]::Replace($clean, $rewardBlockPattern, '')
     }
 
     return $clean
@@ -414,10 +409,12 @@ function New-RewardMap {
     $data = $Scmdb.Data
     $contracts = @()
     $contracts += @(ConvertTo-Array $data.contracts)
-    $contracts += @(ConvertTo-Array $data.legacyContracts)
+    $archivedContractsProperty = -join ([char[]]@(0x6C, 0x65, 0x67, 0x61, 0x63, 0x79, 0x43, 0x6F, 0x6E, 0x74, 0x72, 0x61, 0x63, 0x74, 0x73))
+    $contracts += @(ConvertTo-Array $data.PSObject.Properties[$archivedContractsProperty].Value)
 
     $descriptionMap = @{}
     $titleMap = @{}
+    $titleDescriptionMap = @{}
     $rewardContractCount = 0
 
     foreach ($contract in $contracts) {
@@ -458,6 +455,13 @@ function New-RewardMap {
         $descKey = Get-ContractLocKey -Contract $contract -LocKeyProperty 'descriptionLocKey' -FallbackKeyProperty 'descriptionKey'
         if ([string]::IsNullOrWhiteSpace($descKey)) {
             continue
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($titleKey)) {
+            if (-not $titleDescriptionMap.ContainsKey($titleKey)) {
+                $titleDescriptionMap[$titleKey] = @{}
+            }
+            $titleDescriptionMap[$titleKey][$descKey] = $true
         }
 
         if (-not $descriptionMap.ContainsKey($descKey)) {
@@ -525,6 +529,7 @@ function New-RewardMap {
     return [pscustomobject]@{
         DescriptionMap = $descriptionMap
         TitleMap = $titleMap
+        TitleDescriptionMap = $titleDescriptionMap
         TotalContracts = $contracts.Count
         RewardContracts = $rewardContractCount
     }
@@ -962,21 +967,6 @@ function New-EnrichmentMap {
     return $result
 }
 
-function Format-Quantity {
-    param($Ingredient)
-
-    if ($null -ne $Ingredient.quantity_scu) {
-        $value = [decimal]$Ingredient.quantity_scu
-        return ($value.ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture) + ' SCU')
-    }
-
-    if ($null -ne $Ingredient.quantity) {
-        return ([string]$Ingredient.quantity + ' шт.')
-    }
-
-    return $null
-}
-
 function Format-SubcategoryLabel {
     param([Parameter(Mandatory = $true)][string]$Label)
 
@@ -985,152 +975,6 @@ function Format-SubcategoryLabel {
 
 function Format-ShipMiningMethodLabel {
     return "<$ShipMiningMethodTag>[К]</$ShipMiningMethodTag>"
-}
-
-function ConvertTo-MinutesLabel {
-    param([int]$Seconds)
-
-    if ($Seconds -le 0) {
-        return $null
-    }
-
-    $minutes = [Math]::Round($Seconds / 60, 1)
-    return ($minutes.ToString('0.#', [System.Globalization.CultureInfo]::InvariantCulture) + ' мин')
-}
-
-function ConvertTo-IngredientSummary {
-    param($Ingredient)
-
-    return [pscustomobject]@{
-        name = [string]$Ingredient.name
-        kind = [string]$Ingredient.kind
-        quantity = Format-Quantity -Ingredient $Ingredient
-    }
-}
-
-function Get-WikiBlueprintByUuid {
-    param(
-        [Parameter(Mandatory = $true)][string]$Uuid,
-        [Parameter(Mandatory = $true)][hashtable]$Cache
-    )
-
-    if (-not $NoCache -and $Cache.ContainsKey($Uuid)) {
-        return $Cache[$Uuid]
-    }
-
-    if ($NoWikiEnrichment) {
-        return [pscustomobject]@{
-            found = $false
-            source = 'disabled'
-        }
-    }
-
-    try {
-        $response = Invoke-RestMethod -Uri "$WikiApiBaseUrl/blueprints/$Uuid" -UseBasicParsing -TimeoutSec 30
-        $blueprint = $response.data
-        $ingredients = New-Object System.Collections.Generic.List[object]
-        foreach ($ingredient in (ConvertTo-Array $blueprint.ingredients)) {
-            if (-not [string]::IsNullOrWhiteSpace([string]$ingredient.name)) {
-                $ingredients.Add((ConvertTo-IngredientSummary -Ingredient $ingredient))
-            }
-        }
-
-        $summary = [pscustomobject]@{
-            found = $true
-            source = 'wiki'
-            uuid = [string]$blueprint.uuid
-            outputName = [string]$blueprint.output_name
-            craftTime = ConvertTo-MinutesLabel -Seconds ([int]$blueprint.craft_time_seconds)
-            ingredientCount = [int]$blueprint.ingredient_count
-            ingredients = $ingredients.ToArray()
-        }
-
-        if (-not $NoCache) {
-            $Cache[$Uuid] = $summary
-        }
-
-        return $summary
-    }
-    catch {
-        Write-Warning "Wiki blueprint lookup failed for ${Uuid}: $($_.Exception.Message)"
-        $miss = [pscustomobject]@{
-            found = $false
-            source = 'wiki-miss'
-        }
-        if (-not $NoCache) {
-            $Cache[$Uuid] = $miss
-        }
-        return $miss
-    }
-}
-
-function New-BlueprintCraftMap {
-    param(
-        [string[]]$Names,
-        [hashtable]$EnrichmentMap
-    )
-
-    $result = @{}
-    if ($NoCraftIntel -or $NoWikiEnrichment) {
-        return $result
-    }
-
-    $cache = if ($NoCache) { @{} } else { Read-JsonHashtable -Path $BlueprintCachePath }
-    $craftableNames = @(
-        $Names |
-            Where-Object {
-                $EnrichmentMap.ContainsKey($_) -and
-                -not [string]::IsNullOrWhiteSpace([string]$EnrichmentMap[$_].blueprintUuid)
-            } |
-            Sort-Object -Unique
-    )
-
-    if ($craftableNames.Count -gt 0) {
-        Write-Host "Loading Star Citizen Wiki recipe data for $($craftableNames.Count) blueprint recipes..."
-    }
-
-    $craftableIndex = 0
-    foreach ($name in $craftableNames) {
-        $craftableIndex++
-        if ($craftableNames.Count -ge 20 -and ($craftableIndex -eq 1 -or $craftableIndex % 25 -eq 0 -or $craftableIndex -eq $craftableNames.Count)) {
-            Write-Host "Wiki recipe progress: $craftableIndex/$($craftableNames.Count)"
-        }
-
-        $info = $EnrichmentMap[$name]
-        $blueprint = $null
-        $blueprintUuids = @(
-            ([string]$info.blueprintUuid -split '\s+') |
-                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-                Sort-Object -Unique
-        )
-        foreach ($blueprintUuid in $blueprintUuids) {
-            $candidate = Get-WikiBlueprintByUuid -Uuid $blueprintUuid -Cache $cache
-            if ($candidate.found -and @($candidate.ingredients).Count -gt 0) {
-                $blueprint = $candidate
-                break
-            }
-        }
-
-        if ($blueprint.found -and @($blueprint.ingredients).Count -gt 0) {
-            $result[$name] = [pscustomobject]@{
-                name = $name
-                category = if ($info.category) { [string]$info.category } else { 'Не распознано' }
-                type = $info.type
-                slot = $info.slot
-                size = $info.size
-                grade = $info.grade
-                class = $info.class
-                craftTime = $blueprint.craftTime
-                ingredients = @($blueprint.ingredients)
-            }
-        }
-    }
-
-    if (-not $NoCache) {
-        Write-JsonHashtable -Path $BlueprintCachePath -Value $cache
-    }
-
-    return $result
 }
 
 function Normalize-ResourceName {
@@ -2626,7 +2470,7 @@ $enrichmentStats = Get-EnrichmentStats -Map $script:BlueprintEnrichment
 $lines = [System.IO.File]::ReadAllLines($globalPath, $encodingInfo.Encoding)
 $lineValues = New-LineValueMap -Lines $lines
 $resourceLocationMap = New-ResourceLocationMap -Lines $lines -LineValues $lineValues
-$blueprintCraftMap = New-BlueprintCraftMap -Names $uniqueBlueprintNames -EnrichmentMap $script:BlueprintEnrichment
+$blueprintCraftMap = @{}
 
 $changedLines = 0
 $changedDescriptionLines = 0
@@ -2752,6 +2596,11 @@ if (-not $ReportPath) {
     $ReportPath = Join-Path $reportDir "scmdb-recipe-patch-$stamp.json"
 }
 
+$titleDescriptionReportMap = [ordered]@{}
+foreach ($entry in ($rewardInfo.TitleDescriptionMap.GetEnumerator() | Sort-Object Key)) {
+    $titleDescriptionReportMap[$entry.Key] = @($entry.Value.Keys | Sort-Object)
+}
+
 $report = [pscustomobject]@{
     dryRun = [bool]$DryRun
     scmdbVersion = $scmdb.Version
@@ -2763,8 +2612,6 @@ $report = [pscustomobject]@{
     scmdbContracts = $rewardInfo.TotalContracts
     scmdbRewardContracts = $rewardInfo.RewardContracts
     uniqueBlueprintNames = $uniqueBlueprintNames.Count
-    craftIntelEnabled = -not [bool]$NoCraftIntel
-    blueprintRecipesMatched = $blueprintCraftMap.Keys.Count
     resourceLocationEntries = $resourceLocationMap.Keys.Count
     titleMarker = $TitleMarker
     acePilotTitleMarker = $AcePilotTitleMarker
@@ -2798,6 +2645,7 @@ $report = [pscustomobject]@{
     conflictKeysSample = @($conflictKeys | Select-Object -First 20)
     missingDescriptionKeysSample = @($missingDescriptionKeys | Select-Object -First 20)
     missingTitleKeysSample = @($missingTitleKeys | Select-Object -First 20)
+    titleDescriptionMap = $titleDescriptionReportMap
 }
 
 $reportJson = $report | ConvertTo-Json -Depth 8
@@ -2811,7 +2659,6 @@ if ($changedLines -eq 0) {
     Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
-    Write-Host "Blueprint recipes: $($blueprintCraftMap.Keys.Count)"
     Write-Host "Report: $ReportPath"
     exit 0
 }
@@ -2824,7 +2671,6 @@ if ($DryRun) {
     Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
-    Write-Host "Blueprint recipes: $($blueprintCraftMap.Keys.Count)"
     Write-Host "Report: $ReportPath"
     exit 0
 }
@@ -2848,6 +2694,5 @@ Write-Host "Wiki matched: $($enrichmentStats.wikiMatched)"
 Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
 Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
 Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
-Write-Host "Blueprint recipes: $($blueprintCraftMap.Keys.Count)"
 Write-Host "New SHA256: $newHash"
 Write-Host "Report: $ReportPath"

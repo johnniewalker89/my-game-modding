@@ -1,0 +1,171 @@
+{
+  "id": "mining",
+  "name": "Майнинг и крафт",
+  "description": "Подсказки в описаниях планет, лун и предметов.",
+  "version": "1.0.0",
+  "script": "module.ps1",
+  "planFunction": "Get-SCMiningPatchPlan",
+  "options": [
+    {
+      "id": "itemCraftHints",
+      "name": "Состав предметов",
+      "description": "Добавлять строку Крафт в описания предметов, если рецепт безопасно сопоставлен.",
+      "default": true,
+      "group": "Подсказки предметов"
+    },
+    {
+      "id": "shipMining",
+      "name": "Корабельная добыча",
+      "description": "Показывать ресурсы для корабельного майнинга.",
+      "default": true,
+      "group": "Способы добычи"
+    },
+    {
+      "id": "groundVehicleMining",
+      "name": "ROC / наземная добыча",
+      "description": "Показывать ресурсы для наземной добычи.",
+      "default": false,
+      "group": "Способы добычи"
+    },
+    {
+      "id": "multitoolMining",
+      "name": "Мультитул",
+      "description": "Показывать ресурсы для ручной добычи.",
+      "default": false,
+      "group": "Способы добычи"
+    },
+    {
+      "id": "componentClassMilitary",
+      "name": "Военные",
+      "description": "Показывать корабельные компоненты Grade A класса Military.",
+      "default": true,
+      "group": "Корабельные компоненты"
+    },
+    {
+      "id": "componentClassStealth",
+      "name": "Стелс",
+      "description": "Показывать корабельные компоненты Grade A класса Stealth.",
+      "default": true,
+      "group": "Корабельные компоненты"
+    },
+    {
+      "id": "componentClassCompetition",
+      "name": "Спортивные",
+      "description": "Показывать корабельные компоненты Grade A класса Competition.",
+      "default": false,
+      "group": "Корабельные компоненты"
+    },
+    {
+      "id": "componentClassCivilian",
+      "name": "Гражданские",
+      "description": "Показывать корабельные компоненты Grade A класса Civilian.",
+      "default": false,
+      "group": "Корабельные компоненты"
+    },
+    {
+      "id": "componentClassIndustrial",
+      "name": "Индустриальные",
+      "description": "Показывать корабельные компоненты Grade A класса Industrial.",
+      "default": false,
+      "group": "Корабельные компоненты"
+    },
+    {
+      "id": "shipWeaponEnergy",
+      "name": "Энергетика",
+      "description": "Показывать энергетические корабельные орудия.",
+      "default": true,
+      "group": "Корабельные орудия"
+    },
+    {
+      "id": "shipWeaponBallistic",
+      "name": "Баллистика",
+      "description": "Показывать баллистические корабельные орудия.",
+      "default": true,
+      "group": "Корабельные орудия"
+    },
+    {
+      "id": "shipWeaponHybrid",
+      "name": "Гибрид",
+      "description": "Показывать гибридные и дисторсионные корабельные орудия.",
+      "default": false,
+      "group": "Корабельные орудия"
+    },
+    {
+      "id": "shipWeaponMiningLaser",
+      "name": "Добывающие лазеры",
+      "description": "Показывать корабельные добывающие лазеры.",
+      "default": false,
+      "group": "Корабельные орудия"
+    },
+    {
+      "id": "armorHeavy",
+      "name": "Тяжёлая",
+      "description": "Показывать тяжёлую броню.",
+      "default": true,
+      "group": "Броня и одежда"
+    },
+    {
+      "id": "armorMedium",
+      "name": "Средняя",
+      "description": "Показывать среднюю броню.",
+      "default": true,
+      "group": "Броня и одежда"
+    },
+    {
+      "id": "armorLight",
+      "name": "Лёгкая",
+      "description": "Показывать лёгкую броню.",
+      "default": false,
+      "group": "Броня и одежда"
+    },
+    {
+      "id": "armorSuits",
+      "name": "Костюмы",
+      "description": "Показывать костюмы и бронекостюмы.",
+      "default": false,
+      "group": "Броня и одежда"
+    },
+    {
+      "id": "fpsRifles",
+      "name": "Винтовки",
+      "description": "Показывать штурмовые и обычные винтовки.",
+      "default": true,
+      "group": "FPS-оружие"
+    },
+    {
+      "id": "fpsSniperRifles",
+      "name": "Снайперские винтовки",
+      "description": "Показывать снайперские винтовки.",
+      "default": true,
+      "group": "FPS-оружие"
+    },
+    {
+      "id": "fpsSmgs",
+      "name": "SMG",
+      "description": "Показывать пистолеты-пулемёты.",
+      "default": true,
+      "group": "FPS-оружие"
+    },
+    {
+      "id": "fpsLmgs",
+      "name": "Пулемёты",
+      "description": "Показывать пулемёты.",
+      "default": true,
+      "group": "FPS-оружие"
+    },
+    {
+      "id": "fpsPistols",
+      "name": "Пистолеты",
+      "description": "Показывать пистолеты.",
+      "default": false,
+      "group": "FPS-оружие"
+    },
+    {
+      "id": "fpsShotguns",
+      "name": "Дробовики",
+      "description": "Показывать дробовики.",
+      "default": false,
+      "group": "FPS-оружие"
+    }
+  ]
+}

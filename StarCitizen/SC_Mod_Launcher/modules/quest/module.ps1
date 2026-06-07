@@ -1,0 +1,676 @@
+﻿function Get-SCQuestPatchPlan {
+    param(
+        [object]$Context,
+        [string[]]$SelectedOptions
+    )
+
+    $selectedCategoryNames = @(Get-SCQuestSelectedCategoryNames -SelectedOptions $SelectedOptions)
+    $allSelectableCategoriesSelected = Test-SCQuestAllSelectableCategoriesSelected -SelectedCategoryNames $selectedCategoryNames
+    $enableHighValueScripHighlights = @($SelectedOptions) -contains 'highValueScripHighlights'
+    $metadata = @{
+        source = 'SC Quest Recipe Engine'
+        selectedOptionCount = @($SelectedOptions).Count
+        selectedBlueprintCategories = @($selectedCategoryNames)
+        highValueScripHighlightsEnabled = $enableHighValueScripHighlights
+        blueprintMarkerPolicy = 'Title marker [CH] is kept only when the contract has visible selected blueprint categories.'
+        specialMarkerPolicy = 'Ace pilot [A] and scrip [S] markers are always kept when reported by SCMDB; high-value scrip title highlighting is optional.'
+        inspectedKeys = $Context.KeyCount
+        engine = $null
+        engineExitCode = $null
+        generatedDescriptionBlocks = 0
+        keptDescriptionBlocks = 0
+        filteredDescriptionBlocks = 0
+        highValueScripHighlightConfigured = 0
+        highValueScripHighlightFound = 0
+        highValueScripHighlightChanged = 0
+        changedDescriptionLines = 0
+        changedTitleLines = 0
+        allSelectableCategoriesSelected = $allSelectableCategoriesSelected
+    }
+
+    if ($Context.KeyCount -lt 1000) {
+        $metadata.engine = 'skipped-small-fixture'
+        return [pscustomobject]@{
+            ModuleId = 'quest'
+            Operations = @()
+            Warnings = @('Quest module skipped SCMDB recipe pass for a small test fixture.')
+            Metadata = $metadata
+        }
+    }
+
+    $engine = Invoke-SCQuestRecipeEngine -Context $Context
+    $metadata.engine = $engine.EnginePath
+    $metadata.engineExitCode = $engine.ExitCode
+
+    if ($engine.ExitCode -ne 0) {
+        return [pscustomobject]@{
+            ModuleId = 'quest'
+            Operations = @()
+            Warnings = @("Quest module engine failed with exit code $($engine.ExitCode). $($engine.Error)")
+            Metadata = $metadata
+        }
+    }
+
+    $originalValues = ConvertTo-SCQuestLineValueMap -Lines $Context.Lines
+    $patchedValues = ConvertTo-SCQuestLineValueMap -Lines $engine.PatchedLines
+    $titleVisibility = @{}
+    $descriptionTitleMap = ConvertTo-SCQuestDescriptionTitleMap -TitleDescriptionMap $engine.Report.titleDescriptionMap
+    $descriptionStats = @{
+        generated = 0
+        kept = 0
+        filtered = 0
+    }
+
+    foreach ($key in @($patchedValues.Keys)) {
+        $value = [string]$patchedValues[$key]
+        if (-not (Test-SCQuestHasRewardBlock -Value $value)) {
+            continue
+        }
+
+        $descriptionStats.generated++
+        $filteredValue = Select-SCQuestRewardBlockCategories -Value $value -SelectedCategoryNames $selectedCategoryNames
+        $patchedValues[$key] = Remove-SCQuestVisibleScmdbBranding -Value $filteredValue
+
+        $hasVisibleRewardBlock = Test-SCQuestHasRewardBlock -Value $filteredValue
+        foreach ($titleKey in Get-SCQuestLinkedTitleKeys -DescriptionKey $key -DescriptionTitleMap $descriptionTitleMap) {
+            Add-SCQuestTitleVisibility -VisibilityMap $titleVisibility -TitleKey $titleKey -HasVisibleRewardBlock $hasVisibleRewardBlock
+        }
+
+        if ($hasVisibleRewardBlock) {
+            $descriptionStats.kept++
+        }
+        else {
+            $descriptionStats.filtered++
+        }
+    }
+
+    if (-not $allSelectableCategoriesSelected) {
+        foreach ($key in @($patchedValues.Keys)) {
+            $value = [string]$patchedValues[$key]
+            if (-not (Test-SCQuestLooksLikeTitleKey -Key $key)) {
+                continue
+            }
+
+            $removeBlueprintMarker = $false
+            $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+            if ($titleVisibility.ContainsKey($normalizedKey)) {
+                $removeBlueprintMarker = ([int]$titleVisibility[$normalizedKey].Total -gt 0 -and [int]$titleVisibility[$normalizedKey].Visible -eq 0)
+            }
+
+            if ($removeBlueprintMarker) {
+                $patchedValues[$key] = Remove-SCQuestBlueprintTitleMarker -Value $value
+            }
+        }
+    }
+
+    $highlightConfig = Get-SCQuestHighValueScripHighlightConfig
+    $highlightStats = Set-SCQuestHighValueScripTitleHighlights -Values $patchedValues -Config $highlightConfig -Enable:$enableHighValueScripHighlights
+
+    $operations = @()
+    $changedDescriptionLines = 0
+    $changedTitleLines = 0
+
+    foreach ($key in @($patchedValues.Keys | Sort-Object)) {
+        if (-not $originalValues.ContainsKey($key)) {
+            continue
+        }
+
+        $original = [string]$originalValues[$key]
+        $newValue = [string]$patchedValues[$key]
+        if ($newValue -eq $original) {
+            continue
+        }
+
+        if ((Test-SCQuestHasRewardBlock -Value $original) -or (Test-SCQuestHasRewardBlock -Value $newValue)) {
+            $changedDescriptionLines++
+        }
+        elseif (Test-SCQuestLooksLikeTitleKey -Key $key) {
+            $changedTitleLines++
+        }
+
+        $operations += [pscustomobject]@{
+            ModuleId = 'quest'
+            OptionId = 'questRewards'
+            Key = $key
+            Operation = 'replaceValue'
+            OriginalValue = $original
+            NewValue = $newValue
+            OwnedMarkers = @('SCMDB_QUEST_REWARD_BLOCK', 'SCMDB_QUEST_TITLE_MARKERS')
+        }
+    }
+
+    $metadata.generatedDescriptionBlocks = $descriptionStats.generated
+    $metadata.keptDescriptionBlocks = $descriptionStats.kept
+    $metadata.filteredDescriptionBlocks = $descriptionStats.filtered
+    $metadata.mappedTitleKeys = @($titleVisibility.Keys).Count
+    $metadata.titleDescriptionLinks = @($descriptionTitleMap.Keys).Count
+    $metadata.highValueScripHighlightConfigured = $highlightStats.Configured
+    $metadata.highValueScripHighlightFound = $highlightStats.Found
+    $metadata.highValueScripHighlightChanged = $highlightStats.Changed
+    $metadata.highValueScripHighlightTag = $highlightConfig.Tag
+    $metadata.removedBlueprintTitleMarkers = @($patchedValues.Keys | Where-Object {
+        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $_
+        (Test-SCQuestLooksLikeTitleKey -Key $_) -and
+        $titleVisibility.ContainsKey($normalizedKey) -and
+        [int]$titleVisibility[$normalizedKey].Total -gt 0 -and
+        [int]$titleVisibility[$normalizedKey].Visible -eq 0
+    }).Count
+    $metadata.changedDescriptionLines = $changedDescriptionLines
+    $metadata.changedTitleLines = $changedTitleLines
+    $metadata.engineReportPath = $engine.ReportPath
+    $metadata.engineOutputSample = @($engine.OutputLines | Select-Object -First 20)
+
+    return [pscustomobject]@{
+        ModuleId = 'quest'
+        Operations = @($operations)
+        Warnings = @()
+        Metadata = $metadata
+    }
+}
+
+function Invoke-SCQuestRecipeEngine {
+    param([object]$Context)
+
+    $moduleRoot = $PSScriptRoot
+    $engineRoot = Join-Path $moduleRoot 'engine'
+    $engineScript = Join-Path $engineRoot 'SC_Quest_Recipe_Engine.ps1'
+
+    if (-not (Test-Path -LiteralPath $engineScript -PathType Leaf)) {
+        throw "SC quest recipe engine not found: $engineScript"
+    }
+
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-quest-module-" + [guid]::NewGuid().ToString('N'))
+    $tempLive = Join-Path $tempRoot 'LIVE'
+    $tempLoc = Join-Path $tempLive 'data\Localization\korean_(south_korea)'
+    $tempGlobal = Join-Path $tempLoc 'global.ini'
+    $tempReport = Join-Path $tempRoot 'quest-engine-report.json'
+
+    New-Item -ItemType Directory -Force -Path $tempLoc | Out-Null
+    [System.IO.File]::WriteAllLines($tempGlobal, @($Context.Lines), $Context.EncodingInfo.Encoding)
+
+    $powershellExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (-not (Test-Path -LiteralPath $powershellExe -PathType Leaf)) {
+        $powershellExe = 'powershell.exe'
+    }
+
+    $arguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $engineScript,
+        '-GlobalIniPath', $tempGlobal,
+        '-NoBackup',
+        '-NoCraftIntel',
+        '-ReportPath', $tempReport,
+        '-OverridesPath', (Join-Path $engineRoot 'data\blueprint-overrides.ru.json'),
+        '-WikiCachePath', (Join-Path $engineRoot 'cache\wiki-items-cache.json')
+    )
+
+    $engineOutput = @(& $powershellExe @arguments 2>&1 | ForEach-Object { [string]$_ })
+    $exitCode = if ($global:LASTEXITCODE -eq $null) { 0 } else { [int]$global:LASTEXITCODE }
+
+    $patchedLines = @()
+    if (Test-Path -LiteralPath $tempGlobal -PathType Leaf) {
+        $patchedLines = [System.IO.File]::ReadAllLines($tempGlobal, $Context.EncodingInfo.Encoding)
+    }
+
+    $report = $null
+    if (Test-Path -LiteralPath $tempReport -PathType Leaf) {
+        $report = Get-Content -LiteralPath $tempReport -Raw | ConvertFrom-Json
+    }
+
+    return [pscustomobject]@{
+        EnginePath = $engineScript
+        TempRoot = $tempRoot
+        ReportPath = $tempReport
+        ExitCode = $exitCode
+        Output = ($engineOutput -join [Environment]::NewLine)
+        OutputLines = @($engineOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        Error = if ($exitCode -eq 0) { '' } else { ($engineOutput -join [Environment]::NewLine) }
+        PatchedLines = @($patchedLines)
+        Report = $report
+    }
+}
+
+function ConvertTo-SCQuestLineValueMap {
+    param([string[]]$Lines)
+
+    $values = @{}
+    foreach ($line in @($Lines)) {
+        if ($line -match '^\s*([^=;\[][^=]*)=(.*)$') {
+            $key = ([string]$Matches[1]).Trim()
+            $values[$key] = [string]$Matches[2]
+        }
+    }
+
+    return $values
+}
+
+function Get-SCQuestHighValueScripHighlightConfig {
+    $path = Join-Path $PSScriptRoot 'data\high-value-scrip-contracts.json'
+    $empty = [pscustomobject]@{
+        Tag = 'EM2'
+        Keys = @{}
+    }
+
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        return $empty
+    }
+
+    $json = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $tag = if ($json.styleTag -match '^EM[1-5]$') { [string]$json.styleTag } else { 'EM2' }
+    $keys = @{}
+    foreach ($contract in @($json.contracts)) {
+        if ($null -eq $contract -or [string]::IsNullOrWhiteSpace([string]$contract.titleKey)) {
+            continue
+        }
+
+        $keys[(Get-SCQuestNormalizedIniKey -Key ([string]$contract.titleKey))] = $true
+    }
+
+    return [pscustomobject]@{
+        Tag = $tag
+        Keys = $keys
+    }
+}
+
+function Set-SCQuestHighValueScripTitleHighlights {
+    param(
+        [hashtable]$Values,
+        [object]$Config,
+        [bool]$Enable = $true
+    )
+
+    $configured = @($Config.Keys.Keys).Count
+    $found = 0
+    $changed = 0
+
+    foreach ($key in @($Values.Keys)) {
+        if (-not (Test-SCQuestLooksLikeTitleKey -Key $key)) {
+            continue
+        }
+
+        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+        if (-not $Config.Keys.ContainsKey($normalizedKey)) {
+            continue
+        }
+
+        $found++
+        $current = [string]$Values[$key]
+        $updated = Set-SCQuestTitleHighlight -Value $current -Enabled $Enable -Tag $Config.Tag
+        if ($updated -ne $current) {
+            $Values[$key] = $updated
+            $changed++
+        }
+    }
+
+    return [pscustomobject]@{
+        Configured = $configured
+        Found = $found
+        Changed = $changed
+    }
+}
+
+function Set-SCQuestTitleHighlight {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [bool]$Enabled,
+        [string]$Tag = 'EM2'
+    )
+
+    if ($Tag -notmatch '^EM[1-5]$') {
+        $Tag = 'EM2'
+    }
+
+    $prefix = ''
+    $title = [string]$Value
+    $markerPattern = '^\s*((?:<EM[1-5]>\[[^\]]+\]</EM[1-5]>|\[[^\]]+\])\s*)'
+    while ($title -match $markerPattern) {
+        $prefix += $Matches[1]
+        $title = $title.Substring($Matches[0].Length)
+    }
+
+    $title = Remove-SCQuestTitleHighlight -Value $title -Tag $Tag
+    if ([string]::IsNullOrWhiteSpace($title)) {
+        return $prefix.TrimEnd()
+    }
+
+    if ($Enabled) {
+        return $prefix + "<$Tag>$title</$Tag>"
+    }
+
+    return $prefix + $title
+}
+
+function Remove-SCQuestTitleHighlight {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [string]$Tag = 'EM2'
+    )
+
+    $clean = [string]$Value
+    $pattern = '^\s*<EM[1-5]>(.*?)</EM[1-5]>\s*$'
+    do {
+        $before = $clean
+        $clean = [regex]::Replace($clean, $pattern, '$1')
+    }
+    while ($clean -ne $before)
+
+    return $clean
+}
+
+function Remove-SCQuestVisibleScmdbBranding {
+    param([AllowEmptyString()][string]$Value)
+
+    return [regex]::Replace(
+        [string]$Value,
+        '<EM(?<tag>[1-5])>(?<title>Доступные чертежи|Возможные чертежи) \(SCMDB\)</EM\k<tag>>',
+        '<EM${tag}>${title}</EM${tag}>')
+}
+
+function Get-SCQuestSelectedCategoryNames {
+    param([string[]]$SelectedOptions)
+
+    $map = @{
+        shipComponents = 'Корабельные компоненты'
+        shipWeapons = 'Корабельные орудия'
+        armorAndClothing = 'Броня/одежда'
+        fpsWeapons = 'Оружие'
+        equipmentAndConsumables = 'Снаряжение/расходники'
+    }
+
+    $names = @()
+    foreach ($option in @('shipComponents', 'shipWeapons', 'armorAndClothing', 'fpsWeapons', 'equipmentAndConsumables')) {
+        if ($SelectedOptions -contains $option) {
+            $names += $map[$option]
+        }
+    }
+
+    return @($names)
+}
+
+function Get-SCQuestKnownCategoryNames {
+    return @(
+        'Корабельные компоненты',
+        'Корабельные орудия',
+        'Броня/одежда',
+        'Оружие',
+        'Снаряжение/расходники',
+        'Материалы/особое',
+        'Не распознано'
+    )
+}
+
+function Get-SCQuestSelectableCategoryNames {
+    return @(
+        'Корабельные компоненты',
+        'Корабельные орудия',
+        'Броня/одежда',
+        'Оружие',
+        'Снаряжение/расходники'
+    )
+}
+
+function Test-SCQuestAllSelectableCategoriesSelected {
+    param([string[]]$SelectedCategoryNames)
+
+    $selected = @{}
+    foreach ($name in @($SelectedCategoryNames)) {
+        $selected[$name] = $true
+    }
+
+    foreach ($name in Get-SCQuestSelectableCategoryNames) {
+        if (-not $selected.ContainsKey($name)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Test-SCQuestHasRewardBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    return ($Value -match '\\n\\n<EM\d>(Доступные чертежи|Возможные чертежи)(?: \(SCMDB\))?</EM\d>')
+}
+
+function Select-SCQuestRewardBlockCategories {
+    param(
+        [Parameter(Mandatory = $true)][string]$Value,
+        [string[]]$SelectedCategoryNames
+    )
+
+    $match = [regex]::Match(
+        $Value,
+        '(?s)^(?<prefix>.*?)(?<block>\\n\\n<EM\d>(?:Доступные чертежи|Возможные чертежи)(?: \(SCMDB\))?</EM\d>.*)$'
+    )
+
+    if (-not $match.Success) {
+        return $Value
+    }
+
+    $selected = @{}
+    foreach ($name in @($SelectedCategoryNames)) {
+        $selected[$name] = $true
+    }
+
+    $known = @{}
+    foreach ($name in Get-SCQuestKnownCategoryNames) {
+        $known[$name] = $true
+    }
+
+    $prefix = [string]$match.Groups['prefix'].Value
+    $block = [string]$match.Groups['block'].Value
+    $blockBody = [regex]::Replace($block, '^\\n\\n', '')
+    $lines = @($blockBody -split '\\n')
+    if ($lines.Count -eq 0) {
+        return $Value
+    }
+
+    $header = $lines[0]
+    $kept = New-Object System.Collections.Generic.List[string]
+    $includeCurrentCategory = $false
+    $keptItemCount = 0
+    $currentCategory = $null
+    $categoryItemCounts = [ordered]@{}
+
+    for ($index = 1; $index -lt $lines.Count; $index++) {
+        $line = [string]$lines[$index]
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        $headingMatch = [regex]::Match($line, '^<EM\d>(.+?)</EM\d>$')
+        if ($headingMatch.Success -and $known.ContainsKey([string]$headingMatch.Groups[1].Value)) {
+            $category = [string]$headingMatch.Groups[1].Value
+            $includeCurrentCategory = $selected.ContainsKey($category)
+            $currentCategory = if ($includeCurrentCategory) { $category } else { $null }
+            if ($includeCurrentCategory) {
+                if (-not $categoryItemCounts.Contains($category)) {
+                    $categoryItemCounts[$category] = 0
+                }
+                if ($kept.Count -gt 0) {
+                    $kept.Add('')
+                }
+                $kept.Add($line)
+            }
+            continue
+        }
+
+        if ($includeCurrentCategory) {
+            $kept.Add($line)
+            if ($line -match '^- ') {
+                $keptItemCount++
+                if ($currentCategory) {
+                    $categoryItemCounts[$currentCategory] = [int]$categoryItemCounts[$currentCategory] + 1
+                }
+            }
+        }
+    }
+
+    if ($keptItemCount -eq 0) {
+        return $prefix.TrimEnd()
+    }
+
+    $summary = Format-SCQuestRewardSummaryLine -CategoryItemCounts $categoryItemCounts
+    $body = if ([string]::IsNullOrWhiteSpace($summary)) {
+        $header + '\n\n' + (($kept.ToArray()) -join '\n').TrimEnd()
+    }
+    else {
+        $header + '\n' + $summary + '\n\n' + (($kept.ToArray()) -join '\n').TrimEnd()
+    }
+
+    return $prefix.TrimEnd() + '\n\n' + $body
+}
+
+function Get-SCQuestPossibleTitleKeys {
+    param([string]$DescriptionKey)
+
+    $keys = New-Object System.Collections.Generic.List[string]
+    foreach ($pattern in @('_Desc_', '_desc_', '_DESC_')) {
+        if ($DescriptionKey.Contains($pattern)) {
+            $keys.Add($DescriptionKey.Replace($pattern, $pattern.Replace('Desc', 'Title').Replace('desc', 'title').Replace('DESC', 'TITLE')))
+            $keys.Add($DescriptionKey.Replace($pattern, $pattern.Replace('Desc', 'name').Replace('desc', 'name').Replace('DESC', 'name')))
+        }
+    }
+
+    if ($DescriptionKey -match '(?i)_Desc$') {
+        $keys.Add(([regex]::Replace($DescriptionKey, '_Desc$', '_Title', 'IgnoreCase')))
+        $keys.Add(([regex]::Replace($DescriptionKey, '_Desc$', '_name', 'IgnoreCase')))
+    }
+    if ($DescriptionKey -match '(?i)Description') {
+        $keys.Add(([regex]::Replace($DescriptionKey, 'Description', 'Title', 'IgnoreCase')))
+        $keys.Add(([regex]::Replace($DescriptionKey, 'Description', 'name', 'IgnoreCase')))
+    }
+
+    return @($keys.ToArray() | Sort-Object -Unique)
+}
+
+function Get-SCQuestNormalizedIniKey {
+    param([string]$Key)
+
+    return (([string]$Key).Trim() -replace ',.*$', '')
+}
+
+function Add-SCQuestTitleVisibility {
+    param(
+        [hashtable]$VisibilityMap,
+        [string]$TitleKey,
+        [bool]$HasVisibleRewardBlock
+    )
+
+    $normalizedTitleKey = Get-SCQuestNormalizedIniKey -Key $TitleKey
+    if ([string]::IsNullOrWhiteSpace($normalizedTitleKey)) {
+        return
+    }
+
+    if (-not $VisibilityMap.ContainsKey($normalizedTitleKey)) {
+        $VisibilityMap[$normalizedTitleKey] = @{
+            Total = 0
+            Visible = 0
+        }
+    }
+
+    $VisibilityMap[$normalizedTitleKey].Total++
+    if ($HasVisibleRewardBlock) {
+        $VisibilityMap[$normalizedTitleKey].Visible++
+    }
+}
+
+function ConvertTo-SCQuestDescriptionTitleMap {
+    param($TitleDescriptionMap)
+
+    $descriptionTitleMap = @{}
+    if ($null -eq $TitleDescriptionMap) {
+        return $descriptionTitleMap
+    }
+
+    foreach ($property in @($TitleDescriptionMap.PSObject.Properties)) {
+        $titleKey = Get-SCQuestNormalizedIniKey -Key ([string]$property.Name)
+        foreach ($descriptionKey in @($property.Value)) {
+            $normalizedDescriptionKey = Get-SCQuestNormalizedIniKey -Key ([string]$descriptionKey)
+            if ([string]::IsNullOrWhiteSpace($normalizedDescriptionKey)) {
+                continue
+            }
+
+            if (-not $descriptionTitleMap.ContainsKey($normalizedDescriptionKey)) {
+                $descriptionTitleMap[$normalizedDescriptionKey] = @{}
+            }
+            $descriptionTitleMap[$normalizedDescriptionKey][$titleKey] = $true
+        }
+    }
+
+    return $descriptionTitleMap
+}
+
+function Get-SCQuestLinkedTitleKeys {
+    param(
+        [string]$DescriptionKey,
+        [hashtable]$DescriptionTitleMap
+    )
+
+    $keys = @{}
+    $normalizedDescriptionKey = Get-SCQuestNormalizedIniKey -Key $DescriptionKey
+    if ($DescriptionTitleMap.ContainsKey($normalizedDescriptionKey)) {
+        foreach ($titleKey in $DescriptionTitleMap[$normalizedDescriptionKey].Keys) {
+            $keys[$titleKey] = $true
+        }
+    }
+
+    foreach ($titleKey in Get-SCQuestPossibleTitleKeys -DescriptionKey $DescriptionKey) {
+        $keys[(Get-SCQuestNormalizedIniKey -Key $titleKey)] = $true
+    }
+
+    foreach ($titleKey in Get-SCQuestPossibleTitleKeys -DescriptionKey $normalizedDescriptionKey) {
+        $keys[(Get-SCQuestNormalizedIniKey -Key $titleKey)] = $true
+    }
+
+    return @($keys.Keys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+}
+
+function Test-SCQuestLooksLikeTitleKey {
+    param([string]$Key)
+
+    return ($Key -match '(?i)(^|_)(title|name)(_|$)')
+}
+
+function Format-SCQuestRewardSummaryLine {
+    param([System.Collections.Specialized.OrderedDictionary]$CategoryItemCounts)
+
+    if ($null -eq $CategoryItemCounts -or $CategoryItemCounts.Count -eq 0) {
+        return ''
+    }
+
+    $total = 0
+    $parts = @()
+    foreach ($key in $CategoryItemCounts.Keys) {
+        $count = [int]$CategoryItemCounts[$key]
+        if ($count -le 0) {
+            continue
+        }
+
+        $total += $count
+        $parts += ("${key}: $count")
+    }
+
+    if ($total -le 0) {
+        return ''
+    }
+
+    return 'Всего: ' + $total + ' | ' + ($parts -join ' | ')
+}
+
+function Remove-SCQuestBlueprintTitleMarker {
+    param(
+        [Parameter(Mandatory = $true)][string]$Value
+    )
+
+    $updated = $Value
+    do {
+        $before = $updated
+        $updated = [regex]::Replace($updated, '^\s*<EM\d>\[Ч\]</EM\d>\s*', '')
+        $updated = [regex]::Replace($updated, '^\s*\[Ч\]\s*', '')
+    }
+    while ($updated -ne $before)
+
+    return $updated
+}

@@ -1,0 +1,84 @@
+param(
+    [Parameter(Mandatory = $true)][string]$PackagePath
+)
+
+$ErrorActionPreference = 'Stop'
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Installer = Join-Path $ScriptDir 'Install-ScModLauncherUpdate.ps1'
+
+function Assert-True {
+    param(
+        [bool]$Condition,
+        [string]$Message
+    )
+
+    if (-not $Condition) {
+        throw "ASSERT FAILED: $Message"
+    }
+}
+
+$package = [System.IO.Path]::GetFullPath($PackagePath)
+Assert-True (Test-Path -LiteralPath $package -PathType Leaf) "Package should exist: $package"
+
+$hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-update-installer-test-" + [guid]::NewGuid().ToString('N'))
+$target = Join-Path $tempRoot 'SC_Mod_Launcher'
+
+try {
+    New-Item -ItemType Directory -Force -Path $target | Out-Null
+    Expand-Archive -LiteralPath $package -DestinationPath $target -Force
+
+    $directories = @(
+        'backups',
+        'modules\mining\cache',
+        'modules\quest\engine\cache',
+        'updates\backups\launcher-before-update-old',
+        'updates\downloads',
+        'dist',
+        'src\SCModLauncher\bin',
+        'modules\removed_module\cache'
+    )
+    foreach ($relative in $directories) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $target $relative) | Out-Null
+    }
+
+    Set-Content -LiteralPath (Join-Path $target 'backups\global.ini.keep.bak') -Value 'backup' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -Value 'mining-cache' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -Value 'quest-cache' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'updates\backups\launcher-before-update-old\keep.txt') -Value 'update-backup' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'updates\downloads\old.zip') -Value 'download' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'dist\old.zip') -Value 'dist' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'src\SCModLauncher\bin\old.dll') -Value 'bin' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'tools\Build-ReleaseZip.ps1') -Value 'dev-build-tool' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'tools\Test-Scaffold.ps1') -Value 'dev-test-tool' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'app\SCModLauncher.pdb') -Value 'debug-symbols' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'SC_Mod_Launcher_WPF.bat') -Value 'old launcher' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'modules\removed_module\cache\old.json') -Value 'old-cache' -Encoding UTF8
+
+    & $Installer -PackagePath $package -TargetRoot $target -ExpectedSha256 $hash
+
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'app\SCModLauncher.exe') -PathType Leaf) 'Updated app should exist.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'tools\Install-ScModLauncherUpdate.ps1') -PathType Leaf) 'Update helper should exist.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'update-manifest.json') -PathType Leaf) 'Installed manifest should exist.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.keep.bak') -PathType Leaf) 'User backups should be preserved.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -PathType Leaf) 'Mining cache should be preserved.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -PathType Leaf) 'Quest cache should be preserved.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'updates\backups\launcher-before-update-old\keep.txt') -PathType Leaf) 'Update backups should be preserved.'
+    Assert-True ((Get-ChildItem -LiteralPath (Join-Path $target 'updates\backups') -Directory | Measure-Object).Count -ge 2) 'Installer should create a before-update backup.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'SC_Mod_Launcher_WPF.bat'))) 'Old launcher bat should be removed.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'dist'))) 'Old dist folder should be removed.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'src\SCModLauncher\bin'))) 'Old build bin folder should be removed.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'updates\downloads'))) 'Downloaded update packages should be cleaned after install.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\removed_module'))) 'Removed module leftovers should be deleted.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'tools\Build-ReleaseZip.ps1'))) 'Dev build tool should not remain in player install.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'tools\Test-Scaffold.ps1'))) 'Dev test tool should not remain in player install.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'app\SCModLauncher.pdb'))) 'Debug symbols should not remain in player install.'
+
+    Write-Host 'SC_Mod_Launcher update installer test passed.'
+}
+finally {
+    if (Test-Path -LiteralPath $tempRoot) {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    }
+}

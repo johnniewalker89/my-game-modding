@@ -1,0 +1,267 @@
+<Application x:Class="SCModLauncher.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="HullBlack" Color="#080D11"/>
+        <SolidColorBrush x:Key="PanelBlack" Color="#0D151B"/>
+        <SolidColorBrush x:Key="PanelLift" Color="#111D25"/>
+        <SolidColorBrush x:Key="GlassPanel" Color="#440B1218"/>
+        <SolidColorBrush x:Key="SignalCyan" Color="#66E8FF"/>
+        <SolidColorBrush x:Key="SignalAmber" Color="#FFB84A"/>
+        <SolidColorBrush x:Key="SignalRed" Color="#FF4F5F"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#E8F6FA"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#8EAAB4"/>
+        <SolidColorBrush x:Key="LineDim" Color="#253944"/>
+
+        <Style x:Key="PanelBorder" TargetType="Border">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.18" Color="#000000"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="Background" Value="#7E12232C"/>
+            <Setter Property="BorderBrush" Value="#41606E"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#CC173442"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource SignalCyan}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CommandButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="MinHeight" Value="46"/>
+            <Setter Property="Background" Value="#A015252D"/>
+            <Setter Property="BorderBrush" Value="#587687"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border Background="#33000000" Margin="2,3,-2,-3"/>
+                            <Border x:Name="Body"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}">
+                                <Grid>
+                                    <Rectangle Fill="#12FFFFFF" Height="1" VerticalAlignment="Top"/>
+                                    <Rectangle Fill="#22000000" Height="7" VerticalAlignment="Bottom"/>
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Margin="{TemplateBinding Padding}"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Body" Property="Background" Value="#E51D3A45"/>
+                                <Setter TargetName="Body" Property="BorderBrush" Value="{StaticResource SignalCyan}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Body" Property="Margin" Value="2,3,-2,-3"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="MinHeight" Value="58"/>
+            <Setter Property="MinWidth" Value="126"/>
+            <Setter Property="Margin" Value="0,0,10,0"/>
+            <Setter Property="Background" Value="#A015252D"/>
+            <Setter Property="BorderBrush" Value="#405F6D"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Polygon Points="8,0 120,0 126,8 126,58 0,58 0,8"
+                                     Fill="{TemplateBinding Background}"
+                                     Stroke="{TemplateBinding BorderBrush}"
+                                     StrokeThickness="1"/>
+                            <Rectangle Width="28" Height="2" Fill="{StaticResource SignalAmber}"
+                                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,7,0,0"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E51D3A45"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource SignalCyan}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="0.78"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Margin="{TemplateBinding Margin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="34"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="Lamp"
+                                    Width="20"
+                                    Height="20"
+                                    BorderThickness="1"
+                                    BorderBrush="#456575"
+                                    Background="#061015"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{TemplateBinding Content}"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Lamp" Property="Background" Value="{StaticResource SignalCyan}"/>
+                                <Setter TargetName="Lamp" Property="BorderBrush" Value="{StaticResource SignalCyan}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Lamp" Property="BorderBrush" Value="{StaticResource SignalAmber}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="Background" Value="#A8071015"/>
+            <Setter Property="BorderBrush" Value="#638A9A"/>
+            <Setter Property="CaretBrush" Value="{StaticResource SignalCyan}"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        </Style>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="13"/>
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Background" Value="#33121E25"/>
+            <Setter Property="Foreground" Value="{StaticResource SignalCyan}"/>
+            <Setter Property="Opacity" Value="0.68"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid x:Name="Root" Background="Transparent">
+                            <Border x:Name="TrackBorder"
+                                    Background="#33121E25"
+                                    BorderBrush="#365766"
+                                    BorderThickness="1"/>
+                            <Track x:Name="PART_Track"
+                                   IsDirectionReversed="True"
+                                   Margin="2">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton x:Name="DecreaseButton"
+                                                  Command="ScrollBar.PageUpCommand"
+                                                  Background="Transparent"
+                                                  BorderThickness="0"
+                                                  Opacity="0"
+                                                  IsTabStop="False"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="#8866E8FF"
+                                                        BorderBrush="#AA66E8FF"
+                                                        BorderThickness="1"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton x:Name="IncreaseButton"
+                                                  Command="ScrollBar.PageDownCommand"
+                                                  Background="Transparent"
+                                                  BorderThickness="0"
+                                                  Opacity="0"
+                                                  IsTabStop="False"/>
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Orientation" Value="Horizontal">
+                                <Setter Property="Width" Value="Auto"/>
+                                <Setter Property="Height" Value="13"/>
+                                <Setter Property="MinWidth" Value="30"/>
+                                <Setter Property="MinHeight" Value="0"/>
+                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+                                <Setter TargetName="DecreaseButton" Property="Command" Value="ScrollBar.PageLeftCommand"/>
+                                <Setter TargetName="IncreaseButton" Property="Command" Value="ScrollBar.PageRightCommand"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.95"/>
+                                <Setter TargetName="TrackBorder" Property="BorderBrush" Value="{StaticResource SignalCyan}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>

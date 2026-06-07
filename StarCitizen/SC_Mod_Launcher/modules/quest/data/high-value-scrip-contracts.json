@@ -1,0 +1,30 @@
+{
+  "styleTag": "EM4",
+  "contracts": [
+    {
+      "titleKey": "HeadHunters_ShipAmbush_H_title_001",
+      "name": "Ответный удар",
+      "reason": "high-value scrip farm"
+    },
+    {
+      "titleKey": "HeadHunters_ShipAmbush_VH_title_001",
+      "name": "Тактический удар",
+      "reason": "high-value scrip farm"
+    },
+    {
+      "titleKey": "GFS_ShipWaveAttack_Mission05_Title",
+      "name": "Боевые испытания - сценарий #5",
+      "reason": "high-value scrip farm"
+    },
+    {
+      "titleKey": "GFS_ShipWaveAttack_Mission06_Title",
+      "name": "Боевые испытания - сценарий #6",
+      "reason": "high-value scrip farm"
+    },
+    {
+      "titleKey": "GFS_ShipWaveAttack_Mission07_Title",
+      "name": "Боевые испытания - сценарий #7",
+      "reason": "high-value scrip farm"
+    }
+  ]
+}
