@@ -1819,17 +1819,16 @@ public partial class MainWindow : Window
             ? release.PublishedAt.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
             : "дата неизвестна";
         var size = release.AssetSize > 0 ? $"{Math.Ceiling(release.AssetSize / 1024.0):0} KB" : "размер неизвестен";
-        var notes = ShortReleaseNotes(release.Body);
+        var shaStatus = string.IsNullOrWhiteSpace(release.ExpectedSha256)
+            ? "SHA-256: не найден"
+            : "SHA-256: найден";
 
-        return $"{status}\n\n" +
-            $"Текущая версия: {CurrentLauncherVersion}\n" +
+        return $"{status}\n" +
+            $"Текущая: {CurrentLauncherVersion}\n" +
             $"Последняя версия: {release.Version}\n" +
-            $"Релиз: {release.Name} ({release.TagName})\n" +
-            $"Опубликован: {published}\n" +
-            $"Asset: {release.AssetName} ({size})\n\n" +
-            $"SHA-256: {(string.IsNullOrWhiteSpace(release.ExpectedSha256) ? "не найден в релизе" : release.ExpectedSha256)}\n\n" +
-            $"Что изменилось:\n{notes}\n\n" +
-            "Скачивание доступно после проверки. Установка включится только после совпадения SHA-256.";
+            $"Файл: {release.AssetName} ({size})\n" +
+            $"{shaStatus}\n" +
+            $"Релиз: {published}";
     }
 
     private static string ShortReleaseNotes(string body)
