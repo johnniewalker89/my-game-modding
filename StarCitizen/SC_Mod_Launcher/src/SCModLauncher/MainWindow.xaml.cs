@@ -721,21 +721,32 @@ public partial class MainWindow : Window
     {
         try
         {
-            var path = e.Uri.LocalPath;
-            if (File.Exists(path))
+            if (e.Uri.IsFile)
             {
-                Process.Start(new ProcessStartInfo
+                var path = e.Uri.LocalPath;
+                if (File.Exists(path))
                 {
-                    FileName = "explorer.exe",
-                    Arguments = "/select," + Quote(path),
-                    UseShellExecute = true
-                });
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = "/select," + Quote(path),
+                        UseShellExecute = true
+                    });
+                }
+                else if (Directory.Exists(path))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = path,
+                        UseShellExecute = true
+                    });
+                }
             }
-            else if (Directory.Exists(path))
+            else
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = path,
+                    FileName = e.Uri.AbsoluteUri,
                     UseShellExecute = true
                 });
             }
