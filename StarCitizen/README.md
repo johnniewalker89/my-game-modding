@@ -27,7 +27,7 @@
 SHA-256 релиза `1.0.0`:
 
 ```text
-917048C57C41FEE2EB9E6A07BB8136EAEF8767F05975ACF2D06C119E99FB2D4C
+AD21F655F9DB6C1ED73423BE835C77C600A12C30D82E5F7FD8F34AFF2FB0B54D
 ```
 
 Подробности: [SC_Mod_Launcher/README.md](SC_Mod_Launcher/README.md).
@@ -64,4 +64,5 @@ SHA-256 релиза `1.0.0`:
 На планетах и лунах показываются ресурсы по способам добычи и рецепты предметов, которые можно собрать из местных ресурсов.
 
 ![Подсказки крафта на карте Mobiglas: Lyria](SC_Mod_Launcher/docs/images/sc-mod-launcher-planet-hints-lyria.png)
+
 

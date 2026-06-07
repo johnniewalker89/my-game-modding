@@ -246,11 +246,11 @@
                                                  <Border Style="{StaticResource PanelBorder}">
                                                      <StackPanel>
                                                          <TextBlock Text="ОБНОВЛЕНИЯ" Foreground="{StaticResource SignalCyan}" FontWeight="Bold"/>
-                                                        <TextBlock x:Name="UpdateStatusText" Margin="0,8,0,0" Foreground="{StaticResource SignalAmber}" FontWeight="Bold" TextWrapping="Wrap"/>
-                                                        <TextBlock x:Name="UpdatesScaffoldText" Margin="0,8,0,0" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"/>
-                                                        <UniformGrid Columns="2" Margin="0,12,0,0">
-                                                            <Button x:Name="CheckUpdatesButton" AutomationProperties.AutomationId="CheckUpdatesButton" Style="{StaticResource CommandButton}" MinHeight="36" Margin="0,0,8,0" Click="CheckUpdates"/>
-                                                            <Button x:Name="InstallUpdateButton" AutomationProperties.AutomationId="InstallUpdateButton" Style="{StaticResource CommandButton}" MinHeight="36" IsEnabled="False" Click="UpdateLauncher"/>
+                                                        <TextBlock x:Name="UpdateStatusText" Margin="0,5,0,0" Foreground="{StaticResource SignalAmber}" FontWeight="Bold" TextWrapping="Wrap"/>
+                                                        <TextBlock x:Name="UpdatesScaffoldText" Margin="0,4,0,0" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"/>
+                                                        <UniformGrid Columns="2" Margin="0,8,0,0">
+                                                            <Button x:Name="CheckUpdatesButton" AutomationProperties.AutomationId="CheckUpdatesButton" Style="{StaticResource CommandButton}" MinHeight="32" Margin="0,0,8,0" Click="CheckUpdates"/>
+                                                            <Button x:Name="InstallUpdateButton" AutomationProperties.AutomationId="InstallUpdateButton" Style="{StaticResource CommandButton}" MinHeight="32" IsEnabled="False" Click="UpdateLauncher"/>
                                                         </UniformGrid>
                                                      </StackPanel>
                                                  </Border>

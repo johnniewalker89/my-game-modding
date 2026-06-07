@@ -28,7 +28,7 @@
   "modulesSubtitle": "Выбери, какое добро причинить. Патч собирается одним общим набором правок.",
   "checkUpdates": "Проверить обновления",
   "installUpdate": "Обновить",
-  "updatesScaffold": "GitHub Releases, ZIP и SHA-256.",
+  "updatesScaffold": "ZIP + SHA-256.",
   "logTitle": "Бортовой журнал",
   "ready": "Готов к проверке.",
   "modulesFound": "Модулей найдено: {0}",

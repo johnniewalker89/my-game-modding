@@ -417,6 +417,28 @@ public partial class MainWindow : Window
         LogBox.ScrollToEnd();
     }
 
+    private void AddUriLog(string label, string uri)
+    {
+        var paragraph = CreateJournalParagraph(JournalLineKind.Metric);
+        paragraph.Inlines.Add(new Run(label + ": ")
+        {
+            Foreground = (Brush)FindResource("TextSecondary")
+        });
+
+        var link = new Hyperlink(new Run(uri))
+        {
+            NavigateUri = new Uri(uri),
+            Foreground = (Brush)FindResource("SignalCyan"),
+            TextDecorations = null,
+            ToolTip = uri
+        };
+        link.RequestNavigate += OpenLocalLogLink;
+        paragraph.Inlines.Add(link);
+
+        LogBox.Document.Blocks.Add(paragraph);
+        LogBox.ScrollToEnd();
+    }
+
     private void AddCacheLog(string cacheLine)
     {
         var path = ExtractTaggedValue(cacheLine, "path:");
@@ -1678,10 +1700,10 @@ public partial class MainWindow : Window
         _verifiedUpdatePackagePath = null;
         _verifiedUpdateSha256 = null;
         UpdatesScaffoldText.Foreground = (Brush)FindResource("TextSecondary");
-        UpdatesScaffoldText.Text = "Канал обновлений: запрос GitHub Releases...";
+        UpdatesScaffoldText.Text = "Запрос GitHub...";
         UpdateStatusText.Text = "Проверяю GitHub Releases...";
         SetJournalState("Канал обновлений проверяется.");
-        AddLog("Обновления: запрос GitHub Releases.");
+        AddHeadingLog("Канал обновлений: проверка GitHub.");
 
         try
         {
@@ -1712,12 +1734,14 @@ public partial class MainWindow : Window
             SetJournalState(comparison > 0
                 ? $"Найдено обновление лаунчера: {release.Version}."
                 : "Канал обновлений чист.");
-            AddLog($"Обновления: {status} Текущая {CurrentLauncherVersion}, последняя {release.Version}.");
-            AddLog("Release: " + release.HtmlUrl);
+            AddMetricLog(comparison > 0
+                ? $"Канал обновлений: доступна версия {release.Version}."
+                : $"Канал обновлений: актуально, версия {CurrentLauncherVersion}.");
+            AddUriLog("Релиз", release.HtmlUrl);
             InstallUpdateButton.IsEnabled = comparison > 0 && !string.IsNullOrWhiteSpace(release.ExpectedSha256);
             if (string.IsNullOrWhiteSpace(release.ExpectedSha256))
             {
-                AddLog("Обновления: SHA-256 в релизе не найден, установка будет заблокирована до проверяемого хэша.");
+                AddErrorLog("Канал обновлений: SHA-256 не найден, установка заблокирована.");
             }
         }
         catch (Exception ex)
@@ -1824,11 +1848,9 @@ public partial class MainWindow : Window
             : "SHA-256: найден";
 
         return $"{status}\n" +
-            $"Текущая: {CurrentLauncherVersion}\n" +
-            $"Последняя версия: {release.Version}\n" +
-            $"Файл: {release.AssetName} ({size})\n" +
-            $"{shaStatus}\n" +
-            $"Релиз: {published}";
+            $"{CurrentLauncherVersion} -> {release.Version}\n" +
+            $"{release.AssetName} ({size})\n" +
+            $"{shaStatus}; {published}";
     }
 
     private static string ShortReleaseNotes(string body)
@@ -1988,19 +2010,6 @@ public partial class MainWindow : Window
             !File.Exists(_verifiedUpdatePackagePath))
         {
             AddError("Нет проверенного ZIP обновления.");
-            return;
-        }
-
-        var answer = MessageBox.Show(
-            "Установить проверенное обновление лаунчера?\n\n" +
-            "Лаунчер закроется, helper создаст backup папки лаунчера, заменит файлы и перезапустит приложение.",
-            "Установка обновления",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-
-        if (answer != MessageBoxResult.Yes)
-        {
-            AddLog("Установка обновления отменена пользователем.");
             return;
         }
 
