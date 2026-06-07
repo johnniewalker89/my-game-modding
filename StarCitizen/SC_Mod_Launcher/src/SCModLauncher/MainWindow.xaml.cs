@@ -417,7 +417,7 @@ public partial class MainWindow : Window
         LogBox.ScrollToEnd();
     }
 
-    private void AddUriLog(string label, string uri)
+    private void AddUriLog(string label, string uri, string? displayText = null)
     {
         var paragraph = CreateJournalParagraph(JournalLineKind.Metric);
         paragraph.Inlines.Add(new Run(label + ": ")
@@ -425,7 +425,7 @@ public partial class MainWindow : Window
             Foreground = (Brush)FindResource("TextSecondary")
         });
 
-        var link = new Hyperlink(new Run(uri))
+        var link = new Hyperlink(new Run(string.IsNullOrWhiteSpace(displayText) ? uri : displayText))
         {
             NavigateUri = new Uri(uri),
             Foreground = (Brush)FindResource("SignalCyan"),
@@ -1737,7 +1737,7 @@ public partial class MainWindow : Window
             AddMetricLog(comparison > 0
                 ? $"Канал обновлений: доступна версия {release.Version}."
                 : $"Канал обновлений: актуально, версия {CurrentLauncherVersion}.");
-            AddUriLog("Релиз", release.HtmlUrl);
+            AddUriLog("Релиз", release.HtmlUrl, release.TagName);
             InstallUpdateButton.IsEnabled = comparison > 0 && !string.IsNullOrWhiteSpace(release.ExpectedSha256);
             if (string.IsNullOrWhiteSpace(release.ExpectedSha256))
             {
