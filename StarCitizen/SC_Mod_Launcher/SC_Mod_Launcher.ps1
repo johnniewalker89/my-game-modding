@@ -187,14 +187,20 @@ function Write-ConsoleLiveApplySummary {
 
 function Assert-SCRemoteSourcesAvailable {
     $uri = 'https://scmdb.net/data/game-versions.json'
-    try {
-        $response = Invoke-WebRequest -Uri $uri -UseBasicParsing -TimeoutSec 12
-        if ([int]$response.StatusCode -lt 200 -or [int]$response.StatusCode -ge 300) {
-            throw "HTTP $($response.StatusCode)"
-        }
+    $headers = @{ 'User-Agent' = 'SC_Mod_Launcher/1.0 preflight' }
+    $response = Get-SCRemoteJson -Name 'SCMDB index' -Uri $uri -Headers $headers
+    if ($null -eq $response) {
+        throw "REMOTE PREFLIGHT FAILED: SCMDB is unavailable. Write stopped before file changes. Source: $uri."
     }
-    catch {
-        throw "REMOTE PREFLIGHT FAILED: SCMDB is unavailable. Write stopped before file changes. Source: $uri. Error: $($_.Exception.Message)"
+
+    $version = @($response | Where-Object { [string]$_.version -match 'live' } | Select-Object -First 1)
+    if ($version.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string]$version[0].file)) {
+        throw "REMOTE PREFLIGHT FAILED: SCMDB live data entry is unavailable. Write stopped before file changes. Source: $uri."
+    }
+
+    $dataUri = "https://scmdb.net/data/$($version[0].file)"
+    if ($null -eq (Get-SCRemoteJson -Name 'SCMDB data' -Uri $dataUri -Headers $headers)) {
+        throw "REMOTE PREFLIGHT FAILED: SCMDB live data is unavailable. Write stopped before file changes. Source: $dataUri."
     }
 }
 
