@@ -373,13 +373,14 @@ function Get-SCQuestSelectedCategoryNames {
     $map = @{
         shipComponents = 'Корабельные компоненты'
         shipWeapons = 'Корабельные орудия'
+        miningLasers = 'Добывающие лазеры'
         armorAndClothing = 'Броня/одежда'
         fpsWeapons = 'Оружие'
         equipmentAndConsumables = 'Снаряжение/расходники'
     }
 
     $names = @()
-    foreach ($option in @('shipComponents', 'shipWeapons', 'armorAndClothing', 'fpsWeapons', 'equipmentAndConsumables')) {
+    foreach ($option in @('shipComponents', 'shipWeapons', 'miningLasers', 'armorAndClothing', 'fpsWeapons', 'equipmentAndConsumables')) {
         if ($SelectedOptions -contains $option) {
             $names += $map[$option]
         }
@@ -392,6 +393,7 @@ function Get-SCQuestKnownCategoryNames {
     return @(
         'Корабельные компоненты',
         'Корабельные орудия',
+        'Добывающие лазеры',
         'Броня/одежда',
         'Оружие',
         'Снаряжение/расходники',
@@ -404,6 +406,7 @@ function Get-SCQuestSelectableCategoryNames {
     return @(
         'Корабельные компоненты',
         'Корабельные орудия',
+        'Добывающие лазеры',
         'Броня/одежда',
         'Оружие',
         'Снаряжение/расходники'

@@ -335,13 +335,13 @@ function Get-SCMiningItemCraftRecipeData {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $headers = @{ 'User-Agent' = 'SC_Mod_Launcher/1.0 item-craft-hints' }
 
-    $versions = @(Invoke-RestMethod -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers)
+    $versions = @(Invoke-SCMiningScmdbJson -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers)
     if ($versions.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string]$versions[0].file)) {
         throw 'SCMDB game version index returned no data.'
     }
 
     $version = $versions[0]
-    $scmdb = Invoke-RestMethod -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers
+    $scmdb = Invoke-SCMiningScmdbJson -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers
     $rewardRecords = @(Get-SCMiningScmdbRewardBlueprintRecords -Scmdb $scmdb)
     $wikiBlueprints = @(Get-SCMiningWikiBlueprints -Headers $headers -CacheKey ([string]$version.version))
     $blueprintsByUuid = @{}
@@ -368,12 +368,37 @@ function Get-SCMiningPlanetCraftBlueprints {
 
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $headers = @{ 'User-Agent' = 'SC_Mod_Launcher/1.0 planet-craft-cache' }
-    $versions = @(Invoke-RestMethod -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers)
+    $versions = @(Invoke-SCMiningScmdbJson -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers)
     if ($versions.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string]$versions[0].version)) {
         throw 'SCMDB game version index returned no cache key.'
     }
 
     return @(Get-SCMiningWikiBlueprints -Headers $headers -CacheKey ([string]$versions[0].version))
+}
+
+function Invoke-SCMiningScmdbJson {
+    param(
+        [string]$Uri,
+        [hashtable]$Headers
+    )
+
+    try {
+        return (Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 20)
+    }
+    catch {
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            $json = & curl.exe -L --silent --show-error --fail --max-time 40 `
+                -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
+                -H 'Accept: application/json,text/plain,*/*' `
+                -e 'https://scmdb.net/' `
+                $Uri
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
+                return ($json | ConvertFrom-Json)
+            }
+        }
+
+        throw
+    }
 }
 
 function Get-SCMiningCachedWikiBlueprints {
@@ -405,13 +430,121 @@ function Get-SCMiningCacheDirectory {
     return (Join-Path $PSScriptRoot 'cache')
 }
 
+function Get-SCMiningSafeCacheKey {
+    param([string]$CacheKey)
+
+    return [regex]::Replace([string]$CacheKey, '[^A-Za-z0-9._-]', '_')
+}
+
+function Get-SCMiningCraftFamilyIndexCachePath {
+    param([string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    return (Join-Path $cacheDir ("craft-family-index-{0}.json" -f (Get-SCMiningSafeCacheKey -CacheKey $CacheKey)))
+}
+
+function New-SCMiningCraftFamilyOptionId {
+    param([object]$Recipe)
+
+    return ('craftFamily|{0}|{1}|{2}' -f [string]$Recipe.Category, [string]$Recipe.Subcategory, [string]$Recipe.Family.Key)
+}
+
+function Write-SCMiningCraftFamilyIndexCache {
+    param(
+        [string]$CacheKey,
+        [object[]]$Blueprints
+    )
+
+    $planetCraftMap = New-SCMiningPlanetCraftMap -Blueprints @($Blueprints)
+    $defaultFilter = Get-SCMiningCraftFilter -SelectedOptions (Get-SCMiningDefaultCraftFilterOptionIds)
+    $groups = @{}
+
+    foreach ($recipe in @($planetCraftMap.Values)) {
+        if ($recipe.Category -eq (Get-SCMiningPlanetCategoryShipComponents) -and ([string]$recipe.ComponentGrade) -ne 'A') {
+            continue
+        }
+
+        $optionId = New-SCMiningCraftFamilyOptionId -Recipe $recipe
+        if (-not $groups.ContainsKey($optionId)) {
+            $groups[$optionId] = [pscustomobject]@{
+                optionId = $optionId
+                category = [string]$recipe.Category
+                subcategory = [string]$recipe.Subcategory
+                familyKey = [string]$recipe.Family.Key
+                familyType = [string]$recipe.Family.Family
+                label = [string]$recipe.Family.Label
+                sortLabel = [string]$recipe.Family.Label
+                defaultSelected = $false
+                names = New-Object System.Collections.Generic.List[string]
+                resources = @{}
+                tokens = New-Object System.Collections.Generic.List[object]
+            }
+        }
+
+        $groups[$optionId].names.Add([string]$recipe.Name)
+        if ($null -ne $recipe.Family.Token) {
+            $groups[$optionId].tokens.Add($recipe.Family.Token)
+        }
+        foreach ($resource in @($recipe.Resources)) {
+            $groups[$optionId].resources[[string]$resource] = $true
+        }
+        if (Test-SCMiningIncludePlanetRecipe -Recipe $recipe -CraftFilter $defaultFilter) {
+            $groups[$optionId].defaultSelected = $true
+        }
+    }
+
+    $families = foreach ($group in @($groups.Values)) {
+        $displayGroup = [pscustomobject]@{
+            Label = [string]$group.label
+            Family = [string]$group.familyType
+            Names = @($group.names.ToArray())
+            Tokens = @($group.tokens.ToArray())
+        }
+        [pscustomobject]@{
+            optionId = [string]$group.optionId
+            category = [string]$group.category
+            subcategory = [string]$group.subcategory
+            familyKey = [string]$group.familyKey
+            label = (Format-SCMiningPlanetRecipeFamilyLabel -Group $displayGroup)
+            sortLabel = [string]$group.sortLabel
+            defaultSelected = [bool]$group.defaultSelected
+            names = @($group.names.ToArray() | Sort-Object -Unique)
+            resources = @($group.resources.Keys | Sort-Object -Unique)
+        }
+    }
+
+    $payload = [pscustomobject]@{
+        cacheKey = [string]$CacheKey
+        createdAt = (Get-Date).ToString('o')
+        families = @(
+            $families |
+                Sort-Object `
+                    @{ Expression = { [array]::IndexOf((Get-SCMiningPlanetCategoryOrder), [string]$_.category) } },
+                    @{ Expression = { Get-SCMiningPlanetSubcategoryRank -Category ([string]$_.category) -Subcategory ([string]$_.subcategory) } },
+                    label
+        )
+    }
+
+    $cachePath = Get-SCMiningCraftFamilyIndexCachePath -CacheKey $CacheKey
+    $cacheDir = Split-Path -Parent $cachePath
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+    }
+
+    $json = $payload | ConvertTo-Json -Depth 10
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($cachePath, $json, $encoding)
+    return $cachePath
+}
+
 function New-SCMiningPlanetCraftMap {
     param([object[]]$Blueprints)
 
     $result = @{}
     $itemLookup = Get-SCMiningCachedItemInfoLookup
     foreach ($blueprint in @($Blueprints)) {
-        if ([int]$blueprint.unlocking_missions_count -lt 1) {
+        $name = Get-SCMiningBlueprintOutputName -Blueprint $blueprint -Reward $null
+        if ([string]::IsNullOrWhiteSpace($name) -or (Test-SCMiningIgnoredCraftName -Name $name)) {
             continue
         }
 
@@ -422,11 +555,6 @@ function New-SCMiningPlanetCraftMap {
 
         $category = Get-SCMiningPlanetBlueprintCategory -Blueprint $blueprint
         if ([string]::IsNullOrWhiteSpace($category)) {
-            continue
-        }
-
-        $name = Get-SCMiningBlueprintOutputName -Blueprint $blueprint -Reward $null
-        if ([string]::IsNullOrWhiteSpace($name)) {
             continue
         }
 
@@ -443,6 +571,17 @@ function New-SCMiningPlanetCraftMap {
     }
 
     return $result
+}
+
+function Test-SCMiningIgnoredCraftName {
+    param([AllowEmptyString()][string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $true
+    }
+
+    $clean = ([string]$Name).Trim()
+    return ($clean -match '^<=\s*PLACEHOLDER\s*=>$' -or $clean -match '(?i)\bplaceholder\b')
 }
 
 function Format-SCMiningPlanetCraftBlock {
@@ -640,6 +779,7 @@ function Get-SCMiningPlanetCategoryOrder {
     return @(
         (Get-SCMiningPlanetCategoryShipComponents),
         (Get-SCMiningPlanetCategoryShipWeapons),
+        (Get-SCMiningPlanetCategoryMiningLasers),
         (Get-SCMiningPlanetCategoryArmor),
         (Get-SCMiningPlanetCategoryWeapons)
     )
@@ -652,7 +792,10 @@ function Get-SCMiningPlanetBlueprintCategory {
     if ($type -in @('Shield', 'Quantum Drive', 'Power Plant', 'Cooler', 'Radar')) {
         return (Get-SCMiningPlanetCategoryShipComponents)
     }
-    if ($type -in @('Weapon Gun', 'Weapon Mining')) {
+    if ($type -eq 'Weapon Mining') {
+        return (Get-SCMiningPlanetCategoryMiningLasers)
+    }
+    if ($type -eq 'Weapon Gun') {
         return (Get-SCMiningPlanetCategoryShipWeapons)
     }
     if ($type -match '\(Armor\)$' -or $type -eq 'Undersuit (Armor)' -or $type -eq 'Backpack (Armor)') {
@@ -684,10 +827,12 @@ function Get-SCMiningPlanetBlueprintSubcategory {
         return (Get-SCMiningPlanetTextOther)
     }
     if ($Category -eq (Get-SCMiningPlanetCategoryShipWeapons)) {
-        if ($type -eq 'Weapon Mining' -or $name -match '(?i)mining') { return (Get-SCMiningPlanetSubcategoryMiningLasers) }
-        if ($name -match '(?i)ballistic|gatling|deadbolt|c-788|tarantula|tigerstrike|sword|draugar|mantis|revenant|scorpion') { return (Get-SCMiningPlanetSubcategoryBallistics) }
+        if ($name -match '(?i)ballistic|gatling|deadbolt|c-788|tarantula|tigerstrike|sword|draugar|mantis|revenant|scorpion|sw16br') { return (Get-SCMiningPlanetSubcategoryBallistics) }
         if ($name -match '(?i)mass driver|sledge|strife') { return (Get-SCMiningPlanetSubcategoryHybrid) }
         return (Get-SCMiningPlanetSubcategoryEnergy)
+    }
+    if ($Category -eq (Get-SCMiningPlanetCategoryMiningLasers)) {
+        return (Get-SCMiningPlanetSubcategoryMiningLasers)
     }
     if ($Category -eq (Get-SCMiningPlanetCategoryArmor)) {
         if ($type -eq 'Helmet (Armor)' -or $type -eq 'Torso (Armor)' -or $type -eq 'Arms (Armor)' -or $type -eq 'Legs (Armor)' -or $type -eq 'Backpack (Armor)') {
@@ -719,6 +864,7 @@ function Get-SCMiningPlanetSubcategoryRank {
     $orders = @{
         (Get-SCMiningPlanetCategoryShipComponents) = @((Get-SCMiningPlanetSubcategoryShields), (Get-SCMiningPlanetSubcategoryQuantumDrives), (Get-SCMiningPlanetSubcategoryPowerPlants), (Get-SCMiningPlanetSubcategoryCoolers), (Get-SCMiningPlanetSubcategoryRadars), (Get-SCMiningPlanetTextOther))
         (Get-SCMiningPlanetCategoryShipWeapons) = @((Get-SCMiningPlanetSubcategoryEnergy), (Get-SCMiningPlanetSubcategoryBallistics), (Get-SCMiningPlanetSubcategoryHybrid), (Get-SCMiningPlanetSubcategoryMiningLasers), (Get-SCMiningPlanetTextOther))
+        (Get-SCMiningPlanetCategoryMiningLasers) = @((Get-SCMiningPlanetSubcategoryMiningLasers), (Get-SCMiningPlanetTextOther))
         (Get-SCMiningPlanetCategoryArmor) = @((Get-SCMiningPlanetSubcategoryHeavyArmor), (Get-SCMiningPlanetSubcategoryMediumArmor), (Get-SCMiningPlanetSubcategoryLightArmor), (Get-SCMiningPlanetSubcategoryUndersuits), (Get-SCMiningPlanetTextOther))
         (Get-SCMiningPlanetCategoryWeapons) = @((Get-SCMiningPlanetSubcategoryRifles), (Get-SCMiningPlanetSubcategorySniperRifles), (Get-SCMiningPlanetSubcategorySmgs), (Get-SCMiningPlanetSubcategoryLmgs), (Get-SCMiningPlanetSubcategoryPistols), (Get-SCMiningPlanetSubcategoryShotguns), (Get-SCMiningPlanetTextOther))
     }
@@ -795,6 +941,7 @@ function Get-SCMiningCraftFilter {
     param([string[]]$SelectedOptions)
 
     $selected = @($SelectedOptions | ForEach-Object { [string]$_ })
+    $familyOptionIds = @($selected | Where-Object { ([string]$_).StartsWith('craftFamily|', [System.StringComparison]::OrdinalIgnoreCase) })
     $hasCraftFilterOption = $false
     foreach ($optionId in Get-SCMiningAllCraftFilterOptionIds) {
         if ($selected -contains $optionId) {
@@ -819,14 +966,17 @@ function Get-SCMiningCraftFilter {
     }
 
     $shipWeaponSubcategories = New-Object System.Collections.Generic.List[string]
+    $miningLaserSubcategories = New-Object System.Collections.Generic.List[string]
     $shipWeaponMap = @{
         shipWeaponEnergy = (Get-SCMiningPlanetSubcategoryEnergy)
         shipWeaponBallistic = (Get-SCMiningPlanetSubcategoryBallistics)
         shipWeaponHybrid = (Get-SCMiningPlanetSubcategoryHybrid)
-        shipWeaponMiningLaser = (Get-SCMiningPlanetSubcategoryMiningLasers)
     }
     foreach ($entry in $shipWeaponMap.GetEnumerator()) {
         if ($selected -contains $entry.Key) { $shipWeaponSubcategories.Add([string]$entry.Value) }
+    }
+    if ($selected -contains 'shipWeaponMiningLaser') {
+        $miningLaserSubcategories.Add((Get-SCMiningPlanetSubcategoryMiningLasers))
     }
 
     $armorSubcategories = New-Object System.Collections.Generic.List[string]
@@ -856,8 +1006,11 @@ function Get-SCMiningCraftFilter {
     return [pscustomobject]@{
         ComponentClasses = New-SCMiningStringSet -Values @($componentClasses.ToArray())
         ShipWeaponSubcategories = New-SCMiningStringSet -Values @($shipWeaponSubcategories.ToArray())
+        MiningLaserSubcategories = New-SCMiningStringSet -Values @($miningLaserSubcategories.ToArray())
         ArmorSubcategories = New-SCMiningStringSet -Values @($armorSubcategories.ToArray())
         FpsWeaponSubcategories = New-SCMiningStringSet -Values @($fpsWeaponSubcategories.ToArray())
+        HasFamilyOptions = ($familyOptionIds.Count -gt 0)
+        FamilyOptionIds = New-SCMiningStringSet -Values @($familyOptionIds)
     }
 }
 
@@ -871,6 +1024,14 @@ function Test-SCMiningIncludePlanetRecipe {
         $CraftFilter = Get-SCMiningCraftFilter -SelectedOptions @()
     }
 
+    if ($CraftFilter.HasFamilyOptions) {
+        if ($Recipe.Category -eq (Get-SCMiningPlanetCategoryShipComponents) -and ([string]$Recipe.ComponentGrade) -ne 'A') {
+            return $false
+        }
+
+        return (Test-SCMiningSetContains -Set $CraftFilter.FamilyOptionIds -Value (New-SCMiningCraftFamilyOptionId -Recipe $Recipe))
+    }
+
     if ($Recipe.Category -eq (Get-SCMiningPlanetCategoryShipComponents)) {
         if (([string]$Recipe.ComponentGrade) -ne 'A') {
             return $false
@@ -881,6 +1042,10 @@ function Test-SCMiningIncludePlanetRecipe {
 
     if ($Recipe.Category -eq (Get-SCMiningPlanetCategoryShipWeapons)) {
         return (Test-SCMiningSetContains -Set $CraftFilter.ShipWeaponSubcategories -Value ([string]$Recipe.Subcategory))
+    }
+
+    if ($Recipe.Category -eq (Get-SCMiningPlanetCategoryMiningLasers)) {
+        return (Test-SCMiningSetContains -Set $CraftFilter.MiningLaserSubcategories -Value ([string]$Recipe.Subcategory))
     }
 
     if ($Recipe.Category -eq (Get-SCMiningPlanetCategoryArmor)) {
@@ -956,6 +1121,13 @@ function Get-SCMiningPlanetRecipeFamily {
 
     $label = ([string]$Name).Trim()
     if ($Category -eq (Get-SCMiningPlanetCategoryArmor)) {
+        if ($label -match '^Aves(?:\s+(Shrike|Talon))?\s+(Arms|Core|Helmet|Legs)\b') {
+            return [pscustomobject]@{ Key = 'armor:Aves'; Label = 'Aves / Aves Shrike / Aves Talon'; Family = 'armor-variant-set'; Token = $null }
+        }
+        if ($label -match '^ADP(?:-mk4)?\s+(Arms|Core|Helmet|Legs)\b') {
+            return [pscustomobject]@{ Key = 'armor:ADP'; Label = 'ADP / ADP-mk4'; Family = 'armor-variant-set'; Token = $null }
+        }
+
         $base = $label
         $base = $base -replace '\s*\([^)]*\)', ''
         $base = $base -replace '\b(Arms|Core|Helmet|Legs|Backpack)\b.*$', ''
@@ -993,11 +1165,11 @@ function Get-SCMiningPlanetRecipeFamily {
         elseif ($Matches[1] -eq 'XL') { $token = 3 }
         return [pscustomobject]@{ Key = 'weapon:Suckerpunch Cannon'; Label = 'Suckerpunch Cannons'; Family = 'size'; Token = $token }
     }
-    if ($label -match '^SW16BR(\d+)\s+"[^"]+"\s+Repeater$') {
+    if ($label -match '^SW16BR(\d+)\s+["“][^"”]+["”]\s+Repeater$') {
         return [pscustomobject]@{ Key = 'weapon:SW16BR Repeater'; Label = 'SW16BR Repeaters'; Family = 'numbered'; Token = [int]$Matches[1] }
     }
-    if ($label -match '^Arbor\s+MH(2|V)\s+Mining Laser$') {
-        return [pscustomobject]@{ Key = 'weapon:Arbor Mining Laser'; Label = 'Arbor MH2/MHV Mining Lasers'; Family = 'variant'; Token = $null }
+    if ($label -match '^Arbor\s+(MH(?:V|[12]))\s+Mining Laser$') {
+        return [pscustomobject]@{ Key = 'weapon:Arbor Mining Laser'; Label = 'Arbor'; Family = 'mining-laser-list'; Token = $Matches[1] }
     }
     if ($label -match '^Lancet\s+MH([12])\s+Mining Laser$') {
         return [pscustomobject]@{ Key = 'weapon:Lancet Mining Laser'; Label = 'Lancet MH1/MH2 Mining Lasers'; Family = 'variant'; Token = $null }
@@ -1037,6 +1209,13 @@ function Get-SCMiningPlanetRecipeFamily {
     }
 
     if ($Category -eq (Get-SCMiningPlanetCategoryShipComponents)) {
+        if ($label -match '^FR-(66|76|86)$') {
+            return [pscustomobject]@{ Key = 'component:FR-series'; Label = 'FR'; Family = 'hyphen-number-list'; Token = [int]$Matches[1] }
+        }
+        if ($label -match '^FullSpec(?:-(Go|Max))?$') {
+            $token = if ([string]::IsNullOrWhiteSpace([string]$Matches[1])) { 'FullSpec' } else { "FullSpec-$($Matches[1])" }
+            return [pscustomobject]@{ Key = 'component:FullSpec'; Label = 'FullSpec'; Family = 'name-list'; Token = $token }
+        }
         if ($label -match '^([567])(CA|MA|SA)\s+''[^'']+''$') {
             $series = $Matches[1]
             return [pscustomobject]@{ Key = "component:$series-series"; Label = "${series}CA/${series}MA/${series}SA"; Family = 'variant'; Token = $null }
@@ -1093,6 +1272,10 @@ function Format-SCMiningPlanetRecipeFamilyLabel {
         return "$($Group.Label) set"
     }
 
+    if ($Group.Family -eq 'armor-variant-set') {
+        return "$($Group.Label) set"
+    }
+
     if ($Group.Family -in @('numbered', 'number-list')) {
         $span = Format-SCMiningNumberSpan -Values $Group.Tokens
         if ($span) {
@@ -1121,6 +1304,20 @@ function Format-SCMiningPlanetRecipeFamilyLabel {
         $tokens = @($Group.Tokens | ForEach-Object { [string]$_ } | Sort-Object -Unique)
         if ($tokens.Count -gt 0) {
             return "$($Group.Label) " + ($tokens -join '/')
+        }
+    }
+
+    if ($Group.Family -eq 'hyphen-number-list') {
+        $tokens = @($Group.Tokens | ForEach-Object { [string]$_ } | Sort-Object { [int]$_ } -Unique)
+        if ($tokens.Count -gt 0) {
+            return "$($Group.Label)-" + ($tokens -join '/').Replace('/', "/$($Group.Label)-")
+        }
+    }
+
+    if ($Group.Family -eq 'name-list') {
+        $tokens = @($Group.Tokens | ForEach-Object { [string]$_ } | Sort-Object -Unique)
+        if ($tokens.Count -gt 0) {
+            return ($tokens -join '/')
         }
     }
 
@@ -1323,7 +1520,7 @@ function Get-SCMiningWikiBlueprints {
 function Get-SCMiningWikiBlueprintCachePath {
     param([string]$CacheKey)
 
-    $safeKey = [regex]::Replace([string]$CacheKey, '[^A-Za-z0-9._-]', '_')
+    $safeKey = Get-SCMiningSafeCacheKey -CacheKey $CacheKey
     $cacheDir = Join-Path $PSScriptRoot 'cache'
     return (Join-Path $cacheDir "wiki-blueprints-$safeKey.json")
 }
@@ -1751,18 +1948,22 @@ function Get-SCMiningCachedItemInfo {
 function Normalize-SCMiningComponentGrade {
     param([AllowEmptyString()][string]$Grade)
 
-    $grade = ''
+    $cleanGrade = ''
     if (-not [string]::IsNullOrWhiteSpace($Grade)) {
-        $grade = [string]$Grade
+        $cleanGrade = ([string]$Grade).Trim().ToUpperInvariant()
     }
 
-    switch ($grade) {
-        '1' { return 'A' }
-        '2' { return 'B' }
-        '3' { return 'C' }
-        '4' { return 'D' }
-        default { return $grade.ToUpperInvariant() }
+    $map = @{
+        '1' = 'A'
+        '2' = 'B'
+        '3' = 'C'
+        '4' = 'D'
     }
+    if ($map.ContainsKey($cleanGrade)) {
+        return $map[$cleanGrade]
+    }
+
+    return $cleanGrade
 }
 
 function Get-SCMiningBlueprintOutputGrade {
@@ -3042,6 +3243,10 @@ function Get-SCMiningPlanetCategoryShipComponents {
 
 function Get-SCMiningPlanetCategoryShipWeapons {
     return (ConvertFrom-SCCodePoints -CodePoints @(0x041A, 0x043E, 0x0440, 0x0430, 0x0431, 0x0435, 0x043B, 0x044C, 0x043D, 0x044B, 0x0435, 0x0020, 0x043E, 0x0440, 0x0443, 0x0434, 0x0438, 0x044F))
+}
+
+function Get-SCMiningPlanetCategoryMiningLasers {
+    return (Get-SCMiningPlanetSubcategoryMiningLasers)
 }
 
 function Get-SCMiningPlanetCategoryArmor {

@@ -18,6 +18,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Threading;
@@ -30,6 +32,8 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, string> _strings = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ModuleManifest> _modules = new();
     private readonly Dictionary<string, CheckBox> _optionChecks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<MiningCraftFamilySection> _miningCraftFamilySections = new();
+    private readonly List<Button> _miningCraftFamilyActionButtons = new();
     private readonly string _rootPath;
     private const string CurrentLauncherVersion = "1.0.0";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
@@ -44,12 +48,15 @@ public partial class MainWindow : Window
     private string? _verifiedUpdatePackagePath;
     private string? _verifiedUpdateSha256;
     private DispatcherTimer? _backendProgressTimer;
-    private DispatcherTimer? _warmCacheAttentionTimer;
     private Run? _backendProgressRun;
     private string _backendProgressLabel = "";
     private int _backendProgressPercent;
     private int _backendProgressSoftCap;
-    private bool _warmCacheAttentionBright;
+    private bool _launchButtonGlitchesStarted;
+    private bool _journalIsError;
+    private bool _miningCraftFamilyIndexRepairQueued;
+    private bool _miningCraftFamilyIndexRepairFailed;
+    private readonly List<DispatcherTimer> _launchButtonGlitchTimers = new();
 
     public MainWindow()
     {
@@ -65,7 +72,139 @@ public partial class MainWindow : Window
         AddMetricLog(string.Format(T("modulesFound"), _modules.Count) + ".");
         AddMetricLog("Активные модули: " + string.Join("; ", _modules.Select(module => module.Name)) + ".");
         ShowOverview(this, new RoutedEventArgs());
-        Loaded += async (_, _) => await CheckUpdatesAsync();
+        Loaded += async (_, _) =>
+        {
+            StartLaunchButtonGlitches();
+            await CheckUpdatesAsync();
+        };
+        Closed += (_, _) => StopLaunchButtonGlitches();
+    }
+
+    private void StartLaunchButtonGlitches()
+    {
+        if (_launchButtonGlitchesStarted)
+        {
+            return;
+        }
+
+        _launchButtonGlitchesStarted = true;
+        StartLaunchButtonGlitch(DryRunButton, TimeSpan.FromMilliseconds(320), TimeSpan.FromMilliseconds(5600), -1.0, 1.006);
+        StartLaunchButtonGlitch(WarmCacheButton, TimeSpan.FromMilliseconds(1780), TimeSpan.FromMilliseconds(6900), 1.0, 1.008);
+        StartLaunchButtonGlitch(ApplyLiveButton, TimeSpan.FromMilliseconds(3150), TimeSpan.FromMilliseconds(6200), -0.6, 1.007);
+        StartLaunchButtonGlitch(BrowseButton, TimeSpan.FromMilliseconds(2240), TimeSpan.FromMilliseconds(7300), 0.5, 1.004);
+        StartLaunchButtonGlitch(CheckPathButton, TimeSpan.FromMilliseconds(3820), TimeSpan.FromMilliseconds(7900), -0.5, 1.004);
+        StartLaunchButtonGlitch(InstallUpdateButton, TimeSpan.FromMilliseconds(5100), TimeSpan.FromMilliseconds(8800), 0.7, 1.004);
+        StartLaunchButtonGlitch(RefreshBackupsButton, TimeSpan.FromMilliseconds(1460), TimeSpan.FromMilliseconds(7600), -0.4, 1.004);
+        StartLaunchButtonGlitch(RestoreLatestBackupButton, TimeSpan.FromMilliseconds(2680), TimeSpan.FromMilliseconds(8200), 0.4, 1.004);
+        StartLaunchButtonGlitch(RestoreSelectedBackupButton, TimeSpan.FromMilliseconds(4020), TimeSpan.FromMilliseconds(8700), -0.5, 1.004);
+        StartLaunchButtonGlitch(DeleteSelectedBackupButton, TimeSpan.FromMilliseconds(5480), TimeSpan.FromMilliseconds(9300), 0.5, 1.004);
+        StartLaunchButtonGlitch(OverviewNavButton, TimeSpan.FromMilliseconds(960), TimeSpan.FromMilliseconds(7600), 0.8, 1.004);
+        StartLaunchButtonGlitch(ModulesNavButton, TimeSpan.FromMilliseconds(2860), TimeSpan.FromMilliseconds(8400), -0.7, 1.005);
+        StartLaunchButtonGlitch(RestoreBackupButton, TimeSpan.FromMilliseconds(4380), TimeSpan.FromMilliseconds(7100), 0.6, 1.004);
+        for (var i = 0; i < _miningCraftFamilyActionButtons.Count; i++)
+        {
+            StartLaunchButtonGlitch(
+                _miningCraftFamilyActionButtons[i],
+                TimeSpan.FromMilliseconds(620 + ((i * 470) % 5200)),
+                TimeSpan.FromMilliseconds(6500 + ((i * 390) % 2400)),
+                i % 2 == 0 ? 0.45 : -0.45,
+                1.003);
+        }
+    }
+
+    private void StartLaunchButtonGlitch(Button button, TimeSpan firstDelay, TimeSpan interval, double direction, double peakScale)
+    {
+        PrepareLaunchButtonGlitch(button);
+
+        var starter = new DispatcherTimer { Interval = firstDelay };
+        starter.Tick += (_, _) =>
+        {
+            starter.Stop();
+            _launchButtonGlitchTimers.Remove(starter);
+            PulseLaunchButtonGlitch(button, direction, peakScale);
+
+            var timer = new DispatcherTimer { Interval = interval };
+            timer.Tick += (_, _) => PulseLaunchButtonGlitch(button, direction, peakScale);
+            _launchButtonGlitchTimers.Add(timer);
+            timer.Start();
+        };
+
+        _launchButtonGlitchTimers.Add(starter);
+        starter.Start();
+    }
+
+    private static void PrepareLaunchButtonGlitch(Button button)
+    {
+        if (button.RenderTransform is not TransformGroup group ||
+            group.Children.OfType<ScaleTransform>().FirstOrDefault() is null ||
+            group.Children.OfType<TranslateTransform>().FirstOrDefault() is null)
+        {
+            group = new TransformGroup();
+            group.Children.Add(new ScaleTransform(1, 1));
+            group.Children.Add(new TranslateTransform(0, 0));
+            button.RenderTransform = group;
+        }
+
+        button.RenderTransformOrigin = new Point(0.5, 0.5);
+        if (button.Effect is not BlurEffect)
+        {
+            button.Effect = new BlurEffect { Radius = 0 };
+        }
+    }
+
+    private static void PulseLaunchButtonGlitch(Button button, double direction, double peakScale)
+    {
+        if (!button.IsLoaded || !button.IsEnabled)
+        {
+            return;
+        }
+
+        PrepareLaunchButtonGlitch(button);
+        var group = (TransformGroup)button.RenderTransform;
+        var scale = group.Children.OfType<ScaleTransform>().First();
+        var shift = group.Children.OfType<TranslateTransform>().First();
+        var blur = (BlurEffect)button.Effect;
+        var isActiveNav = string.Equals(button.Tag as string, "Active", StringComparison.Ordinal);
+        var intensity = button.IsMouseOver || isActiveNav ? 1.0 : 0.58;
+
+        AnimatePulse(scale, ScaleTransform.ScaleXProperty, 1 + ((peakScale - 1) * intensity), 132, 0);
+        AnimatePulse(scale, ScaleTransform.ScaleYProperty, 1 + (0.002 * intensity), 156, 70);
+        AnimatePulse(shift, TranslateTransform.XProperty, direction * 1.1 * intensity, 112, 48);
+        AnimatePulse(button, OpacityProperty, 1 - (0.026 * intensity), 136, 56);
+        AnimatePulse(blur, BlurEffect.RadiusProperty, 0.50 * intensity, 170, 76);
+    }
+
+    private static void AnimatePulse(DependencyObject target, DependencyProperty property, double to, int durationMs, int beginMs)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(durationMs),
+            BeginTime = TimeSpan.FromMilliseconds(beginMs),
+            AutoReverse = true,
+            FillBehavior = FillBehavior.Stop
+        };
+
+        switch (target)
+        {
+            case UIElement element:
+                element.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
+                break;
+            case Animatable animatable:
+                animatable.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
+                break;
+        }
+    }
+
+    private void StopLaunchButtonGlitches()
+    {
+        foreach (var timer in _launchButtonGlitchTimers.ToArray())
+        {
+            timer.Stop();
+        }
+
+        _launchButtonGlitchTimers.Clear();
+        _launchButtonGlitchesStarted = false;
     }
 
     private string T(string key)
@@ -212,13 +351,15 @@ public partial class MainWindow : Window
     {
         ModuleCardsPanel.Children.Clear();
         _optionChecks.Clear();
+        _miningCraftFamilySections.Clear();
+        _miningCraftFamilyActionButtons.Clear();
 
         foreach (var module in _modules)
         {
             var card = new Border
             {
                 MinHeight = 245,
-                Margin = new Thickness(0, 0, 12, 14),
+                Margin = new Thickness(0, 0, 12, 4),
                 Padding = new Thickness(0),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 Background = Brushes.Transparent,
@@ -295,6 +436,12 @@ public partial class MainWindow : Window
 
             foreach (var group in optionGroups)
             {
+                if (module.Id.Equals("mining", StringComparison.OrdinalIgnoreCase) &&
+                    IsMiningCraftFilterGroup(group.Key))
+                {
+                    continue;
+                }
+
                 if (!string.IsNullOrWhiteSpace(group.Key))
                 {
                     stack.Children.Add(new TextBlock
@@ -332,10 +479,395 @@ public partial class MainWindow : Window
                 }
             }
 
+            if (module.Id.Equals("mining", StringComparison.OrdinalIgnoreCase))
+            {
+                BuildMiningCraftFamilyFilters(stack);
+            }
+
             ModuleCardsPanel.Children.Add(card);
         }
 
         UpdateMiningRecipeFilterState();
+    }
+
+    private static bool IsMiningCraftFilterGroup(string group)
+    {
+        return group is "Корабельные компоненты" or "Корабельные орудия" or "Добывающие лазеры" or "Броня и одежда" or "FPS-оружие";
+    }
+
+    private void BuildMiningCraftFamilyFilters(StackPanel stack)
+    {
+        stack.Children.Add(new TextBlock
+        {
+            Text = "ФИЛЬТР СЕМЕЙСТВ РЕЦЕПТОВ",
+            Margin = new Thickness(0, 12, 0, 5),
+            Foreground = (Brush)FindResource("SignalAmber"),
+            FontSize = 11,
+            FontWeight = FontWeights.Bold
+        });
+
+        var index = LoadMiningCraftFamilyIndex();
+        if (index?.Families is null || index.Families.Count == 0)
+        {
+            QueueMiningCraftFamilyIndexRepair();
+            stack.Children.Add(new TextBlock
+            {
+                Text = _miningCraftFamilyIndexRepairFailed
+                    ? "Прогрей кэш, чтобы выбрать конкретные семейства рецептов."
+                    : "Восстанавливаю фильтры семейств из локального cache.",
+                Margin = new Thickness(0, 0, 0, 6),
+                Foreground = (Brush)FindResource("TextSecondary"),
+                TextWrapping = TextWrapping.Wrap
+            });
+            return;
+        }
+
+        var order = new[] { "Корабельные компоненты", "Корабельные орудия", "Добывающие лазеры", "Броня/одежда", "Оружие" };
+        var groups = index.Families
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.OptionId))
+            .GroupBy(entry => entry.Category)
+            .OrderBy(group =>
+            {
+                var indexOf = Array.IndexOf(order, group.Key);
+                return indexOf < 0 ? 999 : indexOf;
+            })
+            .ThenBy(group => group.Key);
+
+        foreach (var group in groups)
+        {
+            var section = BuildMiningCraftFamilySection(GetMiningCraftFamilyCategoryDisplayName(group.Key), group.OrderBy(entry => entry.Subcategory).ThenBy(entry => entry.Label).ToList());
+            section.Expander.IsExpanded = false;
+            _miningCraftFamilySections.Add(section);
+            stack.Children.Add(section.Root);
+            UpdateMiningCraftFamilyCounter(section);
+        }
+    }
+
+    private MiningCraftFamilySection BuildMiningCraftFamilySection(string category, List<MiningCraftFamilyEntry> entries)
+    {
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.Children.Add(new TextBlock
+        {
+            Text = category,
+            Foreground = (Brush)FindResource("SignalCyan"),
+            FontSize = 12,
+            FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        var counter = new TextBlock
+        {
+            Foreground = (Brush)FindResource("SignalAmber"),
+            FontSize = 11,
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(counter, 1);
+        header.Children.Add(counter);
+
+        var expander = new Expander
+        {
+            Header = header,
+            Style = (Style)FindResource("CraftFamilyExpander"),
+            Foreground = (Brush)FindResource("TextPrimary")
+        };
+
+        var body = new StackPanel();
+        expander.Content = body;
+
+        var search = new TextBox
+        {
+            Style = (Style)FindResource("LaunchPathTextBox"),
+            MinHeight = 30,
+            Height = 30,
+            Padding = new Thickness(8, 0, 8, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 7),
+            ToolTip = "Поиск по семейству, предметам и ресурсам"
+        };
+        body.Children.Add(search);
+
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 0, 0, 7)
+        };
+        body.Children.Add(actions);
+
+        var resetButton = new Button
+        {
+            Content = "сброс",
+            Style = (Style)FindResource("LaunchCommandButton"),
+            MinHeight = 30,
+            Width = 84,
+            Padding = new Thickness(8, 2, 8, 2)
+        };
+        actions.Children.Add(resetButton);
+
+        var defaultButton = new Button
+        {
+            Content = "по умолчанию",
+            Style = (Style)FindResource("LaunchCommandButton"),
+            MinHeight = 30,
+            Width = 128,
+            Padding = new Thickness(8, 2, 8, 2),
+            Margin = new Thickness(8, 0, 0, 0)
+        };
+        actions.Children.Add(defaultButton);
+        _miningCraftFamilyActionButtons.Add(resetButton);
+        _miningCraftFamilyActionButtons.Add(defaultButton);
+
+        var listPanel = new StackPanel();
+        var listScroll = new ScrollViewer
+        {
+            MaxHeight = 150,
+            Padding = new Thickness(8, 6, 8, 6),
+            Background = new SolidColorBrush(Color.FromArgb(0x58, 0x05, 0x0D, 0x12)),
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = listPanel
+        };
+        body.Children.Add(listScroll);
+
+        var section = new MiningCraftFamilySection
+        {
+            Root = expander,
+            Expander = expander,
+            Counter = counter,
+            SearchBox = search,
+            Entries = entries
+        };
+
+        foreach (var entry in entries)
+        {
+            var check = new CheckBox
+            {
+                Content = entry.Label,
+                IsChecked = entry.DefaultSelected,
+                Tag = $"mining|{entry.OptionId}",
+                Margin = new Thickness(0, 0, 8, 4),
+                Foreground = (Brush)FindResource("TextPrimary"),
+                ToolTip = BuildMiningCraftFamilyTooltip(entry)
+            };
+            check.Checked += (_, _) => UpdateMiningCraftFamilyCounter(section);
+            check.Unchecked += (_, _) => UpdateMiningCraftFamilyCounter(section);
+            listPanel.Children.Add(check);
+            section.Checks.Add(check);
+            _optionChecks[(string)check.Tag] = check;
+        }
+
+        search.TextChanged += (_, _) => UpdateMiningCraftFamilyVisibility(section);
+        resetButton.Click += (_, _) =>
+        {
+            foreach (var check in section.Checks)
+            {
+                check.IsChecked = false;
+            }
+            UpdateMiningCraftFamilyCounter(section);
+        };
+        defaultButton.Click += (_, _) =>
+        {
+            foreach (var check in section.Checks)
+            {
+                var optionId = ((string)check.Tag).Split('|', 2)[1];
+                var entry = section.Entries.FirstOrDefault(candidate => candidate.OptionId.Equals(optionId, StringComparison.OrdinalIgnoreCase));
+                check.IsChecked = entry?.DefaultSelected == true;
+            }
+            UpdateMiningCraftFamilyCounter(section);
+        };
+
+        return section;
+    }
+
+    private static string GetMiningCraftFamilyCategoryDisplayName(string category)
+    {
+        return category.Equals("Оружие", StringComparison.OrdinalIgnoreCase) ? "FPS-оружие" : category;
+    }
+
+    private void UpdateMiningCraftFamilyVisibility(MiningCraftFamilySection section)
+    {
+        var query = section.SearchBox.Text.Trim();
+        foreach (var check in section.Checks)
+        {
+            var optionId = ((string)check.Tag).Split('|', 2)[1];
+            var entry = section.Entries.FirstOrDefault(candidate => candidate.OptionId.Equals(optionId, StringComparison.OrdinalIgnoreCase));
+            if (entry is null || string.IsNullOrWhiteSpace(query))
+            {
+                check.Visibility = Visibility.Visible;
+                continue;
+            }
+
+            var haystack = string.Join(" ", new[] { entry.Label, entry.Category, entry.Subcategory }
+                .Concat(entry.Names)
+                .Concat(entry.Resources));
+            check.Visibility = haystack.Contains(query, StringComparison.OrdinalIgnoreCase) ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void UpdateMiningCraftFamilyCounter(MiningCraftFamilySection section)
+    {
+        var selected = section.Checks.Count(check => check.IsChecked == true);
+        section.Counter.Text = $"{selected}/{section.Checks.Count}";
+    }
+
+    private static string BuildMiningCraftFamilyTooltip(MiningCraftFamilyEntry entry)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(entry.Subcategory))
+        {
+            parts.Add(entry.Subcategory);
+        }
+        if (entry.Names.Count > 0)
+        {
+            parts.Add(string.Join(", ", entry.Names.Take(8)) + (entry.Names.Count > 8 ? "..." : ""));
+        }
+        if (entry.Resources.Count > 0)
+        {
+            parts.Add("Ресурсы: " + string.Join(", ", entry.Resources));
+        }
+
+        return string.Join(Environment.NewLine, parts);
+    }
+
+    private void QueueMiningCraftFamilyIndexRepair()
+    {
+        if (_miningCraftFamilyIndexRepairQueued || _miningCraftFamilyIndexRepairFailed)
+        {
+            return;
+        }
+
+        _miningCraftFamilyIndexRepairQueued = true;
+        Dispatcher.BeginInvoke(new Action(async () => await RepairMiningCraftFamilyIndexAsync()), DispatcherPriority.Background);
+    }
+
+    private async Task RepairMiningCraftFamilyIndexAsync()
+    {
+        await Task.Delay(250);
+        if (LoadMiningCraftFamilyIndex()?.Families.Count > 0)
+        {
+            return;
+        }
+
+        AddMetricLog("Фильтры рецептов: восстанавливаю индекс из локального cache.");
+        var repaired = await TryRepairMiningCraftFamilyIndexFromWikiCacheAsync();
+        if (!repaired || (LoadMiningCraftFamilyIndex()?.Families.Count ?? 0) <= 0)
+        {
+            _miningCraftFamilyIndexRepairFailed = true;
+            AddMetricLog("Фильтры рецептов: локальный wiki cache не найден. Прогрей кэш.");
+            SetWarmCacheAttention(true);
+            BuildModuleCards();
+            return;
+        }
+
+        _miningCraftFamilyIndexRepairFailed = false;
+        AddMetricLog("Фильтры рецептов: индекс cache восстановлен.");
+        RebuildModuleCardsPreservingSelection();
+    }
+
+    private async Task<bool> TryRepairMiningCraftFamilyIndexFromWikiCacheAsync()
+    {
+        var scriptPath = Path.Combine(Path.GetTempPath(), $"sc-mod-family-index-{Guid.NewGuid():N}.ps1");
+        var script = """
+param([string]$RootPath)
+$ErrorActionPreference = 'Stop'
+$modulePath = Join-Path $RootPath 'modules\mining\module.ps1'
+. $modulePath
+$cacheDir = Join-Path $RootPath 'modules\mining\cache'
+$cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'wiki-blueprints-*.json' -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if ($null -eq $cacheFile) {
+    Write-Host 'NO_WIKI_CACHE'
+    exit 2
+}
+$cache = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
+if (-not $cache.PSObject.Properties['data']) {
+    throw 'wiki blueprint cache has no data'
+}
+$cacheKey = [string]$cache.cacheKey
+if ([string]::IsNullOrWhiteSpace($cacheKey)) {
+    $cacheKey = $cacheFile.BaseName -replace '^wiki-blueprints-', ''
+}
+$indexPath = Write-SCMiningCraftFamilyIndexCache -CacheKey $cacheKey -Blueprints @($cache.data)
+Write-Host "FAMILY_INDEX:$indexPath"
+""";
+
+        try
+        {
+            File.WriteAllText(scriptPath, script, new UTF8Encoding(false));
+            var args = new StringBuilder();
+            args.Append("-NoProfile -ExecutionPolicy Bypass -File ");
+            args.Append(Quote(scriptPath));
+            args.Append(" -RootPath ");
+            args.Append(Quote(_rootPath));
+
+            var result = await RunProcessAsync("powershell.exe", args.ToString(), timeout: TimeSpan.FromSeconds(45));
+            return result.ExitCode == 0 && result.Output.Contains("FAMILY_INDEX:", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            TryDelete(scriptPath);
+        }
+    }
+
+    private void RebuildModuleCardsPreservingSelection()
+    {
+        var selected = GetSelectedOptions();
+        BuildModuleCards();
+        foreach (var pair in _optionChecks)
+        {
+            var parts = pair.Key.Split('|', 2);
+            if (parts.Length != 2 || !selected.TryGetValue(parts[0], out var options))
+            {
+                continue;
+            }
+
+            pair.Value.IsChecked = options.Contains(parts[1], StringComparer.OrdinalIgnoreCase);
+        }
+
+        UpdateMiningRecipeFilterState();
+        if (_launchButtonGlitchesStarted)
+        {
+            StopLaunchButtonGlitches();
+            StartLaunchButtonGlitches();
+        }
+    }
+
+    private MiningCraftFamilyIndex? LoadMiningCraftFamilyIndex()
+    {
+        var cacheDir = Path.Combine(_rootPath, "modules", "mining", "cache");
+        if (!Directory.Exists(cacheDir))
+        {
+            return null;
+        }
+
+        var file = Directory
+            .EnumerateFiles(cacheDir, "craft-family-index-*.json", SearchOption.TopDirectoryOnly)
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(info => info.LastWriteTimeUtc)
+            .FirstOrDefault();
+        if (file is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(file.FullName, Encoding.UTF8);
+            return JsonSerializer.Deserialize<MiningCraftFamilyIndex>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void ModuleOptionChanged(object sender, RoutedEventArgs e)
@@ -363,6 +895,12 @@ public partial class MainWindow : Window
 
             pair.Value.IsEnabled = hasMiningMethod;
             pair.Value.Opacity = hasMiningMethod ? 1.0 : 0.42;
+        }
+
+        foreach (var section in _miningCraftFamilySections)
+        {
+            section.Root.IsEnabled = hasMiningMethod;
+            section.Root.Opacity = hasMiningMethod ? 1.0 : 0.42;
         }
     }
 
@@ -668,48 +1206,111 @@ public partial class MainWindow : Window
 
     private void SetWarmCacheAttention(bool enabled)
     {
-        StopWarmCacheAttentionPulse();
         if (!enabled)
         {
-            WarmCacheButton.ClearValue(Control.BackgroundProperty);
-            WarmCacheButton.BorderBrush = new SolidColorBrush(Color.FromRgb(0x58, 0x76, 0x87));
-            WarmCacheButton.Foreground = (Brush)FindResource("TextPrimary");
+            ClearWarmCacheAttentionVisual();
             return;
         }
 
-        _warmCacheAttentionBright = false;
-        ApplyWarmCacheAttentionColors();
-        _warmCacheAttentionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1150) };
-        _warmCacheAttentionTimer.Tick += (_, _) =>
+        ApplyWarmCacheAttentionVisual();
+    }
+
+    private void ApplyWarmCacheAttentionVisual()
+    {
+        WarmCacheButton.ApplyTemplate();
+        var backgroundBrush = CreatePulsingBrush(
+            Color.FromArgb(0xB8, 0x1B, 0x1E, 0x18),
+            Color.FromArgb(0xC2, 0x2A, 0x27, 0x18),
+            2600);
+        var borderBrush = CreatePulsingBrush(
+            Color.FromRgb(0x66, 0x55, 0x35),
+            Color.FromRgb(0xA8, 0x82, 0x3E),
+            3000);
+        WarmCacheButton.Background = backgroundBrush;
+        WarmCacheButton.BorderBrush = borderBrush;
+        WarmCacheButton.ClearValue(Control.ForegroundProperty);
+
+        if (WarmCacheButton.Template.FindName("Body", WarmCacheButton) is Border body)
         {
-            _warmCacheAttentionBright = !_warmCacheAttentionBright;
-            ApplyWarmCacheAttentionColors();
+            var bodyBackgroundBrush = CreatePulsingBrush(
+                Color.FromArgb(0xB8, 0x1B, 0x1E, 0x18),
+                Color.FromArgb(0xC2, 0x2A, 0x27, 0x18),
+                2600);
+            var bodyBorderBrush = CreatePulsingBrush(
+                Color.FromRgb(0x66, 0x55, 0x35),
+                Color.FromRgb(0xA8, 0x82, 0x3E),
+                3000);
+            body.Background = bodyBackgroundBrush;
+            body.BorderBrush = bodyBorderBrush;
+        }
+
+        SetTemplateOpacity(WarmCacheButton, "WarpFrame", true, 0.24);
+        SetTemplateOpacity(WarmCacheButton, "PlateGhosts", true, 0.10);
+        SetTemplateOpacity(WarmCacheButton, "Scanlines", true, 0.12);
+        SetTemplateOpacity(WarmCacheButton, "TearLayer", true, 0.08);
+        SetTemplateOpacity(WarmCacheButton, "AmberPlateGhost", true, 0.06);
+        SetTemplateOpacity(WarmCacheButton, "FrameAmberRip", true, 0.04);
+        SetTemplateOpacity(WarmCacheButton, "TearRightBorderAmber", true, 0.04);
+    }
+
+    private void ClearWarmCacheAttentionVisual()
+    {
+        WarmCacheButton.ApplyTemplate();
+        StopBrushPulse(WarmCacheButton.Background);
+        StopBrushPulse(WarmCacheButton.BorderBrush);
+        WarmCacheButton.ClearValue(Control.BackgroundProperty);
+        WarmCacheButton.ClearValue(Control.BorderBrushProperty);
+        WarmCacheButton.ClearValue(Control.ForegroundProperty);
+
+        if (WarmCacheButton.Template.FindName("Body", WarmCacheButton) is Border body)
+        {
+            StopBrushPulse(body.Background);
+            StopBrushPulse(body.BorderBrush);
+            body.ClearValue(Border.BackgroundProperty);
+            body.ClearValue(Border.BorderBrushProperty);
+        }
+
+        SetTemplateOpacity(WarmCacheButton, "WarpFrame", false, 0);
+        SetTemplateOpacity(WarmCacheButton, "PlateGhosts", false, 0);
+        SetTemplateOpacity(WarmCacheButton, "Scanlines", false, 0);
+        SetTemplateOpacity(WarmCacheButton, "TearLayer", false, 0);
+        SetTemplateOpacity(WarmCacheButton, "AmberPlateGhost", false, 0);
+        SetTemplateOpacity(WarmCacheButton, "FrameAmberRip", false, 0);
+        SetTemplateOpacity(WarmCacheButton, "TearRightBorderAmber", false, 0);
+    }
+
+    private static SolidColorBrush CreatePulsingBrush(Color from, Color to, int durationMs)
+    {
+        var brush = new SolidColorBrush(from);
+        StartColorPulse(brush, to, durationMs);
+        return brush;
+    }
+
+    private static void StartColorPulse(SolidColorBrush brush, Color to, int durationMs)
+    {
+        if (brush.IsFrozen)
+        {
+            return;
+        }
+
+        var animation = new ColorAnimation
+        {
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(durationMs),
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
         };
-        _warmCacheAttentionTimer.Start();
+
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, animation, HandoffBehavior.SnapshotAndReplace);
     }
 
-    private void ApplyWarmCacheAttentionColors()
+    private static void StopBrushPulse(Brush brush)
     {
-        WarmCacheButton.Background = new SolidColorBrush(_warmCacheAttentionBright
-            ? Color.FromRgb(0x69, 0x48, 0x10)
-            : Color.FromRgb(0x2D, 0x21, 0x0E));
-        WarmCacheButton.BorderBrush = new SolidColorBrush(_warmCacheAttentionBright
-            ? Color.FromRgb(0xFF, 0xE0, 0x86)
-            : Color.FromRgb(0xFF, 0xB8, 0x4A));
-        WarmCacheButton.Foreground = new SolidColorBrush(_warmCacheAttentionBright
-            ? Color.FromRgb(0xFF, 0xF0, 0xB8)
-            : Color.FromRgb(0xFF, 0xD2, 0x76));
-    }
-
-    private void StopWarmCacheAttentionPulse()
-    {
-        if (_warmCacheAttentionTimer is null)
+        if (brush is SolidColorBrush { IsFrozen: false } solidColorBrush)
         {
-            return;
+            solidColorBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
         }
-
-        _warmCacheAttentionTimer.Stop();
-        _warmCacheAttentionTimer = null;
     }
 
     private static string ShortPath(string path)
@@ -761,15 +1362,87 @@ public partial class MainWindow : Window
 
     private void AddError(string text)
     {
-        SetJournalState("КРАСНЫЙ КОНТУР: " + text, isError: true);
-        AddErrorLog("КРАСНЫЙ КОНТУР: " + text);
+        SetJournalState("ХЬЮСТОН, У НАС ПРОБЛЕМА: " + text, isError: true);
+        AddErrorLog("ХЬЮСТОН, У НАС ПРОБЛЕМА: " + text);
     }
 
     private void SetJournalState(string text, bool isError = false)
     {
+        _journalIsError = isError;
         SafeBoundaryText.Text = text;
         SafeBoundaryText.Foreground = isError ? (Brush)FindResource("SignalRed") : (Brush)FindResource("TextSecondary");
-        LogBox.BorderBrush = isError ? (Brush)FindResource("SignalRed") : (Brush)FindResource("SignalCyan");
+        LogFrameBody.BorderBrush = isError ? (Brush)FindResource("SignalRed") : (Brush)FindResource("LineDim");
+    }
+
+    private void GlitchPanelMouseEnter(object sender, MouseEventArgs e)
+    {
+        switch (sender)
+        {
+            case FrameworkElement { Name: "BackupListGlitchFrame" }:
+                SetGlitchPanelHover(
+                    BackupListFrameBody,
+                    BackupListWarpFrame,
+                    BackupListScanlines,
+                    BrushFromHex("#5A66E8FF"),
+                    0.50,
+                    0.20);
+                break;
+            case FrameworkElement { Name: "LogGlitchFrame" }:
+                SetGlitchPanelHover(
+                    LogFrameBody,
+                    LogWarpFrame,
+                    LogScanlines,
+                    _journalIsError ? (Brush)FindResource("SignalRed") : BrushFromHex("#5A66E8FF"),
+                    0.50,
+                    0.20);
+                break;
+        }
+    }
+
+    private void GlitchPanelMouseLeave(object sender, MouseEventArgs e)
+    {
+        switch (sender)
+        {
+            case FrameworkElement { Name: "BackupListGlitchFrame" }:
+                SetGlitchPanelHover(
+                    BackupListFrameBody,
+                    BackupListWarpFrame,
+                    BackupListScanlines,
+                    (Brush)FindResource("LineDim"),
+                    0,
+                    0.10);
+                break;
+            case FrameworkElement { Name: "LogGlitchFrame" }:
+                SetGlitchPanelHover(
+                    LogFrameBody,
+                    LogWarpFrame,
+                    LogScanlines,
+                    _journalIsError ? (Brush)FindResource("SignalRed") : (Brush)FindResource("LineDim"),
+                    0,
+                    0.10);
+                break;
+        }
+    }
+
+    private static void SetGlitchPanelHover(Border body, UIElement warpFrame, UIElement scanlines, Brush borderBrush, double warpOpacity, double scanlineOpacity)
+    {
+        body.BorderBrush = borderBrush;
+        AnimateHold(warpFrame, OpacityProperty, warpOpacity, 140);
+        AnimateHold(scanlines, OpacityProperty, scanlineOpacity, 140);
+    }
+
+    private static Brush BrushFromHex(string value) => (Brush)new BrushConverter().ConvertFromString(value)!;
+
+    private static void AnimateHold(UIElement target, DependencyProperty property, double to, int durationMs)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(durationMs),
+            FillBehavior = FillBehavior.HoldEnd
+        };
+
+        target.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
     }
 
     private void SetScreen(string titleKey, string subtitleKey, ScrollViewer visiblePanel)
@@ -790,18 +1463,67 @@ public partial class MainWindow : Window
         var buttons = new[] { OverviewNavButton, ModulesNavButton, RestoreBackupButton };
         foreach (var button in buttons)
         {
-            button.Background = new SolidColorBrush(Color.FromArgb(0xA0, 0x15, 0x25, 0x2D));
-            button.BorderBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x5F, 0x6D));
-            button.Foreground = (Brush)FindResource("TextPrimary");
+            button.Tag = null;
+            button.ClearValue(Control.BackgroundProperty);
+            button.ClearValue(Control.BorderBrushProperty);
+            button.ClearValue(Control.ForegroundProperty);
+            ApplyNavActiveVisual(button, false);
         }
 
         var active = OverviewNavButton;
         if (visiblePanel == ModulesPanel) active = ModulesNavButton;
         else if (visiblePanel == BackupPanel) active = RestoreBackupButton;
 
-        active.Background = new SolidColorBrush(Color.FromArgb(0xE5, 0x1D, 0x3A, 0x45));
-        active.BorderBrush = (Brush)FindResource("SignalCyan");
-        active.Foreground = (Brush)FindResource("SignalCyan");
+        active.Tag = "Active";
+        ApplyNavActiveVisual(active, true);
+    }
+
+    private void ApplyNavActiveVisual(Button button, bool isActive)
+    {
+        button.ApplyTemplate();
+
+        if (button.Template.FindName("NavBody", button) is System.Windows.Shapes.Shape body)
+        {
+            if (isActive)
+            {
+                body.Fill = (Brush)new BrushConverter().ConvertFromString("#B8152D36")!;
+                body.Stroke = (Brush)new BrushConverter().ConvertFromString("#5A66E8FF")!;
+            }
+            else
+            {
+                body.ClearValue(System.Windows.Shapes.Shape.FillProperty);
+                body.ClearValue(System.Windows.Shapes.Shape.StrokeProperty);
+            }
+        }
+
+        SetTemplateOpacity(button, "NavWarpFrame", isActive, 0.52);
+        SetTemplateOpacity(button, "NavPlateGhosts", isActive, 0.16);
+        SetTemplateOpacity(button, "NavScanlines", isActive, 0.18);
+        SetTemplateOpacity(button, "NavTearLayer", isActive, 0.20);
+
+        if (isActive)
+        {
+            button.Foreground = (Brush)FindResource("SignalCyan");
+        }
+        else
+        {
+            button.ClearValue(Control.ForegroundProperty);
+        }
+    }
+
+    private static void SetTemplateOpacity(Button button, string name, bool isActive, double opacity)
+    {
+        if (button.Template.FindName(name, button) is UIElement element)
+        {
+            if (isActive)
+            {
+                element.Opacity = opacity;
+            }
+            else
+            {
+                element.ClearValue(OpacityProperty);
+            }
+        }
     }
 
     private void ShowOverview(object sender, RoutedEventArgs e) => SetScreen("overviewTitle", "overviewSubtitle", OverviewPanel);
@@ -1237,6 +1959,9 @@ public partial class MainWindow : Window
                         break;
                     case BackendRunMode.WarmCache:
                         AddWarmCacheSummary(result.Output);
+                        _miningCraftFamilyIndexRepairQueued = false;
+                        _miningCraftFamilyIndexRepairFailed = false;
+                        RebuildModuleCardsPreservingSelection();
                         break;
                     default:
                         AddBackendSummary(result.Output, mode);
@@ -1393,7 +2118,7 @@ public partial class MainWindow : Window
         var status = GetPreflightStatus(output);
         var wikiFallback = IsWikiBlueprintFailureCoveredByCache(lines);
         var state = status.HasBlockingFailure
-            ? "КРАСНЫЙ КОНТУР: источник или global.ini недоступен."
+            ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: источник или global.ini недоступен."
             : staleOrMissing
                 ? "Источники доступны. Cache устарел: прогрей кэш перед применением."
                 : wikiFallback
@@ -1478,7 +2203,7 @@ public partial class MainWindow : Window
         }
 
         var hasFailure = lines.Any(line => line.Contains(": FAIL", StringComparison.OrdinalIgnoreCase));
-        SetJournalState(hasFailure ? "КРАСНЫЙ КОНТУР: cache не прогрет." : "Cache прогрет. Можно применять в LIVE.", hasFailure);
+        SetJournalState(hasFailure ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: cache не прогрет." : "Cache прогрет. Можно применять в LIVE.", hasFailure);
         if (!hasFailure)
         {
             SetWarmCacheAttention(false);
@@ -1543,7 +2268,7 @@ public partial class MainWindow : Window
         var cleanMessage = mode == BackendRunMode.LiveApply
             ? "LIVE apply завершён. Backup сохранён."
             : "Контур чист. Можно применять в LIVE.";
-        SetJournalState(hasConflicts ? "КРАСНЫЙ КОНТУР: есть конфликт модулей." : cleanMessage, hasConflicts);
+        SetJournalState(hasConflicts ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: есть конфликт модулей." : cleanMessage, hasConflicts);
     }
 
     private static string TextOrUnknown(string value) => string.IsNullOrWhiteSpace(value) ? "?" : value;
@@ -2160,6 +2885,52 @@ public sealed class ModuleOption
 
     [JsonPropertyName("default")]
     public bool Default { get; set; }
+}
+
+public sealed class MiningCraftFamilySection
+{
+    public FrameworkElement Root { get; set; } = null!;
+    public Expander Expander { get; set; } = null!;
+    public TextBlock Counter { get; set; } = null!;
+    public TextBox SearchBox { get; set; } = null!;
+    public List<MiningCraftFamilyEntry> Entries { get; set; } = new();
+    public List<CheckBox> Checks { get; } = new();
+}
+
+public sealed class MiningCraftFamilyIndex
+{
+    [JsonPropertyName("cacheKey")]
+    public string CacheKey { get; set; } = "";
+
+    [JsonPropertyName("families")]
+    public List<MiningCraftFamilyEntry> Families { get; set; } = new();
+}
+
+public sealed class MiningCraftFamilyEntry
+{
+    [JsonPropertyName("optionId")]
+    public string OptionId { get; set; } = "";
+
+    [JsonPropertyName("category")]
+    public string Category { get; set; } = "";
+
+    [JsonPropertyName("subcategory")]
+    public string Subcategory { get; set; } = "";
+
+    [JsonPropertyName("familyKey")]
+    public string FamilyKey { get; set; } = "";
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = "";
+
+    [JsonPropertyName("defaultSelected")]
+    public bool DefaultSelected { get; set; }
+
+    [JsonPropertyName("names")]
+    public List<string> Names { get; set; } = new();
+
+    [JsonPropertyName("resources")]
+    public List<string> Resources { get; set; } = new();
 }
 
 public sealed class GitHubRelease

@@ -59,7 +59,13 @@ function Format-SelectedOptionNames {
 
     $optionNameMap = Get-OptionNameMap
     $names = @()
+    $craftFamilyCount = 0
     foreach ($optionId in @($ModuleReport.selectedOptions)) {
+        if ([string]$optionId -like 'craftFamily|*') {
+            $craftFamilyCount++
+            continue
+        }
+
         $key = "$($ModuleReport.id)|$optionId"
         if ($optionNameMap.ContainsKey($key)) {
             $names += $optionNameMap[$key]
@@ -67,6 +73,10 @@ function Format-SelectedOptionNames {
         else {
             $names += [string]$optionId
         }
+    }
+    if ($craftFamilyCount -gt 0) {
+        $familyFilterLabel = -join ([char[]]@(0x0421, 0x0435, 0x043C, 0x0435, 0x0439, 0x0441, 0x0442, 0x0432, 0x0430, 0x0020, 0x0440, 0x0435, 0x0446, 0x0435, 0x043F, 0x0442, 0x043E, 0x0432))
+        $names += "${familyFilterLabel}: $craftFamilyCount"
     }
 
     if ($names.Count -eq 0) {
@@ -263,7 +273,7 @@ function Write-SCCacheStatusLine {
     )
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        Write-Host "Cache ${Name}: MISSING; path: $Path"
+        Write-Host "Cache ${Name}: MISSING"
         return
     }
 
@@ -291,6 +301,22 @@ function Get-SCRemoteJson {
         return $result
     }
     catch {
+        if ($Uri -match '^https://scmdb\.net/' -and (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
+            try {
+                $json = & curl.exe -L --silent --show-error --fail --max-time 30 `
+                    -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
+                    -H 'Accept: application/json,text/plain,*/*' `
+                    -e 'https://scmdb.net/' `
+                    $Uri
+                if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
+                    Write-Host "Source ${Name}: OK"
+                    return ($json | ConvertFrom-Json)
+                }
+            }
+            catch {
+            }
+        }
+
         Write-Host "Source ${Name}: FAIL; $($_.Exception.Message)"
         return $null
     }
@@ -423,6 +449,9 @@ function Write-ConsoleWarmCacheSummary {
     $questPlan = Invoke-SCModulePlan -Module $questModule -Context $context -SelectedOptions $questOptions
     Write-Host "Quest cache warmup: OK; operations: $(@($questPlan.Operations).Count)"
     Write-SCRefreshedCacheLine -Name 'quest items' -Path (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json')
+
+    $familyIndexPath = Write-SCMiningCraftFamilyIndexCache -CacheKey ([string]$version.version) -Blueprints @($blueprints)
+    Write-SCRefreshedCacheLine -Name 'mining recipe families' -Path $familyIndexPath
 }
 
 function Write-ConsoleUsage {

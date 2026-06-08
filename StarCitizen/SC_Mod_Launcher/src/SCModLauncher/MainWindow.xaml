@@ -41,7 +41,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="104"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="132"/>
+                <RowDefinition Height="112"/>
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0" Style="{StaticResource PanelBorder}" Padding="16" Margin="0" MouseLeftButtonDown="HeaderMouseLeftButtonDown">
@@ -228,9 +228,9 @@
                                                                 <ColumnDefinition Width="116"/>
                                                                 <ColumnDefinition Width="150"/>
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBox x:Name="LivePathBox" AutomationProperties.AutomationId="LivePathBox" Grid.Column="0" MinHeight="46" VerticalContentAlignment="Center" Padding="10,0"/>
-                                                            <Button x:Name="BrowseButton" AutomationProperties.AutomationId="BrowseButton" Grid.Column="1" Style="{StaticResource CommandButton}" Margin="10,0,0,0" Click="BrowseLivePath"/>
-                                                            <Button x:Name="CheckPathButton" AutomationProperties.AutomationId="CheckPathButton" Grid.Column="2" Style="{StaticResource CommandButton}" Margin="10,0,0,0" Click="CheckPath"/>
+                                                            <TextBox x:Name="LivePathBox" AutomationProperties.AutomationId="LivePathBox" Grid.Column="0" Style="{StaticResource LaunchPathTextBox}" VerticalContentAlignment="Center"/>
+                                                            <Button x:Name="BrowseButton" AutomationProperties.AutomationId="BrowseButton" Grid.Column="1" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Margin="10,0,0,0" Click="BrowseLivePath"/>
+                                                            <Button x:Name="CheckPathButton" AutomationProperties.AutomationId="CheckPathButton" Grid.Column="2" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Margin="10,0,0,0" Click="CheckPath"/>
                                                         </Grid>
                                                         <TextBlock x:Name="LiveStatusText" Visibility="Collapsed"/>
                                                     </StackPanel>
@@ -249,7 +249,7 @@
                                                         <TextBlock x:Name="UpdateStatusText" Margin="0,5,0,0" Foreground="{StaticResource SignalAmber}" FontWeight="Bold" TextWrapping="Wrap"/>
                                                         <TextBlock x:Name="UpdatesScaffoldText" Margin="0,4,0,0" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"/>
                                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Left">
-                                                            <Button x:Name="InstallUpdateButton" AutomationProperties.AutomationId="InstallUpdateButton" Style="{StaticResource CommandButton}" MinHeight="32" Width="104" IsEnabled="False" Click="UpdateLauncher"/>
+                                                            <Button x:Name="InstallUpdateButton" AutomationProperties.AutomationId="InstallUpdateButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Width="112" IsEnabled="False" Click="UpdateLauncher"/>
                                                         </StackPanel>
                                                      </StackPanel>
                                                  </Border>
@@ -486,32 +486,114 @@
 
                                 <ScrollViewer x:Name="ModulesPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                                     <StackPanel>
-                                        <TextBlock Text="ОТСЕК МОДУЛЕЙ" Foreground="{StaticResource SignalAmber}" FontWeight="Bold" Margin="0,0,0,10"/>
-                                        <UniformGrid x:Name="ModuleCardsPanel" Columns="2"/>
+                                        <UniformGrid x:Name="ModuleCardsPanel" Columns="2" Margin="0,11,0,0"/>
                                     </StackPanel>
                                 </ScrollViewer>
 
                                 <ScrollViewer x:Name="BackupPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Disabled">
                                     <Border Style="{StaticResource PanelBorder}">
-                                        <StackPanel>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
                                             <TextBlock x:Name="BackupInfoText" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"/>
-                                             <ListBox x:Name="BackupListBox"
-                                                     AutomationProperties.AutomationId="BackupListBox"
-                                                     Height="170"
-                                                     Margin="0,12,0,0"
-                                                     Background="#80101A20"
-                                                     BorderBrush="{StaticResource LineDim}"
-                                                     Foreground="{StaticResource TextPrimary}"
-                                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                     DisplayMemberPath="DisplayName"/>
-                                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                                <Button x:Name="RefreshBackupsButton" AutomationProperties.AutomationId="RefreshBackupsButton" Style="{StaticResource CommandButton}" MinHeight="40" Width="120" Click="RefreshBackups"/>
-                                                <Button x:Name="RestoreLatestBackupButton" AutomationProperties.AutomationId="RestoreLatestBackupButton" Style="{StaticResource CommandButton}" MinHeight="40" Width="190" Margin="12,0,0,0" Click="RestoreLatestBackup"/>
-                                                <Button x:Name="RestoreSelectedBackupButton" AutomationProperties.AutomationId="RestoreSelectedBackupButton" Style="{StaticResource CommandButton}" MinHeight="40" Width="190" Margin="12,0,0,0" Click="RestoreSelectedBackup"/>
-                                                <Button x:Name="DeleteSelectedBackupButton" AutomationProperties.AutomationId="DeleteSelectedBackupButton" Style="{StaticResource CommandButton}" MinHeight="40" Width="170" Margin="12,0,0,0" Click="DeleteSelectedBackup"/>
+                                            <Grid x:Name="BackupListGlitchFrame"
+                                                  Grid.Row="1"
+                                                  Height="270"
+                                                  Margin="0,12,0,0"
+                                                  ClipToBounds="False"
+                                                  SnapsToDevicePixels="True"
+                                                  MouseEnter="GlitchPanelMouseEnter"
+                                                  MouseLeave="GlitchPanelMouseLeave">
+                                                <Border Background="#30000000" Margin="2,3,-2,-3"/>
+                                                <Border x:Name="BackupListFrameBody"
+                                                        Background="#80101A20"
+                                                        BorderBrush="{StaticResource LineDim}"
+                                                        BorderThickness="1"/>
+                                                <Grid x:Name="BackupListScanlines" Opacity="0.10" IsHitTestVisible="False">
+                                                    <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,9,0,0" Opacity="0.10"/>
+                                                    <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Top" Margin="0,24,0,0" Opacity="0.12"/>
+                                                    <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,41,0,0" Opacity="0.08"/>
+                                                    <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Bottom" Margin="0,0,0,13" Opacity="0.12"/>
+                                                </Grid>
+                                                <ListBox x:Name="BackupListBox"
+                                                         AutomationProperties.AutomationId="BackupListBox"
+                                                         Margin="1"
+                                                         Background="Transparent"
+                                                         BorderThickness="0"
+                                                         Foreground="{StaticResource TextPrimary}"
+                                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                         DisplayMemberPath="DisplayName">
+                                                    <ListBox.RenderTransform>
+                                                        <TranslateTransform x:Name="BackupListTextShift" X="0" Y="0"/>
+                                                    </ListBox.RenderTransform>
+                                                </ListBox>
+                                                <Grid x:Name="BackupListWarpFrame" ClipToBounds="False" Opacity="0" IsHitTestVisible="False">
+                                                    <Grid.RenderTransform>
+                                                        <TranslateTransform x:Name="BackupListFrameShift" X="0" Y="0"/>
+                                                    </Grid.RenderTransform>
+                                                    <Rectangle x:Name="BackupListFrameTopA" Height="1.5" Width="86" Fill="#7066E8FF" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                                    <Rectangle x:Name="BackupListFrameTopB" Height="1.5" Width="74" Fill="#50EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                                                    <Rectangle x:Name="BackupListFrameBottomA" Height="1.5" Width="72" Fill="#6066E8FF" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,0"/>
+                                                    <Rectangle x:Name="BackupListFrameBottomB" Height="1.5" Width="104" Fill="#50EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                                                    <Rectangle Width="1.5" Height="34" Fill="#5866E8FF" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                                    <Rectangle Width="1.5" Height="36" Fill="#4866E8FF" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                                                    <Rectangle Width="1.5" Height="34" Fill="#50EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                                                    <Rectangle Width="1.5" Height="36" Fill="#5866E8FF" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                                                    <Rectangle x:Name="BackupListFrameCyanRip" Height="2" Width="62" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8,21,0,0" Opacity="0"/>
+                                                    <Rectangle x:Name="BackupListFrameAmberRip" Height="2" Width="50" Fill="{StaticResource SignalAmber}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-10,24" Opacity="0"/>
+                                                    <Rectangle x:Name="BackupListTearWideCyan" Height="5" Fill="#2066E8FF" VerticalAlignment="Top" Margin="-10,76,10,0" Opacity="0"/>
+                                                    <Rectangle x:Name="BackupListTearWideAmber" Height="4" Fill="#16FFB84A" VerticalAlignment="Bottom" Margin="18,0,-18,88" Opacity="0"/>
+                                                </Grid>
+                                                <Grid.Triggers>
+                                                    <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                        <BeginStoryboard>
+                                                            <Storyboard RepeatBehavior="Forever" BeginTime="0:0:0">
+                                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="BackupListFrameShift" Storyboard.TargetProperty="X">
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.14" Value="0"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.24" Value="-0.8"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.34" Value="0.6"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.50" Value="0"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:4.30" Value="0"/>
+                                                                </DoubleAnimationUsingKeyFrames>
+                                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="BackupListTextShift" Storyboard.TargetProperty="X">
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.22" Value="0"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.30" Value="-0.8"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.40" Value="0.6"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.54" Value="0"/>
+                                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:4.30" Value="0"/>
+                                                                </DoubleAnimationUsingKeyFrames>
+                                                                <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="BackupListFrameTopA" Storyboard.TargetProperty="Margin">
+                                                                    <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                                    <DiscreteThicknessKeyFrame KeyTime="0:0:2.24" Value="-4,-1,0,0"/>
+                                                                    <DiscreteThicknessKeyFrame KeyTime="0:0:2.62" Value="0,0,0,0"/>
+                                                                </ThicknessAnimationUsingKeyFrames>
+                                                                <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="BackupListFrameBottomB" Storyboard.TargetProperty="Margin">
+                                                                    <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                                    <DiscreteThicknessKeyFrame KeyTime="0:0:2.42" Value="0,0,-5,-1"/>
+                                                                    <DiscreteThicknessKeyFrame KeyTime="0:0:2.72" Value="0,0,0,0"/>
+                                                                </ThicknessAnimationUsingKeyFrames>
+                                                                <DoubleAnimation Storyboard.TargetName="BackupListFrameCyanRip" Storyboard.TargetProperty="Opacity" From="0" To="0.30" Duration="0:0:0.28" BeginTime="0:0:2.22" AutoReverse="True"/>
+                                                                <DoubleAnimation Storyboard.TargetName="BackupListFrameAmberRip" Storyboard.TargetProperty="Opacity" From="0" To="0.18" Duration="0:0:0.26" BeginTime="0:0:2.46" AutoReverse="True"/>
+                                                                <DoubleAnimation Storyboard.TargetName="BackupListTearWideCyan" Storyboard.TargetProperty="Opacity" From="0" To="0.14" Duration="0:0:0.30" BeginTime="0:0:2.30" AutoReverse="True"/>
+                                                                <DoubleAnimation Storyboard.TargetName="BackupListTearWideAmber" Storyboard.TargetProperty="Opacity" From="0" To="0.10" Duration="0:0:0.28" BeginTime="0:0:2.54" AutoReverse="True"/>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </EventTrigger>
+                                                </Grid.Triggers>
+                                            </Grid>
+                                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,20,0,0">
+                                                <Button x:Name="RefreshBackupsButton" AutomationProperties.AutomationId="RefreshBackupsButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Width="120" Click="RefreshBackups"/>
+                                                <Button x:Name="RestoreLatestBackupButton" AutomationProperties.AutomationId="RestoreLatestBackupButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Width="190" Margin="12,0,0,0" Click="RestoreLatestBackup"/>
+                                                <Button x:Name="RestoreSelectedBackupButton" AutomationProperties.AutomationId="RestoreSelectedBackupButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Width="210" Margin="12,0,0,0" Click="RestoreSelectedBackup"/>
+                                                <Button x:Name="DeleteSelectedBackupButton" AutomationProperties.AutomationId="DeleteSelectedBackupButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Width="160" Margin="12,0,0,0" Click="DeleteSelectedBackup"/>
                                             </StackPanel>
-                                        </StackPanel>
+                                        </Grid>
                                     </Border>
                                 </ScrollViewer>
 
@@ -534,25 +616,101 @@
                                 <TextBlock Text="КОНТУР МОДДИНГА АКТИВЕН" Foreground="{StaticResource SignalCyan}" FontWeight="Bold" FontSize="11"/>
                             </StackPanel>
                         </StackPanel>
-                        <RichTextBox x:Name="LogBox"
-                                     AutomationProperties.AutomationId="LogBox"
-                                     Grid.Row="1"
-                                     IsReadOnly="True"
-                                     IsDocumentEnabled="True"
-                                     VerticalScrollBarVisibility="Auto"
-                                     Background="#A8071015"
-                                     BorderBrush="#638A9A"
-                                     Foreground="{StaticResource TextPrimary}"
-                                     FontFamily="Segoe UI"
-                                     FontSize="12.5"
-                                     Padding="10,7">
-                            <FlowDocument PagePadding="0"/>
-                        </RichTextBox>
+                        <Grid x:Name="LogGlitchFrame"
+                              Grid.Row="1"
+                              Margin="0,0,0,10"
+                              ClipToBounds="False"
+                              SnapsToDevicePixels="True"
+                              MouseEnter="GlitchPanelMouseEnter"
+                              MouseLeave="GlitchPanelMouseLeave">
+                            <Border Background="#30000000" Margin="2,3,-2,-3"/>
+                            <Border x:Name="LogFrameBody"
+                                    Background="#A8071015"
+                                    BorderBrush="{StaticResource LineDim}"
+                                    BorderThickness="1"/>
+                            <Grid x:Name="LogScanlines" Opacity="0.10" IsHitTestVisible="False">
+                                <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,8,0,0" Opacity="0.10"/>
+                                <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Top" Margin="0,23,0,0" Opacity="0.12"/>
+                                <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,39,0,0" Opacity="0.08"/>
+                                <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Bottom" Margin="0,0,0,12" Opacity="0.12"/>
+                            </Grid>
+                            <RichTextBox x:Name="LogBox"
+                                         AutomationProperties.AutomationId="LogBox"
+                                         IsReadOnly="True"
+                                         IsDocumentEnabled="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Foreground="{StaticResource TextPrimary}"
+                                         FontFamily="Segoe UI"
+                                         FontSize="12.5"
+                                         Padding="10,7">
+                                <RichTextBox.RenderTransform>
+                                    <TranslateTransform x:Name="LogTextShift" X="0" Y="0"/>
+                                </RichTextBox.RenderTransform>
+                                <FlowDocument PagePadding="0"/>
+                            </RichTextBox>
+                            <Grid x:Name="LogWarpFrame" ClipToBounds="False" Opacity="0" IsHitTestVisible="False">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="LogFrameShift" X="0" Y="0"/>
+                                </Grid.RenderTransform>
+                                <Rectangle x:Name="LogFrameTopA" Height="1.5" Width="86" Fill="#7066E8FF" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                <Rectangle x:Name="LogFrameTopB" Height="1.5" Width="74" Fill="#50EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                                <Rectangle x:Name="LogFrameBottomA" Height="1.5" Width="72" Fill="#6066E8FF" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,0"/>
+                                <Rectangle x:Name="LogFrameBottomB" Height="1.5" Width="104" Fill="#50EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                                <Rectangle Width="1.5" Height="34" Fill="#5866E8FF" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                <Rectangle Width="1.5" Height="36" Fill="#4866E8FF" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                                <Rectangle Width="1.5" Height="34" Fill="#50EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                                <Rectangle Width="1.5" Height="36" Fill="#5866E8FF" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="LogFrameCyanRip" Height="2" Width="62" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8,21,0,0" Opacity="0"/>
+                                <Rectangle x:Name="LogFrameAmberRip" Height="2" Width="50" Fill="{StaticResource SignalAmber}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-10,24" Opacity="0"/>
+                                <Rectangle x:Name="LogTearWideCyan" Height="5" Fill="#2066E8FF" VerticalAlignment="Top" Margin="-10,72,10,0" Opacity="0"/>
+                                <Rectangle x:Name="LogTearWideAmber" Height="4" Fill="#16FFB84A" VerticalAlignment="Bottom" Margin="18,0,-18,84" Opacity="0"/>
+                            </Grid>
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever" BeginTime="0:0:0">
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogFrameShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.82" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.92" Value="-0.8"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.02" Value="0.6"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.18" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.90" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogTextShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.90" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.98" Value="-0.8"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.08" Value="0.6"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.22" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.90" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="LogFrameTopA" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:1.92" Value="-4,-1,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.30" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="LogFrameBottomB" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.10" Value="0,0,-5,-1"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <DoubleAnimation Storyboard.TargetName="LogFrameCyanRip" Storyboard.TargetProperty="Opacity" From="0" To="0.30" Duration="0:0:0.28" BeginTime="0:0:1.90" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="LogFrameAmberRip" Storyboard.TargetProperty="Opacity" From="0" To="0.18" Duration="0:0:0.26" BeginTime="0:0:2.14" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="LogTearWideCyan" Storyboard.TargetProperty="Opacity" From="0" To="0.14" Duration="0:0:0.30" BeginTime="0:0:1.98" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="LogTearWideAmber" Storyboard.TargetProperty="Opacity" From="0" To="0.10" Duration="0:0:0.28" BeginTime="0:0:2.22" AutoReverse="True"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
-            <Border Grid.Row="2" Style="{StaticResource PanelBorder}" Padding="14" Margin="0">
+            <Border Grid.Row="2" Style="{StaticResource PanelBorder}" Padding="12" Margin="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -573,9 +731,9 @@
                     </WrapPanel>
 
                     <UniformGrid Grid.Row="1" Grid.Column="1" Columns="3" VerticalAlignment="Center">
-                        <Button x:Name="DryRunButton" AutomationProperties.AutomationId="DryRunButton" Style="{StaticResource CommandButton}" MinHeight="42" Margin="0,0,8,0" Click="RunDryRun"/>
-                        <Button x:Name="WarmCacheButton" AutomationProperties.AutomationId="WarmCacheButton" Style="{StaticResource CommandButton}" MinHeight="42" Margin="0,0,8,0" Click="WarmCache"/>
-                        <Button x:Name="ApplyLiveButton" AutomationProperties.AutomationId="ApplyLiveButton" Style="{StaticResource CommandButton}" MinHeight="42" Click="RunLiveApply"/>
+                        <Button x:Name="DryRunButton" AutomationProperties.AutomationId="DryRunButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Margin="0,0,8,0" Click="RunDryRun"/>
+                        <Button x:Name="WarmCacheButton" AutomationProperties.AutomationId="WarmCacheButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Margin="0,0,8,0" Click="WarmCache"/>
+                        <Button x:Name="ApplyLiveButton" AutomationProperties.AutomationId="ApplyLiveButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Click="RunLiveApply"/>
                     </UniformGrid>
                 </Grid>
             </Border>

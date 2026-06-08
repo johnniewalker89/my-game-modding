@@ -218,7 +218,7 @@ try {
     $logBox = Find-ByAutomationId -Root $window -AutomationId 'LogBox'
     $logText = Wait-Until -Message 'preflight should finish without WPF animation errors' -Seconds 45 -Condition {
         $text = Get-AutomationText -Element $logBox
-        if ($text -match 'Источники доступны|КРАСНЫЙ КОНТУР|Источник SCMDB|Cache ') {
+        if ($text -match 'Источники доступны|ХЬЮСТОН, У НАС ПРОБЛЕМА|Источник SCMDB|Cache ') {
             return $text
         }
 

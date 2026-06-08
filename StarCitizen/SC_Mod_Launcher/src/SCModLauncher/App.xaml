@@ -71,7 +71,8 @@
             <Setter Property="MinHeight" Value="46"/>
             <Setter Property="Background" Value="#A015252D"/>
             <Setter Property="BorderBrush" Value="#587687"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -107,34 +108,496 @@
             </Setter>
         </Style>
 
+        <Style x:Key="LaunchCommandButton" TargetType="Button" BasedOn="{StaticResource CommandButton}">
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Background" Value="#B012232B"/>
+            <Setter Property="BorderBrush" Value="#687F9AA8"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid ClipToBounds="False"
+                              SnapsToDevicePixels="True"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="PlateScale" ScaleX="1" ScaleY="1"/>
+                                    <TranslateTransform x:Name="PlateShift" X="0" Y="0"/>
+                                </TransformGroup>
+                            </Grid.RenderTransform>
+
+                            <Border Background="#30000000" Margin="2,3,-2,-3"/>
+
+                            <Grid x:Name="PlateGhosts" Opacity="0.08" ClipToBounds="False">
+                                <Border x:Name="CyanPlateGhost"
+                                        Background="#2266E8FF"
+                                        BorderBrush="#5066E8FF"
+                                        BorderThickness="1"
+                                        Margin="-2,0,2,0"
+                                        Opacity="0"/>
+                                <Border x:Name="AmberPlateGhost"
+                                        Background="#18FFB84A"
+                                        BorderBrush="#42FFB84A"
+                                        BorderThickness="1"
+                                        Margin="1,0,-1,0"
+                                        Opacity="0"/>
+                                <Border x:Name="SoftPlateBloom"
+                                        Background="#12EAF9FF"
+                                        BorderBrush="#2CEAF9FF"
+                                        BorderThickness="1"
+                                        Margin="-3,-1,-3,-1"
+                                        Opacity="0"/>
+                            </Grid>
+
+                            <Border x:Name="Body"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1">
+                                <Grid ClipToBounds="True">
+                                    <Grid x:Name="Scanlines" Opacity="0.10">
+                                        <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,5,0,0" Opacity="0.12"/>
+                                        <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Top" Margin="0,11,0,0" Opacity="0.14"/>
+                                        <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,18,0,0" Opacity="0.10"/>
+                                        <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Top" Margin="0,25,0,0" Opacity="0.16"/>
+                                        <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Bottom" Margin="0,0,0,6" Opacity="0.12"/>
+                                    </Grid>
+
+                                    <Grid x:Name="TearLayer" Opacity="0.12">
+                                        <Rectangle x:Name="TearWideCyan" Height="5" Fill="#3066E8FF" VerticalAlignment="Top" Margin="-10,8,10,0" Opacity="0"/>
+                                        <Rectangle x:Name="TearWideAmber" Height="4" Fill="#22FFB84A" VerticalAlignment="Top" Margin="6,18,-6,0" Opacity="0"/>
+                                        <Rectangle x:Name="TearWideWhite" Height="3" Fill="#26EAF9FF" VerticalAlignment="Bottom" Margin="-6,0,6,8" Opacity="0"/>
+                                        <Rectangle x:Name="TearTopBorderCyan" Height="2" Width="48" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" Opacity="0"/>
+                                        <Rectangle x:Name="TearRightBorderAmber" Width="2" Height="18" Fill="{StaticResource SignalAmber}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,0,0" Opacity="0"/>
+                                        <Rectangle x:Name="TearBottomBorderCyan" Height="2" Width="70" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,0" Opacity="0"/>
+                                    </Grid>
+
+                                    <Grid x:Name="TextLayer"
+                                          TextElement.FontFamily="Segoe UI"
+                                          TextElement.FontSize="14"
+                                          TextElement.FontWeight="Normal">
+                                        <Grid.RenderTransform>
+                                            <TranslateTransform x:Name="TextShift" X="0" Y="0"/>
+                                        </Grid.RenderTransform>
+                                        <ContentPresenter x:Name="CyanTextGhost"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Margin="{TemplateBinding Padding}"
+                                                          TextElement.Foreground="{StaticResource SignalCyan}"
+                                                          Opacity="0">
+                                            <ContentPresenter.RenderTransform>
+                                                <TranslateTransform X="-2" Y="0"/>
+                                            </ContentPresenter.RenderTransform>
+                                        </ContentPresenter>
+                                        <ContentPresenter x:Name="AmberTextGhost"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Margin="{TemplateBinding Padding}"
+                                                          TextElement.Foreground="{StaticResource SignalAmber}"
+                                                          Opacity="0">
+                                            <ContentPresenter.RenderTransform>
+                                                <TranslateTransform X="1.5" Y="0"/>
+                                            </ContentPresenter.RenderTransform>
+                                        </ContentPresenter>
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Margin="{TemplateBinding Padding}"/>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <Grid x:Name="WarpFrame" ClipToBounds="False" Opacity="0">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="FrameShift" X="0" Y="0"/>
+                                </Grid.RenderTransform>
+                                <Rectangle x:Name="FrameTopA" Height="1.5" Width="60" Fill="#7866E8FF"
+                                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,0"/>
+                                <Rectangle x:Name="FrameTopB" Height="1.5" Width="54" Fill="#58EAF9FF"
+                                           HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,0,0"/>
+                                <Rectangle x:Name="FrameBottomA" Height="1.5" Width="48" Fill="#6866E8FF"
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,0"/>
+                                <Rectangle x:Name="FrameBottomB" Height="1.5" Width="72" Fill="#58EAF9FF"
+                                           HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,0"/>
+                                <Rectangle x:Name="FrameLeftA" Width="1.5" Height="17" Fill="#6866E8FF"
+                                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,0,0,0"/>
+                                <Rectangle x:Name="FrameLeftB" Width="1.5" Height="18" Fill="#5066E8FF"
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="0,0,0,0"/>
+                                <Rectangle x:Name="FrameRightA" Width="1.5" Height="18" Fill="#58EAF9FF"
+                                           HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                                <Rectangle x:Name="FrameRightB" Width="1.5" Height="18" Fill="#6866E8FF"
+                                           HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,0"/>
+
+                                <Rectangle x:Name="FrameCyanRip" Height="2" Width="44" Fill="{StaticResource SignalCyan}"
+                                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8,9,0,0" Opacity="0"/>
+                                <Rectangle x:Name="FrameAmberRip" Height="2" Width="38" Fill="{StaticResource SignalAmber}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-10,11" Opacity="0"/>
+                            </Grid>
+
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever" BeginTime="0:0:0">
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PlateScale" Storyboard.TargetProperty="ScaleX">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="1"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.55" Value="1"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.86" Value="1.006"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="1.012"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.52" Value="1.005"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="1"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PlateScale" Storyboard.TargetProperty="ScaleY">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="1"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.55" Value="1"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.14" Value="1.004"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.48" Value="1.002"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="1"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PlateShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.82" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.92" Value="-0.5"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.02" Value="0.5"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.12" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="TextShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.92" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.00" Value="-0.8"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.08" Value="0.6"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FrameShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.76" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.86" Value="-0.8"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.96" Value="0.6"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.10" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="FrameTopA" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:1.86" Value="-3,-1,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.12" Value="1,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.42" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="FrameTopB" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:1.96" Value="0,1,-3,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.22" Value="0,0,1,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.46" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="FrameBottomB" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.04" Value="0,0,-4,-1"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.30" Value="0,0,1,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.52" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="FrameLeftB" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:1.94" Value="-1,0,0,-2"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.20" Value="0,0,0,1"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.48" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <DoubleAnimation Storyboard.TargetName="FrameTopA" Storyboard.TargetProperty="Width"
+                                                             From="60" To="70" Duration="0:0:0.46" BeginTime="0:0:1.82" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="FrameBottomB" Storyboard.TargetProperty="Width"
+                                                             From="72" To="84" Duration="0:0:0.44" BeginTime="0:0:2.04" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="FrameCyanRip" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.34" Duration="0:0:0.28" BeginTime="0:0:1.86" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="FrameAmberRip" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.22" Duration="0:0:0.26" BeginTime="0:0:2.10" AutoReverse="True"/>
+
+                                            <DoubleAnimation Storyboard.TargetName="SoftPlateBloom" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.16" Duration="0:0:0.70" BeginTime="0:0:1.72" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="CyanPlateGhost" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.20" Duration="0:0:0.50" BeginTime="0:0:1.82" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="AmberPlateGhost" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.14" Duration="0:0:0.46" BeginTime="0:0:1.96" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="TearWideCyan" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.22" Duration="0:0:0.30" BeginTime="0:0:1.86" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="TearWideAmber" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.14" Duration="0:0:0.28" BeginTime="0:0:2.06" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="TearWideWhite" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.12" Duration="0:0:0.32" BeginTime="0:0:2.28" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="TearTopBorderCyan" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.28" Duration="0:0:0.28" BeginTime="0:0:1.74" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="TearRightBorderAmber" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.18" Duration="0:0:0.26" BeginTime="0:0:2.02" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="TearBottomBorderCyan" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.22" Duration="0:0:0.28" BeginTime="0:0:2.34" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="CyanTextGhost" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.22" Duration="0:0:0.32" BeginTime="0:0:1.92" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="AmberTextGhost" Storyboard.TargetProperty="Opacity"
+                                                             From="0" To="0.14" Duration="0:0:0.28" BeginTime="0:0:2.04" AutoReverse="True"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Body" Property="Background" Value="#B8152D36"/>
+                                <Setter TargetName="Body" Property="BorderBrush" Value="#5A66E8FF"/>
+                                <Setter TargetName="WarpFrame" Property="Opacity" Value="0.38"/>
+                                <Setter TargetName="PlateGhosts" Property="Opacity" Value="0.10"/>
+                                <Setter TargetName="Scanlines" Property="Opacity" Value="0.14"/>
+                                <Setter TargetName="TearLayer" Property="Opacity" Value="0.12"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Body" Property="Background" Value="#CA1B3B47"/>
+                                <Setter TargetName="WarpFrame" Property="Opacity" Value="0.50"/>
+                                <Setter TargetName="PlateGhosts" Property="Opacity" Value="0.16"/>
+                                <Setter TargetName="TearLayer" Property="Opacity" Value="0.18"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.42"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="MinHeight" Value="58"/>
             <Setter Property="MinWidth" Value="126"/>
             <Setter Property="Margin" Value="0,0,10,0"/>
             <Setter Property="Background" Value="#A015252D"/>
             <Setter Property="BorderBrush" Value="#405F6D"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Grid>
+                        <Grid ClipToBounds="True" SnapsToDevicePixels="True">
+                            <Grid.Clip>
+                                <PathGeometry Figures="M 8,0 L 120,0 L 126,8 L 126,58 L 0,58 L 0,8 Z"/>
+                            </Grid.Clip>
+
                             <Polygon Points="8,0 120,0 126,8 126,58 0,58 0,8"
+                                     Fill="#30000000"
+                                     Margin="2,3,-2,-3"/>
+
+                            <Grid x:Name="NavPlateGhosts" Opacity="0.08" ClipToBounds="False">
+                                <Polygon x:Name="NavCyanPlateGhost"
+                                         Points="8,0 120,0 126,8 126,58 0,58 0,8"
+                                         Fill="#2266E8FF"
+                                         Stroke="#5066E8FF"
+                                         StrokeThickness="1"
+                                         Margin="-2,0,2,0"
+                                         Opacity="0"/>
+                                <Polygon x:Name="NavAmberPlateGhost"
+                                         Points="8,0 120,0 126,8 126,58 0,58 0,8"
+                                         Fill="#18FFB84A"
+                                         Stroke="#42FFB84A"
+                                         StrokeThickness="1"
+                                         Margin="1,0,-1,0"
+                                         Opacity="0"/>
+                                <Polygon x:Name="NavSoftPlateBloom"
+                                         Points="8,0 120,0 126,8 126,58 0,58 0,8"
+                                         Fill="#12EAF9FF"
+                                         Stroke="#2CEAF9FF"
+                                         StrokeThickness="1"
+                                         Margin="-3,-1,-3,-1"
+                                         Opacity="0"/>
+                            </Grid>
+
+                            <Polygon x:Name="NavBody"
+                                     Points="8,0 120,0 126,8 126,58 0,58 0,8"
                                      Fill="{TemplateBinding Background}"
                                      Stroke="{TemplateBinding BorderBrush}"
                                      StrokeThickness="1"/>
-                            <Rectangle Width="28" Height="2" Fill="{StaticResource SignalAmber}"
-                                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,7,0,0"/>
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Margin="{TemplateBinding Padding}"/>
+
+                            <Grid ClipToBounds="True">
+                                <Grid x:Name="NavScanlines" Opacity="0.10">
+                                    <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,7,0,0" Opacity="0.12"/>
+                                    <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Top" Margin="0,17,0,0" Opacity="0.14"/>
+                                    <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,28,0,0" Opacity="0.10"/>
+                                    <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Top" Margin="0,39,0,0" Opacity="0.16"/>
+                                    <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Bottom" Margin="0,0,0,7" Opacity="0.12"/>
+                                </Grid>
+
+                                <Grid x:Name="NavTearLayer" Opacity="0.12">
+                                    <Rectangle x:Name="NavTearWideCyan" Height="5" Fill="#3066E8FF" VerticalAlignment="Top" Margin="-10,12,10,0" Opacity="0"/>
+                                    <Rectangle x:Name="NavTearWideAmber" Height="4" Fill="#22FFB84A" VerticalAlignment="Top" Margin="6,28,-6,0" Opacity="0"/>
+                                    <Rectangle x:Name="NavTearWideWhite" Height="3" Fill="#26EAF9FF" VerticalAlignment="Bottom" Margin="-6,0,6,11" Opacity="0"/>
+                                    <Rectangle x:Name="NavTearTopBorderCyan" Height="2" Width="48" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" Opacity="0"/>
+                                    <Rectangle x:Name="NavTearRightBorderAmber" Width="2" Height="18" Fill="{StaticResource SignalAmber}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,0,0" Opacity="0"/>
+                                    <Rectangle x:Name="NavTearBottomBorderCyan" Height="2" Width="70" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,0" Opacity="0"/>
+                                </Grid>
+
+                                <Grid x:Name="NavTextLayer">
+                                    <Grid.RenderTransform>
+                                        <TranslateTransform x:Name="NavTextShift" X="0" Y="0"/>
+                                    </Grid.RenderTransform>
+                                    <ContentPresenter x:Name="NavCyanTextGhost"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Margin="{TemplateBinding Padding}"
+                                                      TextElement.Foreground="{StaticResource SignalCyan}"
+                                                      Opacity="0">
+                                        <ContentPresenter.RenderTransform>
+                                            <TranslateTransform X="-2" Y="0"/>
+                                        </ContentPresenter.RenderTransform>
+                                    </ContentPresenter>
+                                    <ContentPresenter x:Name="NavAmberTextGhost"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Margin="{TemplateBinding Padding}"
+                                                      TextElement.Foreground="{StaticResource SignalAmber}"
+                                                      Opacity="0">
+                                        <ContentPresenter.RenderTransform>
+                                            <TranslateTransform X="1.5" Y="0"/>
+                                        </ContentPresenter.RenderTransform>
+                                    </ContentPresenter>
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Margin="{TemplateBinding Padding}"/>
+                                </Grid>
+                            </Grid>
+
+                            <Grid x:Name="NavWarpFrame" ClipToBounds="False" Opacity="0">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="NavFrameShift" X="0" Y="0"/>
+                                </Grid.RenderTransform>
+                                <Rectangle x:Name="NavFrameTopA" Height="1.5" Width="60" Fill="#7866E8FF" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                <Rectangle x:Name="NavFrameTopB" Height="1.5" Width="54" Fill="#58EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                                <Rectangle x:Name="NavFrameBottomA" Height="1.5" Width="48" Fill="#6866E8FF" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,0"/>
+                                <Rectangle x:Name="NavFrameBottomB" Height="1.5" Width="72" Fill="#58EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="NavFrameLeftA" Width="1.5" Height="17" Fill="#6866E8FF" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                <Rectangle x:Name="NavFrameLeftB" Width="1.5" Height="18" Fill="#5066E8FF" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="NavFrameRightA" Width="1.5" Height="18" Fill="#58EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                                <Rectangle x:Name="NavFrameRightB" Width="1.5" Height="18" Fill="#6866E8FF" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+
+                                <Rectangle x:Name="NavFrameCyanRip" Height="2" Width="44" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8,12,0,0" Opacity="0"/>
+                                <Rectangle x:Name="NavFrameAmberRip" Height="2" Width="38" Fill="{StaticResource SignalAmber}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-10,14" Opacity="0"/>
+                            </Grid>
+
+                            <Rectangle x:Name="NavSignalStripe"
+                                       Width="28"
+                                       Height="2"
+                                       Fill="{StaticResource SignalAmber}"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Top"
+                                       Margin="10,7,0,0">
+                                <Rectangle.RenderTransform>
+                                    <TranslateTransform x:Name="NavSignalStripeShift" X="0" Y="0"/>
+                                </Rectangle.RenderTransform>
+                            </Rectangle>
+                            <Rectangle x:Name="NavSignalStripeGhost"
+                                       Width="28"
+                                       Height="2"
+                                       Fill="{StaticResource SignalAmber}"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Top"
+                                       Margin="10,7,0,0"
+                                       Opacity="0">
+                                <Rectangle.RenderTransform>
+                                    <TranslateTransform X="2" Y="0"/>
+                                </Rectangle.RenderTransform>
+                            </Rectangle>
+
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever" BeginTime="0:0:0">
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NavTextShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.92" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.00" Value="-0.8"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.08" Value="0.6"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NavFrameShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.76" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.86" Value="-0.8"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.96" Value="0.6"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.10" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="NavSignalStripeShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.82" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.92" Value="-1"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.02" Value="2"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.12" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="NavFrameTopA" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:1.86" Value="-3,-1,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.12" Value="1,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.42" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="NavFrameTopB" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:1.96" Value="0,1,-3,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.22" Value="0,0,1,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.46" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="NavFrameBottomB" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.04" Value="0,0,-4,-1"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.30" Value="0,0,1,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.52" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <DoubleAnimation Storyboard.TargetName="NavFrameTopA" Storyboard.TargetProperty="Width" From="60" To="70" Duration="0:0:0.46" BeginTime="0:0:1.82" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavFrameBottomB" Storyboard.TargetProperty="Width" From="72" To="84" Duration="0:0:0.44" BeginTime="0:0:2.04" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavFrameCyanRip" Storyboard.TargetProperty="Opacity" From="0" To="0.34" Duration="0:0:0.28" BeginTime="0:0:1.86" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavFrameAmberRip" Storyboard.TargetProperty="Opacity" From="0" To="0.22" Duration="0:0:0.26" BeginTime="0:0:2.10" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavSoftPlateBloom" Storyboard.TargetProperty="Opacity" From="0" To="0.16" Duration="0:0:0.70" BeginTime="0:0:1.72" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavCyanPlateGhost" Storyboard.TargetProperty="Opacity" From="0" To="0.20" Duration="0:0:0.50" BeginTime="0:0:1.82" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavAmberPlateGhost" Storyboard.TargetProperty="Opacity" From="0" To="0.14" Duration="0:0:0.46" BeginTime="0:0:1.96" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavTearWideCyan" Storyboard.TargetProperty="Opacity" From="0" To="0.22" Duration="0:0:0.30" BeginTime="0:0:1.86" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavTearWideAmber" Storyboard.TargetProperty="Opacity" From="0" To="0.14" Duration="0:0:0.28" BeginTime="0:0:2.06" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavTearWideWhite" Storyboard.TargetProperty="Opacity" From="0" To="0.12" Duration="0:0:0.32" BeginTime="0:0:2.28" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavTearTopBorderCyan" Storyboard.TargetProperty="Opacity" From="0" To="0.28" Duration="0:0:0.28" BeginTime="0:0:1.74" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavTearRightBorderAmber" Storyboard.TargetProperty="Opacity" From="0" To="0.18" Duration="0:0:0.26" BeginTime="0:0:2.02" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavTearBottomBorderCyan" Storyboard.TargetProperty="Opacity" From="0" To="0.22" Duration="0:0:0.28" BeginTime="0:0:2.34" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavCyanTextGhost" Storyboard.TargetProperty="Opacity" From="0" To="0.22" Duration="0:0:0.32" BeginTime="0:0:1.92" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavAmberTextGhost" Storyboard.TargetProperty="Opacity" From="0" To="0.14" Duration="0:0:0.28" BeginTime="0:0:2.04" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavSignalStripe" Storyboard.TargetProperty="Opacity" From="0.62" To="1" Duration="0:0:0.34" BeginTime="0:0:1.86" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="NavSignalStripeGhost" Storyboard.TargetProperty="Opacity" From="0" To="0.42" Duration="0:0:0.26" BeginTime="0:0:1.96" AutoReverse="True"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#E51D3A45"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource SignalCyan}"/>
+                                <Setter TargetName="NavBody" Property="Fill" Value="#B8152D36"/>
+                                <Setter TargetName="NavBody" Property="Stroke" Value="#5A66E8FF"/>
+                                <Setter TargetName="NavWarpFrame" Property="Opacity" Value="0.52"/>
+                                <Setter TargetName="NavPlateGhosts" Property="Opacity" Value="0.16"/>
+                                <Setter TargetName="NavScanlines" Property="Opacity" Value="0.18"/>
+                                <Setter TargetName="NavTearLayer" Property="Opacity" Value="0.20"/>
+                                <Setter Property="Foreground" Value="{StaticResource SignalCyan}"/>
                             </Trigger>
+                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="Active">
+                                <Setter TargetName="NavBody" Property="Fill" Value="#B8152D36"/>
+                                <Setter TargetName="NavBody" Property="Stroke" Value="#5A66E8FF"/>
+                                <Setter TargetName="NavWarpFrame" Property="Opacity" Value="0.52"/>
+                                <Setter TargetName="NavPlateGhosts" Property="Opacity" Value="0.16"/>
+                                <Setter TargetName="NavScanlines" Property="Opacity" Value="0.18"/>
+                                <Setter TargetName="NavTearLayer" Property="Opacity" Value="0.20"/>
+                                <Setter Property="Foreground" Value="{StaticResource SignalCyan}"/>
+                            </DataTrigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter Property="Opacity" Value="0.78"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.42"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -189,10 +652,261 @@
             <Setter Property="CaretBrush" Value="{StaticResource SignalCyan}"/>
             <Setter Property="Padding" Value="10,7"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        </Style>
+
+        <Style x:Key="LaunchPathTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="MinHeight" Value="42"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Background" Value="#A8071015"/>
+            <Setter Property="BorderBrush" Value="#687F9AA8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Grid ClipToBounds="False" SnapsToDevicePixels="True">
+                            <Border Background="#30000000" Margin="2,3,-2,-3"/>
+
+                            <Grid x:Name="PathPlateGhosts" Opacity="0.08" ClipToBounds="False">
+                                <Border x:Name="PathCyanPlateGhost"
+                                        Background="#1466E8FF"
+                                        BorderBrush="#5066E8FF"
+                                        BorderThickness="1"
+                                        Margin="-2,0,2,0"
+                                        Opacity="0"/>
+                                <Border x:Name="PathAmberPlateGhost"
+                                        Background="#10FFB84A"
+                                        BorderBrush="#42FFB84A"
+                                        BorderThickness="1"
+                                        Margin="1,0,-1,0"
+                                        Opacity="0"/>
+                                <Border x:Name="PathSoftPlateBloom"
+                                        Background="#0BEAF9FF"
+                                        BorderBrush="#2CEAF9FF"
+                                        BorderThickness="1"
+                                        Margin="-3,-1,-3,-1"
+                                        Opacity="0"/>
+                            </Grid>
+
+                            <Border x:Name="PathBody"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1">
+                                <Grid ClipToBounds="True">
+                                    <Grid x:Name="PathScanlines" Opacity="0.10" IsHitTestVisible="False">
+                                        <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,5,0,0" Opacity="0.10"/>
+                                        <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Top" Margin="0,13,0,0" Opacity="0.11"/>
+                                        <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Top" Margin="0,22,0,0" Opacity="0.08"/>
+                                        <Rectangle Height="1" Fill="#66E8FF" VerticalAlignment="Top" Margin="0,31,0,0" Opacity="0.12"/>
+                                        <Rectangle Height="1" Fill="#EAF9FF" VerticalAlignment="Bottom" Margin="0,0,0,6" Opacity="0.10"/>
+                                    </Grid>
+
+                                    <Grid x:Name="PathTearLayer" Opacity="0.10" IsHitTestVisible="False">
+                                        <Rectangle x:Name="PathTearWideCyan" Height="5" Fill="#2466E8FF" VerticalAlignment="Top" Margin="-10,8,10,0" Opacity="0"/>
+                                        <Rectangle x:Name="PathTearWideAmber" Height="4" Fill="#18FFB84A" VerticalAlignment="Top" Margin="6,18,-6,0" Opacity="0"/>
+                                        <Rectangle x:Name="PathTearWideWhite" Height="3" Fill="#18EAF9FF" VerticalAlignment="Bottom" Margin="-6,0,6,8" Opacity="0"/>
+                                        <Rectangle x:Name="PathTearTopBorderCyan" Height="2" Width="48" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" Opacity="0"/>
+                                        <Rectangle x:Name="PathTearRightBorderAmber" Width="2" Height="18" Fill="{StaticResource SignalAmber}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,0,0" Opacity="0"/>
+                                        <Rectangle x:Name="PathTearBottomBorderCyan" Height="2" Width="70" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,0" Opacity="0"/>
+                                    </Grid>
+
+                                    <ScrollViewer x:Name="PART_ContentHost"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="Center"
+                                                  Focusable="False"
+                                                  HorizontalScrollBarVisibility="Hidden"
+                                                  VerticalScrollBarVisibility="Hidden">
+                                        <ScrollViewer.RenderTransform>
+                                            <TranslateTransform x:Name="PathTextShift" X="0" Y="0"/>
+                                        </ScrollViewer.RenderTransform>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+
+                            <Grid x:Name="PathWarpFrame" ClipToBounds="False" Opacity="0" IsHitTestVisible="False">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="PathFrameShift" X="0" Y="0"/>
+                                </Grid.RenderTransform>
+                                <Rectangle x:Name="PathFrameTopA" Height="1.5" Width="60" Fill="#7866E8FF" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                <Rectangle x:Name="PathFrameTopB" Height="1.5" Width="54" Fill="#58EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                                <Rectangle x:Name="PathFrameBottomA" Height="1.5" Width="48" Fill="#6866E8FF" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,0"/>
+                                <Rectangle x:Name="PathFrameBottomB" Height="1.5" Width="72" Fill="#58EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="PathFrameLeftA" Width="1.5" Height="17" Fill="#6866E8FF" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                                <Rectangle x:Name="PathFrameLeftB" Width="1.5" Height="18" Fill="#5066E8FF" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                                <Rectangle x:Name="PathFrameRightA" Width="1.5" Height="18" Fill="#58EAF9FF" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                                <Rectangle x:Name="PathFrameRightB" Width="1.5" Height="18" Fill="#6866E8FF" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+
+                                <Rectangle x:Name="PathFrameCyanRip" Height="2" Width="44" Fill="{StaticResource SignalCyan}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-8,9,0,0" Opacity="0"/>
+                                <Rectangle x:Name="PathFrameAmberRip" Height="2" Width="38" Fill="{StaticResource SignalAmber}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-10,11" Opacity="0"/>
+                            </Grid>
+
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever" BeginTime="0:0:0">
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PathFrameShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.76" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.86" Value="-0.8"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.96" Value="0.6"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.10" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="PathTextShift" Storyboard.TargetProperty="X">
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:1.92" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.00" Value="-0.8"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.08" Value="0.6"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:2.16" Value="0"/>
+                                                <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0"/>
+                                            </DoubleAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="PathFrameTopA" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:1.86" Value="-3,-1,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.12" Value="1,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.42" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetName="PathFrameBottomB" Storyboard.TargetProperty="Margin">
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:0.00" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.04" Value="0,0,-4,-1"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.30" Value="0,0,1,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:2.52" Value="0,0,0,0"/>
+                                                <DiscreteThicknessKeyFrame KeyTime="0:0:3.40" Value="0,0,0,0"/>
+                                            </ThicknessAnimationUsingKeyFrames>
+                                            <DoubleAnimation Storyboard.TargetName="PathFrameTopA" Storyboard.TargetProperty="Width" From="60" To="70" Duration="0:0:0.46" BeginTime="0:0:1.82" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathFrameBottomB" Storyboard.TargetProperty="Width" From="72" To="84" Duration="0:0:0.44" BeginTime="0:0:2.04" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathFrameCyanRip" Storyboard.TargetProperty="Opacity" From="0" To="0.30" Duration="0:0:0.28" BeginTime="0:0:1.86" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathFrameAmberRip" Storyboard.TargetProperty="Opacity" From="0" To="0.18" Duration="0:0:0.26" BeginTime="0:0:2.10" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathSoftPlateBloom" Storyboard.TargetProperty="Opacity" From="0" To="0.12" Duration="0:0:0.70" BeginTime="0:0:1.72" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathCyanPlateGhost" Storyboard.TargetProperty="Opacity" From="0" To="0.16" Duration="0:0:0.50" BeginTime="0:0:1.82" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathAmberPlateGhost" Storyboard.TargetProperty="Opacity" From="0" To="0.10" Duration="0:0:0.46" BeginTime="0:0:1.96" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathTearWideCyan" Storyboard.TargetProperty="Opacity" From="0" To="0.16" Duration="0:0:0.30" BeginTime="0:0:1.86" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathTearWideAmber" Storyboard.TargetProperty="Opacity" From="0" To="0.10" Duration="0:0:0.28" BeginTime="0:0:2.06" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathTearWideWhite" Storyboard.TargetProperty="Opacity" From="0" To="0.08" Duration="0:0:0.32" BeginTime="0:0:2.28" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathTearTopBorderCyan" Storyboard.TargetProperty="Opacity" From="0" To="0.22" Duration="0:0:0.28" BeginTime="0:0:1.74" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathTearRightBorderAmber" Storyboard.TargetProperty="Opacity" From="0" To="0.14" Duration="0:0:0.26" BeginTime="0:0:2.02" AutoReverse="True"/>
+                                            <DoubleAnimation Storyboard.TargetName="PathTearBottomBorderCyan" Storyboard.TargetProperty="Opacity" From="0" To="0.18" Duration="0:0:0.28" BeginTime="0:0:2.34" AutoReverse="True"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="PathBody" Property="BorderBrush" Value="#5A66E8FF"/>
+                                <Setter TargetName="PathWarpFrame" Property="Opacity" Value="0.32"/>
+                                <Setter TargetName="PathPlateGhosts" Property="Opacity" Value="0.10"/>
+                                <Setter TargetName="PathScanlines" Property="Opacity" Value="0.14"/>
+                                <Setter TargetName="PathTearLayer" Property="Opacity" Value="0.12"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="PathBody" Property="BorderBrush" Value="{StaticResource SignalCyan}"/>
+                                <Setter TargetName="PathWarpFrame" Property="Opacity" Value="0.42"/>
+                                <Setter TargetName="PathPlateGhosts" Property="Opacity" Value="0.13"/>
+                                <Setter TargetName="PathScanlines" Property="Opacity" Value="0.16"/>
+                                <Setter TargetName="PathTearLayer" Property="Opacity" Value="0.14"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.42"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CraftFamilyExpander" TargetType="Expander">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="Margin" Value="0,5,0,7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <Border x:Name="Frame"
+                                Background="#6E071015"
+                                BorderBrush="#4A405F6D"
+                                BorderThickness="1"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <ToggleButton x:Name="HeaderSite"
+                                              IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Padding="0"
+                                              HorizontalContentAlignment="Stretch"
+                                              Focusable="False">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border x:Name="HeaderFrame"
+                                                    Background="#7A0B1820"
+                                                    BorderBrush="Transparent"
+                                                    BorderThickness="0,0,0,1"
+                                                    Padding="9,7">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="18"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock x:Name="Glyph"
+                                                               Text="+"
+                                                               Foreground="{StaticResource SignalAmber}"
+                                                               FontWeight="Bold"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"/>
+                                                    <ContentPresenter Grid.Column="1"
+                                                                      Content="{TemplateBinding Content}"
+                                                                      HorizontalAlignment="Stretch"
+                                                                      VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="HeaderFrame" Property="Background" Value="#9A10232D"/>
+                                                    <Setter TargetName="HeaderFrame" Property="BorderBrush" Value="#4866E8FF"/>
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Glyph" Property="Text" Value="-"/>
+                                                    <Setter TargetName="HeaderFrame" Property="Background" Value="#A011252F"/>
+                                                    <Setter TargetName="HeaderFrame" Property="BorderBrush" Value="#4A66E8FF"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                    <ContentPresenter ContentSource="Header"/>
+                                </ToggleButton>
+
+                                <Border x:Name="ExpandSite"
+                                        Grid.Row="1"
+                                        Visibility="Collapsed"
+                                        Background="#52050D12"
+                                        Padding="10,9,10,10">
+                                    <ContentPresenter ContentSource="Content"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ExpandSite" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="#5A66E8FF"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="#6266E8FF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.42"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="ScrollBar">

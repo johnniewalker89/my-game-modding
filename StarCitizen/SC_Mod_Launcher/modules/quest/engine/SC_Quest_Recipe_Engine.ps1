@@ -37,6 +37,7 @@ $LocalizationRelativePath = 'data\Localization\korean_(south_korea)\global.ini'
 $CategoryOrder = @(
     'Корабельные компоненты',
     'Корабельные орудия',
+    'Добывающие лазеры',
     'Броня/одежда',
     'Оружие',
     'Снаряжение/расходники',
@@ -317,7 +318,7 @@ function Format-TitleMarkers {
 
 function Get-ScmdbData {
     Write-Host 'Downloading SCMDB version index...'
-    $versions = @(ConvertTo-Array (Invoke-RestMethod -Uri "$ScmdbBaseUrl/game-versions.json" -UseBasicParsing))
+    $versions = @(ConvertTo-Array (Invoke-ScmdbJson -Uri "$ScmdbBaseUrl/game-versions.json"))
     if ($versions.Count -eq 0) {
         throw 'SCMDB version index is empty.'
     }
@@ -331,12 +332,34 @@ function Get-ScmdbData {
     }
 
     Write-Host "Downloading SCMDB game data: $version..."
-    $data = Invoke-RestMethod -Uri "$ScmdbBaseUrl/$file" -UseBasicParsing
+    $data = Invoke-ScmdbJson -Uri "$ScmdbBaseUrl/$file"
 
     return [pscustomobject]@{
         Version = $version
         File = $file
         Data = $data
+    }
+}
+
+function Invoke-ScmdbJson {
+    param([string]$Uri)
+
+    try {
+        return (Invoke-RestMethod -Uri $Uri -UseBasicParsing -TimeoutSec 20)
+    }
+    catch {
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            $json = & curl.exe -L --silent --show-error --fail --max-time 40 `
+                -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
+                -H 'Accept: application/json,text/plain,*/*' `
+                -e 'https://scmdb.net/' `
+                $Uri
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
+                return ($json | ConvertFrom-Json)
+            }
+        }
+
+        throw
     }
 }
 
@@ -675,7 +698,11 @@ function Get-CategoryFromWikiItem {
         return 'Корабельные компоненты'
     }
 
-    if ($itemType -match 'Cannon|Repeater|Gatling|Scattergun|Missile|Bomb|Mining Laser|Mass Driver' -or $type -match 'WeaponGun|Missile|Bomb|WeaponMining') {
+    if ($itemType -match 'Mining Laser' -or $type -match 'WeaponMining') {
+        return 'Добывающие лазеры'
+    }
+
+    if ($itemType -match 'Cannon|Repeater|Gatling|Scattergun|Missile|Bomb|Mass Driver' -or $type -match 'WeaponGun|Missile|Bomb') {
         return 'Корабельные орудия'
     }
 
@@ -750,6 +777,7 @@ function Get-PatternEnrichment {
     elseif ($Name -match '(?i)\b(LMG)\b') { $category = 'Оружие'; $type = 'пулемёт' }
     elseif ($Name -match '(?i)\b(SMG)\b') { $category = 'Оружие'; $type = 'пистолет-пулемёт' }
     elseif ($Name -match '(?i)\b(Rifle)\b') { $category = 'Оружие'; $type = 'винтовка' }
+    elseif ($Name -match '(?i)\b(Mining Laser|Helix|Hofstede|Klein|Lancet|Arbor|Pitman|Lawson)\b') { $category = 'Добывающие лазеры'; $type = 'добывающий лазер' }
     elseif ($Name -match '(?i)\b(Cannon|Repeater|Gatling|Scattergun|Missile|Torpedo)\b') { $category = 'Корабельные орудия'; $type = 'корабельное орудие' }
     elseif ($Name -match '(?i)\b(Shield|Cooler|Power|Quantum|Radar)\b') { $category = 'Корабельные компоненты'; $type = 'корабельный компонент' }
     elseif ($Name -match '(?i)\b(Magazine|Ammo|Battery|MedPen|Medgun|Multi-Tool|Tool|Module|Attachment|Scope|Barrel|Suppressor)\b') { $category = 'Снаряжение/расходники'; $type = 'снаряжение' }
@@ -897,6 +925,44 @@ function Merge-OverrideEnrichment {
     return [pscustomobject]$merged
 }
 
+function Test-MiningLaserEnrichment {
+    param(
+        [AllowEmptyString()][string]$Name,
+        $Info
+    )
+
+    $type = if ($Info -and $Info.PSObject.Properties['type']) { [string]$Info.type } else { '' }
+    $itemType = if ($Info -and $Info.PSObject.Properties['itemType']) { [string]$Info.itemType } else { '' }
+
+    return (
+        $type -match 'добывающий лазер|Mining Laser|Weapon Mining' -or
+        $itemType -match 'Mining Laser|Weapon Mining' -or
+        ([string]$Name) -match '(?i)\b(Mining Laser|Helix|Hofstede|Klein|Lancet|Arbor|Pitman|Lawson)\b'
+    )
+}
+
+function Normalize-EnrichmentCategory {
+    param(
+        [AllowEmptyString()][string]$Name,
+        $Info
+    )
+
+    if ($null -eq $Info -or -not $Info.found) {
+        return $Info
+    }
+
+    if (Test-MiningLaserEnrichment -Name $Name -Info $Info) {
+        if (-not $Info.PSObject.Properties['category']) {
+            $Info | Add-Member -NotePropertyName 'category' -NotePropertyValue 'Добывающие лазеры'
+        }
+        else {
+            $Info.category = 'Добывающие лазеры'
+        }
+    }
+
+    return $Info
+}
+
 function New-EnrichmentMap {
     param([string[]]$Names)
 
@@ -907,7 +973,8 @@ function New-EnrichmentMap {
 
     foreach ($name in $Names) {
         if (-not $NoCache -and $cache.ContainsKey($name)) {
-            $cached = $cache[$name]
+            $cached = Normalize-EnrichmentCategory -Name $name -Info $cache[$name]
+            $cache[$name] = $cached
             if ($cached.found) {
                 $result[$name] = $cached
             }
@@ -929,7 +996,7 @@ function New-EnrichmentMap {
         $wikiItems = Get-WikiItemsByName -Names @($namesForWiki)
         foreach ($name in $namesForWiki) {
             if ($wikiItems.ContainsKey($name)) {
-                $enrichment = New-EnrichmentFromWikiItem -Item $wikiItems[$name]
+                $enrichment = Normalize-EnrichmentCategory -Name $name -Info (New-EnrichmentFromWikiItem -Item $wikiItems[$name])
                 $result[$name] = $enrichment
                 if (-not $NoCache) {
                     $cache[$name] = $enrichment
@@ -947,16 +1014,16 @@ function New-EnrichmentMap {
     foreach ($name in $Names) {
         if ($overrides.ContainsKey($name)) {
             $base = if ($result.ContainsKey($name)) { $result[$name] } else { $null }
-            $result[$name] = Merge-OverrideEnrichment -Base $base -Override $overrides[$name]
+            $result[$name] = Normalize-EnrichmentCategory -Name $name -Info (Merge-OverrideEnrichment -Base $base -Override $overrides[$name])
         }
     }
 
     foreach ($name in $Names) {
         if (-not $result.ContainsKey($name)) {
-            $result[$name] = Get-PatternEnrichment -Name $name
+            $result[$name] = Normalize-EnrichmentCategory -Name $name -Info (Get-PatternEnrichment -Name $name)
         }
         elseif (-not $result[$name].found) {
-            $result[$name] = Get-PatternEnrichment -Name $name
+            $result[$name] = Normalize-EnrichmentCategory -Name $name -Info (Get-PatternEnrichment -Name $name)
         }
     }
 
@@ -1370,6 +1437,26 @@ function Get-PlanetRecipeFamily {
     $displayName = (Format-DisplayName -Name $Name).Trim()
 
     if ($Category -eq 'Броня/одежда') {
+        if ($displayName -match '^Aves(?:\s+(Shrike|Talon))?\s+(Arms|Core|Helmet|Legs)\b') {
+            return [pscustomobject]@{
+                key = 'armor:Aves'
+                label = 'Aves / Aves Shrike / Aves Talon'
+                family = 'armor-variant-set'
+                token = $null
+                original = $displayName
+            }
+        }
+
+        if ($displayName -match '^ADP(?:-mk4)?\s+(Arms|Core|Helmet|Legs)\b') {
+            return [pscustomobject]@{
+                key = 'armor:ADP'
+                label = 'ADP / ADP-mk4'
+                family = 'armor-variant-set'
+                token = $null
+                original = $displayName
+            }
+        }
+
         $base = $displayName
         $base = $base -replace '\s*\([^)]*\)', ''
         $base = $base -replace '\b(Arms|Core|Helmet|Legs|Backpack)\b.*$', ''
@@ -1483,12 +1570,12 @@ function Get-PlanetRecipeFamily {
         }
     }
 
-    if ($displayName -match '^Arbor\s+MH(2|V)\s+Mining Laser$') {
+    if ($displayName -match '^Arbor\s+(MH(?:V|[12]))\s+Mining Laser$') {
         return [pscustomobject]@{
             key = 'weapon:Arbor Mining Laser'
-            label = 'Arbor MH2/MHV Mining Lasers'
-            family = 'variant'
-            token = $null
+            label = 'Arbor'
+            family = 'mining-laser-list'
+            token = $Matches[1]
             original = $displayName
         }
     }
@@ -1609,6 +1696,16 @@ function Get-PlanetRecipeFamily {
     }
 
     if ($Category -eq 'Корабельные компоненты') {
+        if ($displayName -match '^FR-(66|76|86)$') {
+            return [pscustomobject]@{
+                key = 'component:FR-series'
+                label = 'FR'
+                family = 'hyphen-number-list'
+                token = [int]$Matches[1]
+                original = $displayName
+            }
+        }
+
         if ($displayName -match '^([567])(CA|MA|SA)\s+''[^'']+''$') {
             $series = $Matches[1]
             return [pscustomobject]@{
@@ -1778,6 +1875,10 @@ function Format-PlanetRecipeFamilyLabel {
         return "$($Group.label) set"
     }
 
+    if ($Group.family -eq 'armor-variant-set') {
+        return "$($Group.label) set"
+    }
+
     if ($Group.family -eq 'numbered') {
         $span = Format-NumberSpan -Values $Group.tokens
         if ($span) {
@@ -1813,6 +1914,13 @@ function Format-PlanetRecipeFamilyLabel {
         $tokens = @($Group.tokens | Sort-Object -Unique)
         if ($tokens.Count -gt 0) {
             return "$($Group.label) " + ($tokens -join '/')
+        }
+    }
+
+    if ($Group.family -eq 'hyphen-number-list') {
+        $tokens = @($Group.tokens | ForEach-Object { [string]$_ } | Sort-Object { [int]$_ } -Unique)
+        if ($tokens.Count -gt 0) {
+            return "$($Group.label)-" + ($tokens -join '/').Replace('/', "/$($Group.label)-")
         }
     }
 
@@ -2021,6 +2129,10 @@ function Get-BlueprintSubcategory {
         return Get-ShipWeaponSubcategory -Name $Name -CraftInfo $CraftInfo
     }
 
+    if ($Category -eq 'Добывающие лазеры') {
+        return 'Добывающие лазеры'
+    }
+
     if ($Category -eq 'Броня/одежда') {
         return Get-ArmorSubcategory -Name $Name -CraftInfo $CraftInfo
     }
@@ -2046,6 +2158,10 @@ function Get-BlueprintSubcategoryRank {
         return Get-ShipWeaponSubcategoryRank -Subcategory $Subcategory
     }
 
+    if ($Category -eq 'Добывающие лазеры') {
+        return 0
+    }
+
     if ($Category -eq 'Броня/одежда') {
         return Get-ArmorSubcategoryRank -Subcategory $Subcategory
     }
@@ -2060,7 +2176,7 @@ function Get-BlueprintSubcategoryRank {
 function Test-UseBlueprintSubcategories {
     param([string]$Category)
 
-    return $Category -in @('Корабельные компоненты', 'Корабельные орудия', 'Броня/одежда', 'Оружие')
+    return $Category -in @('Корабельные компоненты', 'Корабельные орудия', 'Добывающие лазеры', 'Броня/одежда', 'Оружие')
 }
 
 function Test-IncludePlanetRecipe {
@@ -2289,7 +2405,7 @@ function Format-BlueprintLine {
     if (-not [string]::IsNullOrWhiteSpace($info.slot)) {
         $details.Add([string]$info.slot)
     }
-    $includeShipStats = $info.category -eq 'Корабельные компоненты' -or $info.category -eq 'Корабельные орудия'
+    $includeShipStats = $info.category -eq 'Корабельные компоненты' -or $info.category -eq 'Корабельные орудия' -or $info.category -eq 'Добывающие лазеры'
 
     if ($includeShipStats -and -not [string]::IsNullOrWhiteSpace($info.size)) {
         $details.Add("S$($info.size)")
