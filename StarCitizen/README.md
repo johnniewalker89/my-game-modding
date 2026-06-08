@@ -55,14 +55,14 @@ FEF0A1B812C9808AA28E7FC40F49B81EBC18F081B7B0046FB8043FC7A5ACA18F
 
 Лаунчер добавляет в описания контрактов список чертежей, которые можно получить за миссию, и оставляет только выбранные категории.
 
-![Список рецептов брони и оружия](SC_Mod_Launcher/docs/images/sc-mod-launcher-recipes-armor.png)
+![Метки контрактов и список доступных чертежей](SC_Mod_Launcher/docs/images/sc-mod-launcher-contract-recipes.png)
 
-![Список корабельных компонентов и орудий](SC_Mod_Launcher/docs/images/sc-mod-launcher-recipes-components.png)
+![Состав предмета в инвентаре](SC_Mod_Launcher/docs/images/sc-mod-launcher-item-craft-composition.png)
 
 ### Майнинг и крафт
 
 На планетах и лунах показываются ресурсы по способам добычи и рецепты предметов, которые можно собрать из местных ресурсов.
 
-![Подсказки крафта на карте Mobiglas: Lyria](SC_Mod_Launcher/docs/images/sc-mod-launcher-planet-hints-lyria.png)
+![Подсказки добычи и крафта на карте Mobiglas](SC_Mod_Launcher/docs/images/sc-mod-launcher-mining-map-hints.png)
 
 
