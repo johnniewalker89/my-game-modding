@@ -737,7 +737,7 @@
                         </StackPanel>
                         <Grid x:Name="LogGlitchFrame"
                               Grid.Row="1"
-                              Margin="0,0,0,10"
+                              Margin="0,0,0,14"
                               ClipToBounds="False"
                               SnapsToDevicePixels="True"
                               MouseEnter="GlitchPanelMouseEnter"

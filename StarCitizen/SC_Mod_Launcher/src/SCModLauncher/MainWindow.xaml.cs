@@ -434,42 +434,15 @@ public partial class MainWindow : Window
                 .GroupBy(item => string.IsNullOrWhiteSpace(item.Option.Group) ? string.Empty : item.Option.Group)
                 .OrderBy(group => group.Min(item => item.Index));
 
-            foreach (var group in optionGroups)
+            if (module.Id.Equals("mining", StringComparison.OrdinalIgnoreCase))
             {
-                if (!string.IsNullOrWhiteSpace(group.Key))
+                BuildMiningPrimaryOptionGroups(stack, module, optionGroups);
+            }
+            else
+            {
+                foreach (var group in optionGroups)
                 {
-                    stack.Children.Add(new TextBlock
-                    {
-                        Text = group.Key.ToUpperInvariant(),
-                        Margin = new Thickness(0, 8, 0, 5),
-                        Foreground = (Brush)FindResource("SignalAmber"),
-                        FontSize = 11,
-                        FontWeight = FontWeights.Bold
-                    });
-                }
-
-                var groupGrid = new UniformGrid
-                {
-                    Columns = !string.IsNullOrWhiteSpace(group.Key) && group.Count() >= 4 ? 2 : 1,
-                    Margin = new Thickness(0, 0, 0, 2)
-                };
-                stack.Children.Add(groupGrid);
-
-                foreach (var item in group.OrderBy(item => item.Index))
-                {
-                    var option = item.Option;
-                    var check = new CheckBox
-                    {
-                        Content = option.Name,
-                        IsChecked = option.Default,
-                        ToolTip = option.Description,
-                        Tag = $"{module.Id}|{option.Id}",
-                        Margin = new Thickness(0, 0, 8, 2)
-                    };
-                    check.Checked += ModuleOptionChanged;
-                    check.Unchecked += ModuleOptionChanged;
-                    groupGrid.Children.Add(check);
-                    _optionChecks[(string)check.Tag] = check;
+                    BuildModuleOptionGroup(stack, module, group);
                 }
             }
 
@@ -482,6 +455,97 @@ public partial class MainWindow : Window
         }
 
         UpdateMiningRecipeFilterState();
+    }
+
+    private void BuildMiningPrimaryOptionGroups(
+        StackPanel stack,
+        ModuleManifest module,
+        IOrderedEnumerable<IGrouping<string, dynamic>> optionGroups)
+    {
+        var groups = optionGroups.ToDictionary(group => group.Key, group => group, StringComparer.OrdinalIgnoreCase);
+        var pairedKeys = new[] { "Подсказки предметов", "Способы добычи" };
+
+        var pairGrid = new Grid
+        {
+            Margin = new Thickness(0, 8, 0, 4)
+        };
+        pairGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        pairGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        for (var i = 0; i < pairedKeys.Length; i++)
+        {
+            if (!groups.TryGetValue(pairedKeys[i], out var group))
+            {
+                continue;
+            }
+
+            var groupPanel = new StackPanel
+            {
+                Margin = i == 0 ? new Thickness(0, 0, 8, 0) : new Thickness(8, 0, 0, 0)
+            };
+            Grid.SetColumn(groupPanel, i);
+            pairGrid.Children.Add(groupPanel);
+            BuildModuleOptionGroup(groupPanel, module, group, 1, new Thickness(0, 0, 0, 5));
+        }
+
+        if (pairGrid.Children.Count > 0)
+        {
+            stack.Children.Add(pairGrid);
+        }
+
+        foreach (var group in optionGroups)
+        {
+            if (pairedKeys.Contains(group.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            BuildModuleOptionGroup(stack, module, group);
+        }
+    }
+
+    private void BuildModuleOptionGroup(
+        Panel parent,
+        ModuleManifest module,
+        IGrouping<string, dynamic> group,
+        int? columns = null,
+        Thickness? headerMargin = null)
+    {
+        if (!string.IsNullOrWhiteSpace(group.Key))
+        {
+            parent.Children.Add(new TextBlock
+            {
+                Text = group.Key.ToUpperInvariant(),
+                Margin = headerMargin ?? new Thickness(0, 8, 0, 5),
+                Foreground = (Brush)FindResource("SignalAmber"),
+                FontSize = 11,
+                FontWeight = FontWeights.Bold
+            });
+        }
+
+        var groupGrid = new UniformGrid
+        {
+            Columns = columns ?? (!string.IsNullOrWhiteSpace(group.Key) && group.Count() >= 4 ? 2 : 1),
+            Margin = new Thickness(0, 0, 0, 2)
+        };
+        parent.Children.Add(groupGrid);
+
+        foreach (var item in group.OrderBy(item => item.Index))
+        {
+            var option = item.Option;
+            var check = new CheckBox
+            {
+                Content = option.Name,
+                IsChecked = option.Default,
+                ToolTip = option.Description,
+                Tag = $"{module.Id}|{option.Id}",
+                Margin = new Thickness(0, 0, 8, 2)
+            };
+            check.Checked += ModuleOptionChanged;
+            check.Unchecked += ModuleOptionChanged;
+            groupGrid.Children.Add(check);
+            _optionChecks[(string)check.Tag] = check;
+        }
     }
 
     private void BuildMiningCraftFamilyFilters(StackPanel stack)
