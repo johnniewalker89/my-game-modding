@@ -59,85 +59,204 @@
                             </Grid.ColumnDefinitions>
                             <Grid Width="144" Height="66" ClipToBounds="False" RenderTransformOrigin="0.5,0.5">
                                 <Grid.RenderTransform>
-                                    <TranslateTransform x:Name="LogoJitter" X="0" Y="0"/>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="LogoRootScale" ScaleX="1" ScaleY="1"/>
+                                        <TranslateTransform x:Name="LogoRootShift" X="0" Y="0"/>
+                                    </TransformGroup>
                                 </Grid.RenderTransform>
                                 <Grid.Effect>
                                     <DropShadowEffect x:Name="LogoGlow"
-                                                      BlurRadius="7"
+                                                      BlurRadius="9"
                                                       ShadowDepth="0"
-                                                      Opacity="0.30"
+                                                      Opacity="0.26"
                                                       Color="#66E8FF"/>
                                 </Grid.Effect>
                                 <Grid.Triggers>
                                     <EventTrigger RoutedEvent="Loaded">
                                         <BeginStoryboard>
                                             <Storyboard RepeatBehavior="Forever">
-                                                    <DoubleAnimation Storyboard.TargetName="LogoJitter"
-                                                                     Storyboard.TargetProperty="X"
-                                                                     From="-0.28"
-                                                                     To="0.28"
-                                                                     Duration="0:0:0.48"
-                                                                     AutoReverse="True"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoGlow"
-                                                                     Storyboard.TargetProperty="Opacity"
-                                                                     From="0.16"
-                                                                     To="0.40"
-                                                                     Duration="0:0:1.22"
-                                                                     AutoReverse="True"/>
-                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                     From="0.90"
-                                                                     To="1"
-                                                                     Duration="0:0:1.38"
-                                                                     AutoReverse="True"/>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoRootScale" Storyboard.TargetProperty="ScaleX">
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="1"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.40" Value="1"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.62" Value="1.012"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="0.998"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:3.14" Value="1.006"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="1"/>
+                                                </DoubleAnimationUsingKeyFrames>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoRootScale" Storyboard.TargetProperty="ScaleY">
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="1"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.64" Value="1"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.86" Value="0.996"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:3.10" Value="1.002"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="1"/>
+                                                </DoubleAnimationUsingKeyFrames>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoRootShift" Storyboard.TargetProperty="X">
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.52" Value="0"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.66" Value="-0.7"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.80" Value="0.5"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.98" Value="-0.2"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:3.14" Value="0"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="0"/>
+                                                </DoubleAnimationUsingKeyFrames>
+                                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoRootShift" Storyboard.TargetProperty="Y">
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.82" Value="0"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:2.94" Value="-0.3"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:3.08" Value="0.2"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:3.24" Value="0"/>
+                                                    <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="0"/>
+                                                </DoubleAnimationUsingKeyFrames>
+                                                <DoubleAnimation Storyboard.TargetName="LogoGlow"
+                                                                 Storyboard.TargetProperty="Opacity"
+                                                                 From="0.16"
+                                                                 To="0.34"
+                                                                 Duration="0:0:2.60"
+                                                                 AutoReverse="True"/>
                                             </Storyboard>
                                         </BeginStoryboard>
                                     </EventTrigger>
                                 </Grid.Triggers>
-                                <Canvas>
-                                    <TextBlock Text="S" Canvas.Left="0" Canvas.Top="-6" Foreground="{StaticResource TextPrimary}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
-                                    <TextBlock Text="C" Canvas.Left="41" Canvas.Top="-6" Foreground="{StaticResource SignalCyan}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
-                                    <TextBlock Text="M" Canvas.Left="84" Canvas.Top="-6" Foreground="{StaticResource SignalAmber}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
-                                </Canvas>
-                                <Canvas IsHitTestVisible="False">
-                                    <Rectangle Width="18" Height="3" Canvas.Left="4" Canvas.Top="8" Fill="{StaticResource HullBlack}" Opacity="0.74"/>
-                                    <Rectangle Width="25" Height="2" Canvas.Left="14" Canvas.Top="29" Fill="{StaticResource HullBlack}" Opacity="0.58"/>
-                                    <Rectangle Width="18" Height="2" Canvas.Left="4" Canvas.Top="50" Fill="{StaticResource HullBlack}" Opacity="0.54"/>
-                                    <Rectangle Width="22" Height="3" Canvas.Left="43" Canvas.Top="12" Fill="{StaticResource HullBlack}" Opacity="0.70"/>
-                                    <Rectangle Width="16" Height="2" Canvas.Left="57" Canvas.Top="35" Fill="{StaticResource HullBlack}" Opacity="0.56"/>
-                                    <Rectangle Width="20" Height="2" Canvas.Left="42" Canvas.Top="51" Fill="{StaticResource HullBlack}" Opacity="0.50"/>
-                                    <Rectangle Width="30" Height="3" Canvas.Left="91" Canvas.Top="8" Fill="{StaticResource HullBlack}" Opacity="0.66"/>
-                                    <Rectangle Width="18" Height="2" Canvas.Left="105" Canvas.Top="31" Fill="{StaticResource HullBlack}" Opacity="0.58"/>
-                                    <Rectangle Width="28" Height="2" Canvas.Left="91" Canvas.Top="49" Fill="{StaticResource HullBlack}" Opacity="0.54"/>
-                                </Canvas>
-                                <Canvas IsHitTestVisible="False">
-                                    <Rectangle x:Name="LogoNoiseCrownA" Width="36" Height="2" Canvas.Left="43" Canvas.Top="-4" Fill="{StaticResource SignalCyan}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseCrownB" Width="12" Height="1" Canvas.Left="72" Canvas.Top="3" Fill="{StaticResource TextPrimary}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseSLeftA" Width="20" Height="1" Canvas.Left="-3" Canvas.Top="13" Fill="{StaticResource TextPrimary}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseSLeftB" Width="9" Height="1" Canvas.Left="13" Canvas.Top="24" Fill="{StaticResource SignalCyan}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseMRightA" Width="16" Height="1" Canvas.Left="99" Canvas.Top="15" Fill="{StaticResource SignalAmber}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseMRightB" Width="16" Height="1" Canvas.Left="121" Canvas.Top="19" Fill="{StaticResource SignalAmber}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseMidA" Width="15" Height="1" Canvas.Left="31" Canvas.Top="31" Fill="{StaticResource SignalCyan}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseMidB" Width="16" Height="1" Canvas.Left="78" Canvas.Top="34" Fill="{StaticResource SignalCyan}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseSBaseA" Width="17" Height="1" Canvas.Left="20" Canvas.Top="51" Fill="{StaticResource TextPrimary}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseMBaseC" Width="18" Height="1" Canvas.Left="121" Canvas.Top="50" Fill="{StaticResource SignalAmber}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseBaseA" Width="38" Height="2" Canvas.Left="42" Canvas.Top="65" Fill="{StaticResource SignalCyan}" Opacity="0"/>
-                                    <Rectangle x:Name="LogoNoiseBaseB" Width="14" Height="1" Canvas.Left="53" Canvas.Top="58" Fill="{StaticResource TextPrimary}" Opacity="0"/>
+
+                                <Canvas x:Name="LogoCyanGhost" IsHitTestVisible="False" Opacity="0.08">
+                                    <Canvas.RenderTransform>
+                                        <TranslateTransform x:Name="LogoCyanGhostShift" X="-2.2" Y="0"/>
+                                    </Canvas.RenderTransform>
+                                    <TextBlock Text="S" Canvas.Left="0" Canvas.Top="-6" Foreground="{StaticResource SignalCyan}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
+                                    <TextBlock Text="C" Canvas.Left="36" Canvas.Top="-6" Foreground="{StaticResource SignalCyan}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
+                                    <TextBlock Text="M" Canvas.Left="74" Canvas.Top="-6" Foreground="{StaticResource SignalCyan}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
                                     <Canvas.Triggers>
                                         <EventTrigger RoutedEvent="Loaded">
                                             <BeginStoryboard>
-                                                <Storyboard>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseCrownA" Storyboard.TargetProperty="Opacity" From="0" To="0.52" Duration="0:0:1.32" BeginTime="0:0:0.00" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseCrownB" Storyboard.TargetProperty="Opacity" From="0" To="0.32" Duration="0:0:1.05" BeginTime="0:0:0.39" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseSLeftA" Storyboard.TargetProperty="Opacity" From="0" To="0.28" Duration="0:0:1.64" BeginTime="0:0:0.62" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseSLeftB" Storyboard.TargetProperty="Opacity" From="0" To="0.24" Duration="0:0:0.92" BeginTime="0:0:0.84" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseMRightA" Storyboard.TargetProperty="Opacity" From="0" To="0.42" Duration="0:0:1.18" BeginTime="0:0:0.25" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseMRightB" Storyboard.TargetProperty="Opacity" From="0" To="0.34" Duration="0:0:1.86" BeginTime="0:0:0.93" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseMidA" Storyboard.TargetProperty="Opacity" From="0" To="0.34" Duration="0:0:1.48" BeginTime="0:0:0.12" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseMidB" Storyboard.TargetProperty="Opacity" From="0" To="0.36" Duration="0:0:1.12" BeginTime="0:0:1.08" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseSBaseA" Storyboard.TargetProperty="Opacity" From="0" To="0.24" Duration="0:0:1.22" BeginTime="0:0:0.71" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseMBaseC" Storyboard.TargetProperty="Opacity" From="0" To="0.32" Duration="0:0:1.58" BeginTime="0:0:0.46" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseBaseA" Storyboard.TargetProperty="Opacity" From="0" To="0.48" Duration="0:0:1.44" BeginTime="0:0:0.67" AutoReverse="True" RepeatBehavior="Forever"/>
-                                                    <DoubleAnimation Storyboard.TargetName="LogoNoiseBaseB" Storyboard.TargetProperty="Opacity" From="0" To="0.28" Duration="0:0:1.02" BeginTime="0:0:0.18" AutoReverse="True" RepeatBehavior="Forever"/>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoCyanGhost" Storyboard.TargetProperty="Opacity">
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0.05"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.50" Value="0.05"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.68" Value="0.26"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.90" Value="0.09"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="0.05"/>
+                                                    </DoubleAnimationUsingKeyFrames>
+                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoCyanGhostShift" Storyboard.TargetProperty="X">
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="-1.2"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.56" Value="-1.2"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.74" Value="-3.2"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.98" Value="-1.3"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="-1.2"/>
+                                                    </DoubleAnimationUsingKeyFrames>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Canvas.Triggers>
+                                </Canvas>
+
+                                <Canvas x:Name="LogoAmberGhost" IsHitTestVisible="False" Opacity="0.05">
+                                    <Canvas.RenderTransform>
+                                        <TranslateTransform x:Name="LogoAmberGhostShift" X="1.5" Y="0"/>
+                                    </Canvas.RenderTransform>
+                                    <TextBlock Text="S" Canvas.Left="0" Canvas.Top="-6" Foreground="{StaticResource SignalAmber}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
+                                    <TextBlock Text="C" Canvas.Left="36" Canvas.Top="-6" Foreground="{StaticResource SignalAmber}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
+                                    <TextBlock Text="M" Canvas.Left="74" Canvas.Top="-6" Foreground="{StaticResource SignalAmber}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black"/>
+                                    <Canvas.Triggers>
+                                        <EventTrigger RoutedEvent="Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever" BeginTime="0:0:0.42">
+                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoAmberGhost" Storyboard.TargetProperty="Opacity">
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0.04"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.34" Value="0.04"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.56" Value="0.17"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.78" Value="0.07"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:5.00" Value="0.04"/>
+                                                    </DoubleAnimationUsingKeyFrames>
+                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoAmberGhostShift" Storyboard.TargetProperty="X">
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="1.3"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.42" Value="1.3"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.62" Value="2.7"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.84" Value="1.2"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:5.00" Value="1.3"/>
+                                                    </DoubleAnimationUsingKeyFrames>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Canvas.Triggers>
+                                </Canvas>
+
+                                <Canvas>
+                                    <TextBlock x:Name="LogoLetterS" Text="S" Canvas.Left="0" Canvas.Top="-6" Foreground="{StaticResource TextPrimary}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black">
+                                        <TextBlock.RenderTransform>
+                                            <TranslateTransform x:Name="LogoLetterSShift" X="0" Y="0"/>
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                    <TextBlock x:Name="LogoLetterC" Text="C" Canvas.Left="36" Canvas.Top="-6" Foreground="{StaticResource SignalCyan}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black">
+                                        <TextBlock.RenderTransform>
+                                            <TranslateTransform x:Name="LogoLetterCShift" X="0" Y="0"/>
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                    <TextBlock x:Name="LogoLetterM" Text="M" Canvas.Left="74" Canvas.Top="-6" Foreground="{StaticResource SignalAmber}" FontFamily="Segoe UI Black" FontSize="52" FontWeight="Black">
+                                        <TextBlock.RenderTransform>
+                                            <TranslateTransform x:Name="LogoLetterMShift" X="0" Y="0"/>
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                    <Canvas.Triggers>
+                                        <EventTrigger RoutedEvent="Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoLetterSShift" Storyboard.TargetProperty="X">
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.52" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.70" Value="-0.8"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.88" Value="0.2"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.10" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="0"/>
+                                                    </DoubleAnimationUsingKeyFrames>
+                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoLetterCShift" Storyboard.TargetProperty="X">
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.76" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.94" Value="0.7"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.14" Value="-0.2"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.34" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="0"/>
+                                                    </DoubleAnimationUsingKeyFrames>
+                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="LogoLetterMShift" Storyboard.TargetProperty="X">
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.02" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.20" Value="-0.6"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.40" Value="0.3"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.60" Value="0"/>
+                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:5.20" Value="0"/>
+                                                    </DoubleAnimationUsingKeyFrames>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Canvas.Triggers>
+                                </Canvas>
+
+                                <Canvas IsHitTestVisible="False">
+                                    <Rectangle Width="17" Height="2" Canvas.Left="3" Canvas.Top="7" Fill="{StaticResource HullBlack}" Opacity="0.72"/>
+                                    <Rectangle Width="29" Height="2" Canvas.Left="9" Canvas.Top="27" Fill="{StaticResource HullBlack}" Opacity="0.56"/>
+                                    <Rectangle Width="12" Height="2" Canvas.Left="28" Canvas.Top="46" Fill="{StaticResource HullBlack}" Opacity="0.62"/>
+                                    <Rectangle Width="20" Height="2" Canvas.Left="39" Canvas.Top="10" Fill="{StaticResource HullBlack}" Opacity="0.68"/>
+                                    <Rectangle Width="14" Height="2" Canvas.Left="53" Canvas.Top="31" Fill="{StaticResource HullBlack}" Opacity="0.55"/>
+                                    <Rectangle Width="24" Height="2" Canvas.Left="40" Canvas.Top="49" Fill="{StaticResource HullBlack}" Opacity="0.50"/>
+                                    <Rectangle Width="28" Height="2" Canvas.Left="80" Canvas.Top="6" Fill="{StaticResource HullBlack}" Opacity="0.66"/>
+                                    <Rectangle Width="16" Height="2" Canvas.Left="95" Canvas.Top="29" Fill="{StaticResource HullBlack}" Opacity="0.58"/>
+                                    <Rectangle Width="30" Height="2" Canvas.Left="84" Canvas.Top="48" Fill="{StaticResource HullBlack}" Opacity="0.54"/>
+                                    <Rectangle Width="8" Height="1" Canvas.Left="66" Canvas.Top="17" Fill="{StaticResource HullBlack}" Opacity="0.58"/>
+                                    <Rectangle Width="10" Height="1" Canvas.Left="116" Canvas.Top="36" Fill="{StaticResource HullBlack}" Opacity="0.60"/>
+                                </Canvas>
+
+                                <Canvas IsHitTestVisible="False" ClipToBounds="False">
+                                    <Rectangle x:Name="LogoTearWideA" Width="58" Height="4" Canvas.Left="-7" Canvas.Top="13" Fill="#3066E8FF" Opacity="0"/>
+                                    <Rectangle x:Name="LogoTearWideB" Width="40" Height="3" Canvas.Left="37" Canvas.Top="35" Fill="#24EAF9FF" Opacity="0"/>
+                                    <Rectangle x:Name="LogoTearWideC" Width="47" Height="4" Canvas.Left="77" Canvas.Top="23" Fill="#24FFB84A" Opacity="0"/>
+                                    <Rectangle x:Name="LogoRipMidM" Width="40" Height="2" Canvas.Left="81" Canvas.Top="41" Fill="{StaticResource SignalAmber}" Opacity="0"/>
+                                    <Canvas.Triggers>
+                                        <EventTrigger RoutedEvent="Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetName="LogoTearWideA" Storyboard.TargetProperty="Opacity" From="0" To="0.14" Duration="0:0:0.40" BeginTime="0:0:2.52" AutoReverse="True"/>
+                                                    <DoubleAnimation Storyboard.TargetName="LogoTearWideB" Storyboard.TargetProperty="Opacity" From="0" To="0.11" Duration="0:0:0.44" BeginTime="0:0:2.92" AutoReverse="True"/>
+                                                    <DoubleAnimation Storyboard.TargetName="LogoTearWideC" Storyboard.TargetProperty="Opacity" From="0" To="0.10" Duration="0:0:0.38" BeginTime="0:0:3.32" AutoReverse="True"/>
+                                                    <DoubleAnimation Storyboard.TargetName="LogoRipMidM" Storyboard.TargetProperty="Opacity" From="0" To="0.20" Duration="0:0:0.40" BeginTime="0:0:3.08" AutoReverse="True"/>
                                                 </Storyboard>
                                             </BeginStoryboard>
                                         </EventTrigger>
