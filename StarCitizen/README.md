@@ -61,8 +61,11 @@ FEF0A1B812C9808AA28E7FC40F49B81EBC18F081B7B0046FB8043FC7A5ACA18F
 
 На планетах и лунах показываются ресурсы по способам добычи и рецепты предметов, которые можно собрать из местных ресурсов.
 
-![Состав предмета в инвентаре](SC_Mod_Launcher/docs/images/sc-mod-launcher-item-craft-composition.png)
-
-![Подсказки добычи и крафта на карте Mobiglas](SC_Mod_Launcher/docs/images/sc-mod-launcher-mining-map-hints.png)
+<table>
+  <tr>
+    <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-item-craft-composition.png" alt="Состав предмета в инвентаре"></td>
+    <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-mining-map-hints.png" alt="Подсказки добычи и крафта на карте Mobiglas"></td>
+  </tr>
+</table>
 
 
