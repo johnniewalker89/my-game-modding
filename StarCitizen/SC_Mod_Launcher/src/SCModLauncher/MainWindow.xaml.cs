@@ -436,12 +436,6 @@ public partial class MainWindow : Window
 
             foreach (var group in optionGroups)
             {
-                if (module.Id.Equals("mining", StringComparison.OrdinalIgnoreCase) &&
-                    IsMiningCraftFilterGroup(group.Key))
-                {
-                    continue;
-                }
-
                 if (!string.IsNullOrWhiteSpace(group.Key))
                 {
                     stack.Children.Add(new TextBlock
@@ -488,11 +482,6 @@ public partial class MainWindow : Window
         }
 
         UpdateMiningRecipeFilterState();
-    }
-
-    private static bool IsMiningCraftFilterGroup(string group)
-    {
-        return group is "Корабельные компоненты" or "Корабельные орудия" or "Добывающие лазеры" or "Броня и одежда" or "FPS-оружие";
     }
 
     private void BuildMiningCraftFamilyFilters(StackPanel stack)
@@ -588,35 +577,18 @@ public partial class MainWindow : Window
         };
         body.Children.Add(search);
 
-        var actions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 7)
-        };
-        body.Children.Add(actions);
-
         var resetButton = new Button
         {
             Content = "сброс",
             Style = (Style)FindResource("LaunchCommandButton"),
             MinHeight = 30,
             Width = 84,
-            Padding = new Thickness(8, 2, 8, 2)
-        };
-        actions.Children.Add(resetButton);
-
-        var defaultButton = new Button
-        {
-            Content = "по умолчанию",
-            Style = (Style)FindResource("LaunchCommandButton"),
-            MinHeight = 30,
-            Width = 128,
             Padding = new Thickness(8, 2, 8, 2),
-            Margin = new Thickness(8, 0, 0, 0)
+            Margin = new Thickness(0, 0, 0, 7),
+            HorizontalAlignment = HorizontalAlignment.Left
         };
-        actions.Children.Add(defaultButton);
+        body.Children.Add(resetButton);
         _miningCraftFamilyActionButtons.Add(resetButton);
-        _miningCraftFamilyActionButtons.Add(defaultButton);
 
         var listPanel = new StackPanel();
         var listScroll = new ScrollViewer
@@ -644,7 +616,7 @@ public partial class MainWindow : Window
             var check = new CheckBox
             {
                 Content = entry.Label,
-                IsChecked = entry.DefaultSelected,
+                IsChecked = false,
                 Tag = $"mining|{entry.OptionId}",
                 Margin = new Thickness(0, 0, 8, 4),
                 Foreground = (Brush)FindResource("TextPrimary"),
@@ -663,16 +635,6 @@ public partial class MainWindow : Window
             foreach (var check in section.Checks)
             {
                 check.IsChecked = false;
-            }
-            UpdateMiningCraftFamilyCounter(section);
-        };
-        defaultButton.Click += (_, _) =>
-        {
-            foreach (var check in section.Checks)
-            {
-                var optionId = ((string)check.Tag).Split('|', 2)[1];
-                var entry = section.Entries.FirstOrDefault(candidate => candidate.OptionId.Equals(optionId, StringComparison.OrdinalIgnoreCase));
-                check.IsChecked = entry?.DefaultSelected == true;
             }
             UpdateMiningCraftFamilyCounter(section);
         };

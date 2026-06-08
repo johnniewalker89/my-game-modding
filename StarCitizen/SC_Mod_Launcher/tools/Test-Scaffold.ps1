@@ -137,9 +137,9 @@ $initialLines = @(
 $initialHash = (Get-FileHash -LiteralPath $globalIni -Algorithm SHA256).Hash
 
 $allQuestOptions = @('shipComponents', 'shipWeapons', 'armorAndClothing', 'fpsWeapons', 'equipmentAndConsumables')
-$defaultMiningCraftFilters = @('componentClassMilitary', 'componentClassStealth', 'shipWeaponEnergy', 'shipWeaponBallistic', 'armorHeavy', 'armorMedium', 'fpsRifles', 'fpsSniperRifles', 'fpsSmgs', 'fpsLmgs')
-$allMethods = @{ mining = @('shipMining', 'groundVehicleMining', 'multitoolMining') + $defaultMiningCraftFilters; quest = $allQuestOptions }
-$shipOnly = @{ mining = @('shipMining') + $defaultMiningCraftFilters; quest = $allQuestOptions }
+$standardMiningCraftFilters = @('componentClassMilitary', 'componentClassStealth', 'shipWeaponEnergy', 'shipWeaponBallistic', 'armorHeavy', 'armorMedium', 'fpsRifles', 'fpsSniperRifles', 'fpsSmgs', 'fpsLmgs')
+$allMethods = @{ mining = @('shipMining', 'groundVehicleMining', 'multitoolMining') + $standardMiningCraftFilters; quest = $allQuestOptions }
+$shipOnly = @{ mining = @('shipMining') + $standardMiningCraftFilters; quest = $allQuestOptions }
 
 $dryRun = Invoke-SCModPatch -LivePath $liveRoot -ScriptRoot $ProjectDir -SelectedOptionsByModule $allMethods -ReportDirectory $reports -BackupDirectory $backups -DryRun
 Assert-True ($dryRun.Report.dryRun -eq $true) 'Dry-run report should be marked dryRun.'
@@ -247,7 +247,8 @@ $planetCraftMap = @{
     militaryComponent = [pscustomobject]@{ Name = 'FR-86'; Category = (Get-SCMiningPlanetCategoryShipComponents); Subcategory = (Get-SCMiningPlanetSubcategoryShields); Family = (Get-SCMiningPlanetRecipeFamily -Name 'FR-86' -Category (Get-SCMiningPlanetCategoryShipComponents)); Resources = @('Iron'); ComponentGrade = 'A'; ComponentClass = 'Military' }
     industrialComponent = [pscustomobject]@{ Name = 'Palisade'; Category = (Get-SCMiningPlanetCategoryShipComponents); Subcategory = (Get-SCMiningPlanetSubcategoryShields); Family = (Get-SCMiningPlanetRecipeFamily -Name 'Palisade' -Category (Get-SCMiningPlanetCategoryShipComponents)); Resources = @('Iron'); ComponentGrade = 'A'; ComponentClass = 'Industrial' }
 }
-$defaultCraftFilter = Get-SCMiningCraftFilter -SelectedOptions $defaultMiningCraftFilters
+$standardCraftFilter = Get-SCMiningCraftFilter -SelectedOptions $standardMiningCraftFilters
+$emptyCraftFilter = Get-SCMiningCraftFilter -SelectedOptions @()
 
 $methodCombos = @(
     @{ selected = @(); include = @('Фильтр: отключён, способы добычи не выбраны.', 'Корабль', 'Наземная техника', 'Мультитул', 'Copper, Iron', 'Beradon', 'Hadanite'); exclude = @('Фильтр: по выбранным галкам крафта; компоненты только Grade A.', 'Karna Rifle', 'AD Ballistic Gatlings', 'P6-LR Sniper Rifle', 'Coda Pistol', 'Palisade') },
@@ -261,7 +262,7 @@ $methodCombos = @(
 )
 
 foreach ($combo in $methodCombos) {
-    $block = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods $combo.selected -CraftFilter $defaultCraftFilter
+    $block = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods $combo.selected -CraftFilter $standardCraftFilter
     $blockText = (($block | ForEach-Object { [string]$_ }) -join '')
     if (@($combo.selected).Count -eq 0) {
         Assert-True ($blockText.Contains('Фильтр: отключён, способы добычи не выбраны.')) 'Planet craft block should mark recipe filter as disabled when no mining methods are selected.'
@@ -300,11 +301,16 @@ $pistolBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -Plan
 Assert-True ($pistolBlock.Contains('Coda Pistol')) 'FPS pistol filter should include pistols when selected.'
 Assert-True (-not $pistolBlock.Contains('Karna Rifle')) 'FPS pistol filter should exclude rifles when rifles are not selected.'
 
-$noMethodBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods @() -CraftFilter $defaultCraftFilter
+$noMethodBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods @() -CraftFilter $standardCraftFilter
 Assert-True ($noMethodBlock.Contains('Copper, Iron')) 'No mining methods selected should still show ship resources as reference.'
 Assert-True ($noMethodBlock.Contains('Beradon')) 'No mining methods selected should still show ground resources as reference.'
 Assert-True ($noMethodBlock.Contains('Hadanite')) 'No mining methods selected should still show hand resources as reference.'
 Assert-True (-not $noMethodBlock.Contains('- Karna Rifle')) 'No mining methods selected should not expand detailed recipes.'
+
+$emptyFilterBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods @($shipCode) -CraftFilter $emptyCraftFilter
+Assert-True ($emptyFilterBlock.Contains('Copper, Iron')) 'Empty craft filter should still show raw resources for selected mining methods.'
+Assert-True (-not $emptyFilterBlock.Contains('- Karna Rifle')) 'Empty craft filter should not expand default recipes.'
+Assert-True (-not $emptyFilterBlock.Contains('FR-86')) 'Empty craft filter should not include default military components.'
 
 $craftHintValue = "Pulverizer LMG description\n\n$(Get-SCMiningItemCraftHintLabel) Lindinium | Nepherastatite | Iron"
 $craftHintCleaned = Remove-SCMiningItemCraftHint -Value $craftHintValue
@@ -318,7 +324,7 @@ Assert-True (Test-SCMiningCleanResourceSourceValue -Value "Base text\n\n$rawShip
 Assert-True (-not (Test-SCMiningCleanResourceSourceValue -Value "Base text\n\n$(Get-SCMiningCraftHeader)\n<EM4>Корабль</EM4>\nIron")) 'Patched launcher block should not be accepted as clean resource state source.'
 
 $corruptPlanetValue = "Base text\n\n$(Get-SCMiningCraftHeader)\n$(Get-SCMiningPlanetTextFilters)\n\n<EM4>Корабль</EM4>\n<EM4>Корабельные орудия</EM4>, <EM4>Энергетика:</EM4>"
-$restoredPlanetValue = Update-SCMiningCraftBlockMethods -Value $corruptPlanetValue -SelectedMethods @($shipCode) -PlanetCraftMap $planetCraftMap -CraftFilter $defaultCraftFilter -Inventory $methodInventory
+$restoredPlanetValue = Update-SCMiningCraftBlockMethods -Value $corruptPlanetValue -SelectedMethods @($shipCode) -PlanetCraftMap $planetCraftMap -CraftFilter $standardCraftFilter -Inventory $methodInventory
 Assert-True ($restoredPlanetValue.Contains('- Karna Rifle: Iron')) 'Cached raw inventory should restore detailed recipes after a repeated apply.'
 Assert-True (-not $restoredPlanetValue.Contains('<EM4>Корабельные орудия</EM4>, <EM4>Энергетика:</EM4>')) 'Repeated apply should not keep EM headings as resource text.'
 

@@ -456,7 +456,6 @@ function Write-SCMiningCraftFamilyIndexCache {
     )
 
     $planetCraftMap = New-SCMiningPlanetCraftMap -Blueprints @($Blueprints)
-    $defaultFilter = Get-SCMiningCraftFilter -SelectedOptions (Get-SCMiningDefaultCraftFilterOptionIds)
     $groups = @{}
 
     foreach ($recipe in @($planetCraftMap.Values)) {
@@ -487,9 +486,6 @@ function Write-SCMiningCraftFamilyIndexCache {
         }
         foreach ($resource in @($recipe.Resources)) {
             $groups[$optionId].resources[[string]$resource] = $true
-        }
-        if (Test-SCMiningIncludePlanetRecipe -Recipe $recipe -CraftFilter $defaultFilter) {
-            $groups[$optionId].defaultSelected = $true
         }
     }
 
@@ -877,21 +873,6 @@ function Get-SCMiningPlanetSubcategoryRank {
     return $index
 }
 
-function Get-SCMiningDefaultCraftFilterOptionIds {
-    return @(
-        'componentClassMilitary',
-        'componentClassStealth',
-        'shipWeaponEnergy',
-        'shipWeaponBallistic',
-        'armorHeavy',
-        'armorMedium',
-        'fpsRifles',
-        'fpsSniperRifles',
-        'fpsSmgs',
-        'fpsLmgs'
-    )
-}
-
 function Get-SCMiningAllCraftFilterOptionIds {
     return @(
         'componentClassMilitary',
@@ -942,17 +923,6 @@ function Get-SCMiningCraftFilter {
 
     $selected = @($SelectedOptions | ForEach-Object { [string]$_ })
     $familyOptionIds = @($selected | Where-Object { ([string]$_).StartsWith('craftFamily|', [System.StringComparison]::OrdinalIgnoreCase) })
-    $hasCraftFilterOption = $false
-    foreach ($optionId in Get-SCMiningAllCraftFilterOptionIds) {
-        if ($selected -contains $optionId) {
-            $hasCraftFilterOption = $true
-            break
-        }
-    }
-    if (-not $hasCraftFilterOption) {
-        $selected = @($selected + (Get-SCMiningDefaultCraftFilterOptionIds))
-    }
-
     $componentClasses = New-Object System.Collections.Generic.List[string]
     $componentMap = @{
         componentClassMilitary = 'Military'
