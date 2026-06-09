@@ -9,6 +9,7 @@ $ProjectDir = Split-Path -Parent $ScriptDir
 $DistDir = Join-Path $ProjectDir 'dist'
 $ZipPath = Join-Path $DistDir "SC_Mod_Launcher_$Version.zip"
 $StageRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-release-" + [guid]::NewGuid().ToString('N'))
+$PackageRoot = Join-Path $StageRoot 'SC_Mod_Launcher'
 
 $packageItems = @(
     'SC_Mod_Launcher.ps1',
@@ -49,7 +50,7 @@ function Copy-PackageItem {
     )
 
     $source = Join-Path $ProjectDir $RelativePath
-    $destination = Join-Path $StageRoot $RelativePath
+    $destination = Join-Path $PackageRoot $RelativePath
 
     if (-not (Test-Path -LiteralPath $source)) {
         throw "Package item not found: $RelativePath"
@@ -94,7 +95,7 @@ function Copy-ReleaseSeedItem {
     )
 
     $source = Join-Path $ProjectDir $RelativePath
-    $destination = Join-Path $StageRoot $RelativePath
+    $destination = Join-Path $PackageRoot $RelativePath
 
     if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
         throw "Release seed item not found: $RelativePath"
@@ -108,7 +109,7 @@ function ConvertTo-PackageRelativePath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     $fullPath = [System.IO.Path]::GetFullPath($Path)
-    $root = [System.IO.Path]::GetFullPath($StageRoot).TrimEnd('\') + '\'
+    $root = [System.IO.Path]::GetFullPath($PackageRoot).TrimEnd('\') + '\'
     if (-not $fullPath.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Path is outside package stage: $fullPath"
     }
@@ -135,7 +136,7 @@ try {
     }
 
     $files = @(
-        Get-ChildItem -LiteralPath $StageRoot -File -Recurse |
+        Get-ChildItem -LiteralPath $PackageRoot -File -Recurse |
             Sort-Object FullName |
             ForEach-Object {
                 [pscustomobject]@{
@@ -156,7 +157,7 @@ try {
         files = $files
     }
 
-    $manifestPath = Join-Path $StageRoot 'update-manifest.json'
+    $manifestPath = Join-Path $PackageRoot 'update-manifest.json'
     $manifestJson = $manifest | ConvertTo-Json -Depth 8
     [System.IO.File]::WriteAllText($manifestPath, $manifestJson, [System.Text.UTF8Encoding]::new($false))
 

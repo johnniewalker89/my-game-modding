@@ -215,6 +215,32 @@ function Assert-ManifestFileHashes {
     }
 }
 
+function Resolve-PackageRoot {
+    param([Parameter(Mandatory = $true)][string]$ExtractRoot)
+
+    $rootManifest = Join-Path $ExtractRoot 'update-manifest.json'
+    if (Test-Path -LiteralPath $rootManifest -PathType Leaf) {
+        return $ExtractRoot
+    }
+
+    $wrappedRoot = Join-Path $ExtractRoot 'SC_Mod_Launcher'
+    $wrappedManifest = Join-Path $wrappedRoot 'update-manifest.json'
+    if (Test-Path -LiteralPath $wrappedManifest -PathType Leaf) {
+        return $wrappedRoot
+    }
+
+    $directories = @(Get-ChildItem -LiteralPath $ExtractRoot -Directory -Force)
+    if ($directories.Count -eq 1) {
+        $singleRoot = $directories[0].FullName
+        $singleManifest = Join-Path $singleRoot 'update-manifest.json'
+        if (Test-Path -LiteralPath $singleManifest -PathType Leaf) {
+            return $singleRoot
+        }
+    }
+
+    throw 'Update package does not contain update-manifest.json.'
+}
+
 $package = Resolve-FullPath -Path $PackagePath
 $target = Resolve-FullPath -Path $TargetRoot
 
@@ -258,10 +284,8 @@ New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
 try {
     Expand-Archive -LiteralPath $package -DestinationPath $extractDir -Force
 
-    $manifestPath = Join-Path $extractDir 'update-manifest.json'
-    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-        throw 'Update package does not contain update-manifest.json.'
-    }
+    $packageRoot = Resolve-PackageRoot -ExtractRoot $extractDir
+    $manifestPath = Join-Path $packageRoot 'update-manifest.json'
 
     $manifest = Get-Content -LiteralPath $manifestPath -Encoding UTF8 -Raw | ConvertFrom-Json
     if ([int]$manifest.schemaVersion -ne 1) {
@@ -277,7 +301,7 @@ try {
     }
 
     $preservePatterns = @($manifest.preservePaths | ForEach-Object { Normalize-RelativePath -Path ([string]$_) })
-    Assert-ManifestFileHashes -Manifest $manifest -ExtractRoot $extractDir
+    Assert-ManifestFileHashes -Manifest $manifest -ExtractRoot $packageRoot
 
     robocopy $target $backupDir /E /XD backups updates cache /NJH /NJS /NP | Out-Host
     if ($LASTEXITCODE -gt 7) {
@@ -285,11 +309,11 @@ try {
     }
 
     if ($managedPaths -contains '.') {
-        Copy-DirectoryMirror -SourceRoot $extractDir -TargetRoot $target -PreservePatterns $preservePatterns
+        Copy-DirectoryMirror -SourceRoot $packageRoot -TargetRoot $target -PreservePatterns $preservePatterns
     }
     else {
         foreach ($relative in $managedPaths) {
-            $source = Join-Path $extractDir ($relative.Replace('/', '\'))
+            $source = Join-Path $packageRoot ($relative.Replace('/', '\'))
             $destination = Join-Path $target ($relative.Replace('/', '\'))
             Assert-PathInside -ChildPath $destination -ParentPath $target
 

@@ -27,7 +27,16 @@ $target = Join-Path $tempRoot 'SC_Mod_Launcher'
 
 try {
     New-Item -ItemType Directory -Force -Path $target | Out-Null
-    Expand-Archive -LiteralPath $package -DestinationPath $target -Force
+    $seedExtract = Join-Path $tempRoot 'seed-package'
+    New-Item -ItemType Directory -Force -Path $seedExtract | Out-Null
+    Expand-Archive -LiteralPath $package -DestinationPath $seedExtract -Force
+    $seedRoot = if (Test-Path -LiteralPath (Join-Path $seedExtract 'SC_Mod_Launcher\update-manifest.json') -PathType Leaf) {
+        Join-Path $seedExtract 'SC_Mod_Launcher'
+    }
+    else {
+        $seedExtract
+    }
+    Get-ChildItem -LiteralPath $seedRoot -Force | Copy-Item -Destination $target -Recurse -Force
 
     $directories = @(
         'backups',

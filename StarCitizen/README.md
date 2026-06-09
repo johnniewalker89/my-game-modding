@@ -36,8 +36,8 @@
 
 1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
 2. Скачайте `SC_Mod_Launcher_1.0.0.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-mod-launcher-v1.0.0).
-3. Распакуйте архив в удобную папку.
-4. Запустите `SC_Mod_Launcher.exe`.
+3. Откройте архив и извлеките из него папку `SC_Mod_Launcher` в удобное место. Не используйте внешнюю папку `SC_Mod_Launcher_1.0.0` как рабочую.
+4. Запустите `SC_Mod_Launcher\SC_Mod_Launcher.exe`.
 5. Проверьте путь к `StarCitizen\LIVE`.
 6. Нажмите `Проверить`, при необходимости `Прогреть кэш`, затем `Применить в LIVE`.
 
