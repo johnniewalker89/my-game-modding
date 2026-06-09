@@ -23,19 +23,31 @@ internal static class Program
             return 1;
         }
 
-        var startInfo = new ProcessStartInfo
+        try
         {
-            FileName = launcherPath,
-            WorkingDirectory = Path.GetDirectoryName(launcherPath) ?? rootPath,
-            UseShellExecute = true,
-        };
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = launcherPath,
+                WorkingDirectory = Path.GetDirectoryName(launcherPath) ?? rootPath,
+                UseShellExecute = false,
+            };
 
-        foreach (var arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
+            foreach (var arg in args)
+            {
+                startInfo.ArgumentList.Add(arg);
+            }
+
+            Process.Start(startInfo);
+            return 0;
         }
-
-        Process.Start(startInfo);
-        return 0;
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Не удалось запустить app\\SCModLauncher.exe.\n\n{ex.Message}",
+                "SC Mod Launcher",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            return 1;
+        }
     }
 }
