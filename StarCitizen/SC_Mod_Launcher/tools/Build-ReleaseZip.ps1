@@ -22,6 +22,14 @@ $packageItems = @(
     'app'
 )
 
+$releaseSeedItems = @(
+    'backups\global.ini.20260608-230029.starter-clean.bak',
+    'backups\global.ini.20260608-230029.starter-clean.bak.meta.json',
+    'modules\mining\cache\wiki-blueprints-4.8.1-live.11952564.json',
+    'modules\mining\cache\craft-family-index-4.8.1-live.11952564.json',
+    'modules\quest\engine\cache\wiki-items-cache.json'
+)
+
 $managedPaths = @('.')
 $preservePaths = @(
     'backups',
@@ -79,6 +87,22 @@ function Copy-PackageItem {
     Copy-Item -LiteralPath $source -Destination $destination -Force
 }
 
+function Copy-ReleaseSeedItem {
+    param(
+        [Parameter(Mandatory = $true)][string]$RelativePath
+    )
+
+    $source = Join-Path $ProjectDir $RelativePath
+    $destination = Join-Path $StageRoot $RelativePath
+
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw "Release seed item not found: $RelativePath"
+    }
+
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+    Copy-Item -LiteralPath $source -Destination $destination -Force
+}
+
 function ConvertTo-PackageRelativePath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -103,6 +127,10 @@ try {
 
     foreach ($item in $packageItems) {
         Copy-PackageItem -RelativePath $item
+    }
+
+    foreach ($item in $releaseSeedItems) {
+        Copy-ReleaseSeedItem -RelativePath $item
     }
 
     $files = @(

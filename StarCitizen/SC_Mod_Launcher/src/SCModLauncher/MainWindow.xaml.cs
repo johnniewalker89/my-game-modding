@@ -1837,13 +1837,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
     {
         return Regex.IsMatch(
             fileName,
-            @"^global\.ini\.\d{8}-\d{6}\.(sc-mod-launcher|before-restore)\.bak$",
+            @"^global\.ini\.\d{8}-\d{6}\.(sc-mod-launcher|before-restore|starter-clean)\.bak$",
             RegexOptions.IgnoreCase);
     }
 
     private static DateTime GetBackupTime(FileInfo info)
     {
-        var match = Regex.Match(info.Name, @"^global\.ini\.(\d{8}-\d{6})\.(?:sc-mod-launcher|before-restore)\.bak$", RegexOptions.IgnoreCase);
+        var match = Regex.Match(info.Name, @"^global\.ini\.(\d{8}-\d{6})\.(?:sc-mod-launcher|before-restore|starter-clean)\.bak$", RegexOptions.IgnoreCase);
         if (match.Success &&
             DateTime.TryParseExact(
                 match.Groups[1].Value,
@@ -1860,6 +1860,11 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private static string GetBackupPurpose(string fileName)
     {
+        if (fileName.Contains(".starter-clean.", StringComparison.OrdinalIgnoreCase))
+        {
+            return "стартовый чистый";
+        }
+
         return fileName.Contains(".before-restore.", StringComparison.OrdinalIgnoreCase)
             ? "страховка перед восстановлением"
             : "backup перед патчем";
