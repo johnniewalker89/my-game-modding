@@ -1,5 +1,21 @@
 # SC Mod Launcher Releases
 
+## 1.0.2
+
+### Что нового
+
+- Лаунчер запоминает пользовательский набор галок модулей.
+- Лаунчер запоминает выбранные семейства рецептов в фильтрах `Майнинг и крафт`.
+- Сохранённые настройки живут в `config\launcher-state.json` вместе с размером окна и путём к `LIVE`.
+- При обновлении лаунчера `config/**` сохраняется и не затирается.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_1.0.2.zip`
+- SHA-256: `F1DC6C7A1FAC324A9ABF31FB74A8655D3258A55379E42886FAC42A4B43B88D2C`
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 1.0.2`
+- Проверено: scaffold backend, WPF smoke, update installer mirror/preserve cleanup.
+
 ## 1.0.1
 
 ### Что нового

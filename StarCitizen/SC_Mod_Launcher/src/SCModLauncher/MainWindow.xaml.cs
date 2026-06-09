@@ -37,7 +37,7 @@ public partial class MainWindow : Window
     private readonly List<MiningCraftFamilySection> _miningCraftFamilySections = new();
     private readonly List<Button> _miningCraftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "1.0.1";
+    private const string CurrentLauncherVersion = "1.0.2";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string LauncherAssetPrefix = "SC_Mod_Launcher_";
     private const string LauncherAssetSuffix = ".zip";
@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     private bool _journalIsError;
     private bool _miningCraftFamilyIndexRepairQueued;
     private bool _miningCraftFamilyIndexRepairFailed;
+    private bool _isApplyingLauncherState;
     private readonly List<DispatcherTimer> _launchButtonGlitchTimers = new();
     private const int WmSysCommand = 0x0112;
     private const int ScSize = 0xF000;
@@ -74,8 +75,9 @@ public partial class MainWindow : Window
         LoadModules();
         ApplyStrings();
         LoadVisualAssets();
+        var launcherState = LoadLauncherState();
         BuildModuleCards();
-        ApplyLauncherState(LoadLauncherState());
+        ApplyLauncherState(launcherState);
         AddLog(T("ready"));
         AddMetricLog(string.Format(T("modulesFound"), _modules.Count) + ".");
         AddMetricLog("Активные модули: " + string.Join("; ", _modules.Select(module => module.Name)) + ".");
@@ -113,19 +115,30 @@ public partial class MainWindow : Window
 
     private void ApplyLauncherState(LauncherState state)
     {
-        if (state.Width is >= 1120 and <= 3840)
+        _isApplyingLauncherState = true;
+        try
         {
-            Width = state.Width.Value;
-        }
+            if (state.Width is >= 1120 and <= 3840)
+            {
+                Width = state.Width.Value;
+            }
 
-        if (state.Height is >= 720 and <= 2160)
+            if (state.Height is >= 720 and <= 2160)
+            {
+                Height = state.Height.Value;
+            }
+
+            LivePathBox.Text = string.IsNullOrWhiteSpace(state.LivePath)
+                ? FindDefaultLivePath()
+                : state.LivePath.Trim();
+
+            ApplySelectedOptions(state.SelectedOptions);
+            UpdateMiningRecipeFilterState();
+        }
+        finally
         {
-            Height = state.Height.Value;
+            _isApplyingLauncherState = false;
         }
-
-        LivePathBox.Text = string.IsNullOrWhiteSpace(state.LivePath)
-            ? FindDefaultLivePath()
-            : state.LivePath.Trim();
     }
 
     private void SaveLauncherState()
@@ -137,7 +150,9 @@ public partial class MainWindow : Window
             {
                 Width = Math.Max(MinWidth, bounds.Width),
                 Height = Math.Max(MinHeight, bounds.Height),
-                LivePath = LivePathBox.Text.Trim()
+                LivePath = LivePathBox.Text.Trim(),
+                SelectedOptions = GetSelectedOptions()
+                    .ToDictionary(pair => pair.Key, pair => pair.Value.ToList(), StringComparer.OrdinalIgnoreCase)
             };
 
             var path = GetLauncherStatePath();
@@ -151,6 +166,43 @@ public partial class MainWindow : Window
     }
 
     private string GetLauncherStatePath() => Path.Combine(_rootPath, "config", "launcher-state.json");
+
+    private void ApplySelectedOptions(Dictionary<string, List<string>>? selectedOptions)
+    {
+        if (selectedOptions is null || selectedOptions.Count == 0)
+        {
+            return;
+        }
+
+        var selectedByModule = selectedOptions.ToDictionary(
+            pair => pair.Key,
+            pair => (pair.Value ?? new List<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var pair in _optionChecks)
+        {
+            var parts = pair.Key.Split('|', 2);
+            if (parts.Length != 2 || !selectedByModule.TryGetValue(parts[0], out var moduleOptions))
+            {
+                continue;
+            }
+
+            pair.Value.IsChecked = moduleOptions.Contains(parts[1]);
+        }
+
+        foreach (var section in _miningCraftFamilySections)
+        {
+            UpdateMiningCraftFamilyCounter(section);
+        }
+    }
+
+    private void SaveLauncherStateAfterUserChange()
+    {
+        if (!_isApplyingLauncherState)
+        {
+            SaveLauncherState();
+        }
+    }
 
     private void StartLaunchButtonGlitches()
     {
@@ -769,8 +821,16 @@ public partial class MainWindow : Window
                 Margin = new Thickness(0, 0, 8, 4),
                 Foreground = (Brush)FindResource("TextPrimary")
             };
-            check.Checked += (_, _) => UpdateMiningCraftFamilyCounter(section);
-            check.Unchecked += (_, _) => UpdateMiningCraftFamilyCounter(section);
+            check.Checked += (_, _) =>
+            {
+                UpdateMiningCraftFamilyCounter(section);
+                SaveLauncherStateAfterUserChange();
+            };
+            check.Unchecked += (_, _) =>
+            {
+                UpdateMiningCraftFamilyCounter(section);
+                SaveLauncherStateAfterUserChange();
+            };
             listPanel.Children.Add(check);
             section.Checks.Add(check);
             _optionChecks[(string)check.Tag] = check;
@@ -784,6 +844,7 @@ public partial class MainWindow : Window
                 check.IsChecked = false;
             }
             UpdateMiningCraftFamilyCounter(section);
+            SaveLauncherStateAfterUserChange();
         };
 
         return section;
@@ -963,6 +1024,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
     private void ModuleOptionChanged(object sender, RoutedEventArgs e)
     {
         UpdateMiningRecipeFilterState();
+        SaveLauncherStateAfterUserChange();
     }
 
     private void UpdateMiningRecipeFilterState()
@@ -3102,6 +3164,9 @@ public sealed class LauncherState
 
     [JsonPropertyName("livePath")]
     public string LivePath { get; set; } = "";
+
+    [JsonPropertyName("selectedOptions")]
+    public Dictionary<string, List<string>> SelectedOptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed record BackupEntry(
