@@ -68,6 +68,7 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki-blueprints-4.8.1-live.11952564.json') -PathType Leaf) 'Seed mining blueprints cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\craft-family-index-4.8.1-live.11952564.json') -PathType Leaf) 'Seed mining recipe family cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -PathType Leaf) 'Quest cache should be preserved.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json.meta.json') -PathType Leaf) 'Seed quest items cache metadata should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'updates\backups\launcher-before-update-old\keep.txt') -PathType Leaf) 'Update backups should be preserved.'
     Assert-True ((Get-ChildItem -LiteralPath (Join-Path $target 'updates\backups') -Directory | Measure-Object).Count -ge 2) 'Installer should create a before-update backup.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'SC_Mod_Launcher_WPF.bat'))) 'Old launcher bat should be removed.'

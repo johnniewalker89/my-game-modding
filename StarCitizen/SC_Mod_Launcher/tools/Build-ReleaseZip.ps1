@@ -27,7 +27,8 @@ $releaseSeedItems = @(
     'backups\global.ini.20260608-230029.starter-clean.bak.meta.json',
     'modules\mining\cache\wiki-blueprints-4.8.1-live.11952564.json',
     'modules\mining\cache\craft-family-index-4.8.1-live.11952564.json',
-    'modules\quest\engine\cache\wiki-items-cache.json'
+    'modules\quest\engine\cache\wiki-items-cache.json',
+    'modules\quest\engine\cache\wiki-items-cache.json.meta.json'
 )
 
 $managedPaths = @('.')

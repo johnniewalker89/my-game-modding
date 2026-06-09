@@ -246,10 +246,29 @@ function Get-SCCacheTimestamp {
         return $null
     }
 
+    $metadataPath = "$Path.meta.json"
+    if (Test-Path -LiteralPath $metadataPath -PathType Leaf) {
+        try {
+            $metadataRaw = Get-Content -LiteralPath $metadataPath -Encoding UTF8 -Raw
+            $metadata = $metadataRaw | ConvertFrom-Json
+            if ($metadata.PSObject.Properties['createdAt'] -and -not [string]::IsNullOrWhiteSpace([string]$metadata.createdAt)) {
+                if ($metadata.createdAt -is [datetime]) {
+                    return [datetime]$metadata.createdAt
+                }
+                return [datetime]::Parse([string]$metadata.createdAt, $null, [Globalization.DateTimeStyles]::RoundtripKind)
+            }
+        }
+        catch {
+        }
+    }
+
     try {
         $raw = Get-Content -LiteralPath $Path -Encoding UTF8 -Raw
         $json = $raw | ConvertFrom-Json
         if ($json.PSObject.Properties['createdAt'] -and -not [string]::IsNullOrWhiteSpace([string]$json.createdAt)) {
+            if ($json.createdAt -is [datetime]) {
+                return [datetime]$json.createdAt
+            }
             return [datetime]::Parse([string]$json.createdAt, $null, [Globalization.DateTimeStyles]::RoundtripKind)
         }
     }
@@ -257,6 +276,26 @@ function Get-SCCacheTimestamp {
     }
 
     return (Get-Item -LiteralPath $Path).LastWriteTime
+}
+
+function Write-SCCacheTimestampMetadata {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [datetime]$CreatedAt = (Get-Date)
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return
+    }
+
+    $metadata = [ordered]@{
+        schemaVersion = 1
+        fileName = Split-Path -Leaf $Path
+        createdAt = $CreatedAt.ToString('o')
+        sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+    }
+    $json = $metadata | ConvertTo-Json -Depth 4
+    [System.IO.File]::WriteAllText("$Path.meta.json", $json, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Write-SCCacheStatusLine {
@@ -444,7 +483,9 @@ function Write-ConsoleWarmCacheSummary {
     $questOptions = @($questModule.Manifest.options | ForEach-Object { [string]$_.id })
     $questPlan = Invoke-SCModulePlan -Module $questModule -Context $context -SelectedOptions $questOptions
     Write-Host "Quest cache warmup: OK; operations: $(@($questPlan.Operations).Count)"
-    Write-SCRefreshedCacheLine -Name 'quest items' -Path (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json')
+    $questItemsCachePath = Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json'
+    Write-SCCacheTimestampMetadata -Path $questItemsCachePath
+    Write-SCRefreshedCacheLine -Name 'quest items' -Path $questItemsCachePath
 
     $familyIndexPath = Write-SCMiningCraftFamilyIndexCache -CacheKey ([string]$version.version) -Blueprints @($blueprints)
     Write-SCRefreshedCacheLine -Name 'mining recipe families' -Path $familyIndexPath
