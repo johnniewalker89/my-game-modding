@@ -12,7 +12,7 @@ $StageRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-relea
 
 $packageItems = @(
     'SC_Mod_Launcher.ps1',
-    'SC_Mod_Launcher.bat',
+    'SC_Mod_Launcher.exe',
     'README.md',
     'RELEASES.md',
     'shared',

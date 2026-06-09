@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>SC_Mod_Launcher</AssemblyName>
+    <RootNamespace>SCModLauncherRoot</RootNamespace>
+    <ApplicationIcon>..\SCModLauncher\Assets\scm-launcher.ico</ApplicationIcon>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+</Project>

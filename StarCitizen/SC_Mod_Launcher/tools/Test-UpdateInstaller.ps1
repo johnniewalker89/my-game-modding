@@ -53,12 +53,14 @@ try {
     Set-Content -LiteralPath (Join-Path $target 'tools\Build-ReleaseZip.ps1') -Value 'dev-build-tool' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'tools\Test-Scaffold.ps1') -Value 'dev-test-tool' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'app\SCModLauncher.pdb') -Value 'debug-symbols' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'SC_Mod_Launcher.bat') -Value 'old launcher bat' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'SC_Mod_Launcher_WPF.bat') -Value 'old launcher' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'modules\removed_module\cache\old.json') -Value 'old-cache' -Encoding UTF8
 
     & $Installer -PackagePath $package -TargetRoot $target -ExpectedSha256 $hash
 
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'app\SCModLauncher.exe') -PathType Leaf) 'Updated app should exist.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'SC_Mod_Launcher.exe') -PathType Leaf) 'Root launcher should exist.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'tools\Install-ScModLauncherUpdate.ps1') -PathType Leaf) 'Update helper should exist.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'update-manifest.json') -PathType Leaf) 'Installed manifest should exist.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.keep.bak') -PathType Leaf) 'User backups should be preserved.'
@@ -71,6 +73,7 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json.meta.json') -PathType Leaf) 'Seed quest items cache metadata should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'updates\backups\launcher-before-update-old\keep.txt') -PathType Leaf) 'Update backups should be preserved.'
     Assert-True ((Get-ChildItem -LiteralPath (Join-Path $target 'updates\backups') -Directory | Measure-Object).Count -ge 2) 'Installer should create a before-update backup.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'SC_Mod_Launcher.bat'))) 'Old root launcher bat should be removed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'SC_Mod_Launcher_WPF.bat'))) 'Old launcher bat should be removed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'dist'))) 'Old dist folder should be removed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'src\SCModLauncher\bin'))) 'Old build bin folder should be removed.'

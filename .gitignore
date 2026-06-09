@@ -5,6 +5,7 @@ cache/
 dist/
 updates/
 StarCitizen/SC_Mod_Launcher/app/
+StarCitizen/SC_Mod_Launcher/SC_Mod_Launcher.exe
 StarCitizen/SC_Mod_Launcher/update-manifest.json
 StarCitizen/SC_Mod_Launcher/ui/assets/cosmo-pirate-hologram-outpaint.png
 StarCitizen/SC_Mod_Launcher/ui/assets/asset-backups/

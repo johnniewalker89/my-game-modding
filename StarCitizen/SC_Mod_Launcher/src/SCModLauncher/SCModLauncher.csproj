@@ -7,5 +7,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>SCModLauncher</AssemblyName>
     <RootNamespace>SCModLauncher</RootNamespace>
+    <ApplicationIcon>Assets\scm-launcher.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\scm-launcher.ico" />
+  </ItemGroup>
 </Project>

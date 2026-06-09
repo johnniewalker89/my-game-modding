@@ -495,7 +495,7 @@ function Write-ConsoleUsage {
     Write-Host 'SC Mod Launcher backend/CLI'
     Write-Host ''
     Write-Host 'Main user launcher:'
-    Write-Host '  SC_Mod_Launcher.bat'
+    Write-Host '  SC_Mod_Launcher.exe'
     Write-Host ''
     Write-Host 'CLI modes:'
     Write-Host '  .\SC_Mod_Launcher.ps1 -LivePath "C:\Games\StarCitizen\LIVE" -Preflight'
