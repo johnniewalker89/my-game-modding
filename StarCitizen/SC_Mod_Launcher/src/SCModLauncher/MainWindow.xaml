@@ -423,6 +423,56 @@
                                                             </Image.RenderTransform>
                                                         </Image>
 
+                                                        <Canvas ClipToBounds="False" IsHitTestVisible="False">
+                                                            <Image x:Name="CigarSmokeA"
+                                                                   Width="58"
+                                                                   Canvas.Left="258"
+                                                                   Canvas.Top="36"
+                                                                   Stretch="Uniform"
+                                                                   Opacity="0"
+                                                                   RenderTransformOrigin="0.18,0.86">
+                                                                <Image.RenderTransform>
+                                                                    <TransformGroup>
+                                                                        <ScaleTransform x:Name="CigarSmokeAScale" ScaleX="0.82" ScaleY="0.82"/>
+                                                                        <RotateTransform x:Name="CigarSmokeARotate" Angle="-2"/>
+                                                                        <TranslateTransform x:Name="CigarSmokeAMove" X="0" Y="18"/>
+                                                                    </TransformGroup>
+                                                                </Image.RenderTransform>
+                                                                <Image.Effect>
+                                                                    <BlurEffect Radius="0.45"/>
+                                                                </Image.Effect>
+                                                            </Image>
+                                                            <Image x:Name="CigarSmokeB"
+                                                                   Width="46"
+                                                                   Canvas.Left="267"
+                                                                   Canvas.Top="56"
+                                                                   Stretch="Uniform"
+                                                                   Opacity="0"
+                                                                   RenderTransformOrigin="0.12,0.90">
+                                                                <Image.RenderTransform>
+                                                                    <TransformGroup>
+                                                                        <ScaleTransform x:Name="CigarSmokeBScale" ScaleX="0.62" ScaleY="0.62"/>
+                                                                        <RotateTransform x:Name="CigarSmokeBRotate" Angle="5"/>
+                                                                        <TranslateTransform x:Name="CigarSmokeBMove" X="-2" Y="14"/>
+                                                                    </TransformGroup>
+                                                                </Image.RenderTransform>
+                                                                <Image.Effect>
+                                                                    <BlurEffect Radius="0.75"/>
+                                                                </Image.Effect>
+                                                            </Image>
+                                                            <Canvas x:Name="CigarSmokeNoise"
+                                                                    Canvas.Left="252"
+                                                                    Canvas.Top="52"
+                                                                    Opacity="0.18">
+                                                                <Canvas.RenderTransform>
+                                                                    <TranslateTransform x:Name="CigarSmokeNoiseMove" X="0" Y="0"/>
+                                                                </Canvas.RenderTransform>
+                                                                <Rectangle Width="34" Height="1" Canvas.Left="18" Canvas.Top="42" Fill="{StaticResource SignalCyan}" Opacity="0.34"/>
+                                                                <Rectangle Width="22" Height="1" Canvas.Left="48" Canvas.Top="83" Fill="{StaticResource TextPrimary}" Opacity="0.22"/>
+                                                                <Rectangle Width="28" Height="1" Canvas.Left="8" Canvas.Top="126" Fill="{StaticResource SignalCyan}" Opacity="0.26"/>
+                                                            </Canvas>
+                                                        </Canvas>
+
                                                         <Canvas ClipToBounds="False">
                                                             <Canvas x:Name="HologramGlitchLayerA" Opacity="0.26">
                                                                 <Canvas.RenderTransform>
@@ -497,6 +547,96 @@
                                                                                          BeginTime="0:0:0.24"
                                                                                          Duration="0:0:0.94"
                                                                                          AutoReverse="True"/>
+                                                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetName="CigarSmokeA"
+                                                                                                       Storyboard.TargetProperty="Opacity"
+                                                                                                       Duration="0:0:11.4">
+                                                                            <SplineDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                                                                            <SplineDoubleKeyFrame KeyTime="0:0:1.8" Value="0.17"/>
+                                                                            <SplineDoubleKeyFrame KeyTime="0:0:7.4" Value="0.11"/>
+                                                                            <SplineDoubleKeyFrame KeyTime="0:0:11.4" Value="0"/>
+                                                                        </DoubleAnimationUsingKeyFrames>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeAMove"
+                                                                                         Storyboard.TargetProperty="X"
+                                                                                         From="0"
+                                                                                         To="10"
+                                                                                         Duration="0:0:11.4"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeAMove"
+                                                                                         Storyboard.TargetProperty="Y"
+                                                                                         From="18"
+                                                                                         To="-28"
+                                                                                         Duration="0:0:11.4"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeAScale"
+                                                                                         Storyboard.TargetProperty="ScaleX"
+                                                                                         From="0.68"
+                                                                                         To="1.08"
+                                                                                         Duration="0:0:11.4"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeAScale"
+                                                                                         Storyboard.TargetProperty="ScaleY"
+                                                                                         From="0.68"
+                                                                                         To="1.18"
+                                                                                         Duration="0:0:11.4"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeARotate"
+                                                                                         Storyboard.TargetProperty="Angle"
+                                                                                         From="-3"
+                                                                                         To="5"
+                                                                                         Duration="0:0:11.4"/>
+                                                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetName="CigarSmokeB"
+                                                                                                       Storyboard.TargetProperty="Opacity"
+                                                                                                       BeginTime="0:0:2.8"
+                                                                                                       Duration="0:0:10.8">
+                                                                            <SplineDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                                                                            <SplineDoubleKeyFrame KeyTime="0:0:2.0" Value="0.10"/>
+                                                                            <SplineDoubleKeyFrame KeyTime="0:0:7.0" Value="0.07"/>
+                                                                            <SplineDoubleKeyFrame KeyTime="0:0:10.8" Value="0"/>
+                                                                        </DoubleAnimationUsingKeyFrames>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeBMove"
+                                                                                         Storyboard.TargetProperty="X"
+                                                                                         From="-2"
+                                                                                         To="13"
+                                                                                         BeginTime="0:0:2.8"
+                                                                                         Duration="0:0:10.8"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeBMove"
+                                                                                         Storyboard.TargetProperty="Y"
+                                                                                         From="14"
+                                                                                         To="-32"
+                                                                                         BeginTime="0:0:2.8"
+                                                                                         Duration="0:0:10.8"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeBScale"
+                                                                                         Storyboard.TargetProperty="ScaleX"
+                                                                                         From="0.54"
+                                                                                         To="1.00"
+                                                                                         BeginTime="0:0:2.8"
+                                                                                         Duration="0:0:10.8"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeBScale"
+                                                                                         Storyboard.TargetProperty="ScaleY"
+                                                                                         From="0.54"
+                                                                                         To="1.10"
+                                                                                         BeginTime="0:0:2.8"
+                                                                                         Duration="0:0:10.8"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeBRotate"
+                                                                                         Storyboard.TargetProperty="Angle"
+                                                                                         From="6"
+                                                                                         To="-5"
+                                                                                         BeginTime="0:0:2.8"
+                                                                                         Duration="0:0:10.8"/>
+                                                                        <DoubleAnimationUsingKeyFrames Storyboard.TargetName="CigarSmokeNoise"
+                                                                                                       Storyboard.TargetProperty="Opacity"
+                                                                                                       BeginTime="0:0:1.1"
+                                                                                                       Duration="0:0:5.8">
+                                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:0.75" Value="0.09"/>
+                                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:1.10" Value="0.02"/>
+                                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:1.90" Value="0.07"/>
+                                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:2.75" Value="0"/>
+                                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:4.70" Value="0.05"/>
+                                                                            <DiscreteDoubleKeyFrame KeyTime="0:0:5.8" Value="0"/>
+                                                                        </DoubleAnimationUsingKeyFrames>
+                                                                        <DoubleAnimation Storyboard.TargetName="CigarSmokeNoiseMove"
+                                                                                         Storyboard.TargetProperty="Y"
+                                                                                         From="10"
+                                                                                         To="-24"
+                                                                                         BeginTime="0:0:1.1"
+                                                                                         Duration="0:0:11.4"/>
                                                                     </Storyboard>
                                                                 </BeginStoryboard>
                                                             </EventTrigger>

@@ -345,6 +345,20 @@ public partial class MainWindow : Window
             HologramGhostLeft.Source = hologram;
             HologramGhostRight.Source = hologram;
         }
+
+        var smokePath = Path.Combine(_rootPath, "ui", "assets", "cigar-smoke-hologram.png");
+        if (File.Exists(smokePath))
+        {
+            var smoke = new BitmapImage();
+            smoke.BeginInit();
+            smoke.CacheOption = BitmapCacheOption.OnLoad;
+            smoke.UriSource = new Uri(smokePath, UriKind.Absolute);
+            smoke.EndInit();
+            smoke.Freeze();
+
+            CigarSmokeA.Source = smoke;
+            CigarSmokeB.Source = smoke;
+        }
     }
 
     private void BuildModuleCards()
