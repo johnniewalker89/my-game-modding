@@ -1,5 +1,23 @@
 # SC Mod Launcher Releases
 
+## 1.0.1
+
+### Что нового
+
+- Убраны белые системные всплывающие подсказки WPF у галок, фильтров и ссылок.
+- Неработающий нижний resize-grip заменён на рабочий верхний правый grip в углу лаунчера.
+- Лаунчер запоминает размер окна после изменения размера.
+- Лаунчер запоминает последний выбранный путь к `StarCitizen\LIVE`.
+- Локальные настройки сохраняются в `config\launcher-state.json`.
+- Updater теперь сохраняет `config/**` между обновлениями вместе с backup/cache.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_1.0.1.zip`
+- SHA-256: `B2B412CF79C9095178495F67A71568C9D8FBCD053ABEC2B7D392008B00794C1D`
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 1.0.1`
+- Проверено: scaffold backend, WPF smoke, update installer mirror/preserve cleanup.
+
 ## 1.0.0
 
 ### Что нового

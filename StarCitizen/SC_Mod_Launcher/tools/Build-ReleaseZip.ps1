@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '1.0.0'
+    [string]$Version = '1.0.1'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -40,6 +40,8 @@ $preservePaths = @(
     'modules/mining/cache/**',
     'modules/quest/engine/cache',
     'modules/quest/engine/cache/**',
+    'config',
+    'config/**',
     'updates/backups',
     'updates/backups/**'
 )

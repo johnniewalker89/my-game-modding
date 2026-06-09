@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -22,6 +23,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 
@@ -35,7 +37,7 @@ public partial class MainWindow : Window
     private readonly List<MiningCraftFamilySection> _miningCraftFamilySections = new();
     private readonly List<Button> _miningCraftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "1.0.0";
+    private const string CurrentLauncherVersion = "1.0.1";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string LauncherAssetPrefix = "SC_Mod_Launcher_";
     private const string LauncherAssetSuffix = ".zip";
@@ -57,6 +59,12 @@ public partial class MainWindow : Window
     private bool _miningCraftFamilyIndexRepairQueued;
     private bool _miningCraftFamilyIndexRepairFailed;
     private readonly List<DispatcherTimer> _launchButtonGlitchTimers = new();
+    private const int WmSysCommand = 0x0112;
+    private const int ScSize = 0xF000;
+    private const int WmszTopRight = 5;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     public MainWindow()
     {
@@ -67,7 +75,7 @@ public partial class MainWindow : Window
         ApplyStrings();
         LoadVisualAssets();
         BuildModuleCards();
-        LivePathBox.Text = FindDefaultLivePath();
+        ApplyLauncherState(LoadLauncherState());
         AddLog(T("ready"));
         AddMetricLog(string.Format(T("modulesFound"), _modules.Count) + ".");
         AddMetricLog("Активные модули: " + string.Join("; ", _modules.Select(module => module.Name)) + ".");
@@ -77,8 +85,72 @@ public partial class MainWindow : Window
             StartLaunchButtonGlitches();
             await CheckUpdatesAsync();
         };
-        Closed += (_, _) => StopLaunchButtonGlitches();
+        Closed += (_, _) =>
+        {
+            SaveLauncherState();
+            StopLaunchButtonGlitches();
+        };
     }
+
+    private LauncherState LoadLauncherState()
+    {
+        var path = GetLauncherStatePath();
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return new LauncherState();
+            }
+
+            var json = File.ReadAllText(path, Encoding.UTF8);
+            return JsonSerializer.Deserialize<LauncherState>(json) ?? new LauncherState();
+        }
+        catch
+        {
+            return new LauncherState();
+        }
+    }
+
+    private void ApplyLauncherState(LauncherState state)
+    {
+        if (state.Width is >= 1120 and <= 3840)
+        {
+            Width = state.Width.Value;
+        }
+
+        if (state.Height is >= 720 and <= 2160)
+        {
+            Height = state.Height.Value;
+        }
+
+        LivePathBox.Text = string.IsNullOrWhiteSpace(state.LivePath)
+            ? FindDefaultLivePath()
+            : state.LivePath.Trim();
+    }
+
+    private void SaveLauncherState()
+    {
+        try
+        {
+            var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+            var state = new LauncherState
+            {
+                Width = Math.Max(MinWidth, bounds.Width),
+                Height = Math.Max(MinHeight, bounds.Height),
+                LivePath = LivePathBox.Text.Trim()
+            };
+
+            var path = GetLauncherStatePath();
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(path, json, new UTF8Encoding(false));
+        }
+        catch
+        {
+        }
+    }
+
+    private string GetLauncherStatePath() => Path.Combine(_rootPath, "config", "launcher-state.json");
 
     private void StartLaunchButtonGlitches()
     {
@@ -551,7 +623,6 @@ public partial class MainWindow : Window
             {
                 Content = option.Name,
                 IsChecked = option.Default,
-                ToolTip = option.Description,
                 Tag = $"{module.Id}|{option.Id}",
                 Margin = new Thickness(0, 0, 8, 2)
             };
@@ -650,8 +721,7 @@ public partial class MainWindow : Window
             Height = 30,
             Padding = new Thickness(8, 0, 8, 0),
             VerticalContentAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 7),
-            ToolTip = "Поиск по семейству, предметам и ресурсам"
+            Margin = new Thickness(0, 0, 0, 7)
         };
         body.Children.Add(search);
 
@@ -697,8 +767,7 @@ public partial class MainWindow : Window
                 IsChecked = false,
                 Tag = $"mining|{entry.OptionId}",
                 Margin = new Thickness(0, 0, 8, 4),
-                Foreground = (Brush)FindResource("TextPrimary"),
-                ToolTip = BuildMiningCraftFamilyTooltip(entry)
+                Foreground = (Brush)FindResource("TextPrimary")
             };
             check.Checked += (_, _) => UpdateMiningCraftFamilyCounter(section);
             check.Unchecked += (_, _) => UpdateMiningCraftFamilyCounter(section);
@@ -749,25 +818,6 @@ public partial class MainWindow : Window
     {
         var selected = section.Checks.Count(check => check.IsChecked == true);
         section.Counter.Text = $"{selected}/{section.Checks.Count}";
-    }
-
-    private static string BuildMiningCraftFamilyTooltip(MiningCraftFamilyEntry entry)
-    {
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(entry.Subcategory))
-        {
-            parts.Add(entry.Subcategory);
-        }
-        if (entry.Names.Count > 0)
-        {
-            parts.Add(string.Join(", ", entry.Names.Take(8)) + (entry.Names.Count > 8 ? "..." : ""));
-        }
-        if (entry.Resources.Count > 0)
-        {
-            parts.Add("Ресурсы: " + string.Join(", ", entry.Resources));
-        }
-
-        return string.Join(Environment.NewLine, parts);
     }
 
     private void QueueMiningCraftFamilyIndexRepair()
@@ -985,8 +1035,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         {
             NavigateUri = new Uri("file:///" + path.Replace("\\", "/")),
             Foreground = (Brush)FindResource("SignalCyan"),
-            TextDecorations = null,
-            ToolTip = path
+            TextDecorations = null
         };
         link.RequestNavigate += OpenLocalLogLink;
         paragraph.Inlines.Add(link);
@@ -1007,8 +1056,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         {
             NavigateUri = new Uri(uri),
             Foreground = (Brush)FindResource("SignalCyan"),
-            TextDecorations = null,
-            ToolTip = uri
+            TextDecorations = null
         };
         link.RequestNavigate += OpenLocalLogLink;
         paragraph.Inlines.Add(link);
@@ -1053,8 +1101,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         {
             NavigateUri = new Uri("file:///" + path.Replace("\\", "/")),
             Foreground = (Brush)FindResource("SignalCyan"),
-            TextDecorations = null,
-            ToolTip = path
+            TextDecorations = null
         };
         link.RequestNavigate += OpenLocalLogLink;
         paragraph.Inlines.Add(link);
@@ -2844,6 +2891,22 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
     }
 
+    private void TopRightResizeGripMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero)
+        {
+            SendMessage(hwnd, WmSysCommand, (IntPtr)(ScSize + WmszTopRight), IntPtr.Zero);
+        }
+
+        e.Handled = true;
+    }
+
     private void MinimizeWindow(object sender, RoutedEventArgs e)
     {
         WindowState = WindowState.Minimized;
@@ -3028,6 +3091,18 @@ public sealed record LauncherRelease(
     long AssetSize,
     string AssetDownloadUrl,
     string? ExpectedSha256);
+
+public sealed class LauncherState
+{
+    [JsonPropertyName("width")]
+    public double? Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public double? Height { get; set; }
+
+    [JsonPropertyName("livePath")]
+    public string LivePath { get; set; } = "";
+}
 
 public sealed record BackupEntry(
     string FilePath,

@@ -40,6 +40,7 @@ try {
 
     $directories = @(
         'backups',
+        'config',
         'modules\mining\cache',
         'modules\quest\engine\cache',
         'updates\backups\launcher-before-update-old',
@@ -53,6 +54,7 @@ try {
     }
 
     Set-Content -LiteralPath (Join-Path $target 'backups\global.ini.keep.bak') -Value 'backup' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'config\launcher-state.json') -Value '{"width":1190,"height":760,"livePath":"C:\\Games\\StarCitizen\\LIVE"}' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -Value 'mining-cache' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -Value 'quest-cache' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'updates\backups\launcher-before-update-old\keep.txt') -Value 'update-backup' -Encoding UTF8
@@ -73,6 +75,7 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'tools\Install-ScModLauncherUpdate.ps1') -PathType Leaf) 'Update helper should exist.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'update-manifest.json') -PathType Leaf) 'Installed manifest should exist.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.keep.bak') -PathType Leaf) 'User backups should be preserved.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'config\launcher-state.json') -PathType Leaf) 'Launcher local state should be preserved.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260608-230029.starter-clean.bak') -PathType Leaf) 'Starter clean backup should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260608-230029.starter-clean.bak.meta.json') -PathType Leaf) 'Starter clean backup metadata should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -PathType Leaf) 'Mining cache should be preserved.'

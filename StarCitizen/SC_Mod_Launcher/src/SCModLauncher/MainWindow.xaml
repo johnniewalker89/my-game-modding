@@ -11,7 +11,7 @@
         MinHeight="720"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        ResizeMode="CanResizeWithGrip"
+        ResizeMode="CanResize"
         Background="{StaticResource HullBlack}"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
@@ -293,7 +293,6 @@
                     </StackPanel>
                 </Grid>
             </Border>
-
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -990,5 +989,25 @@
                 </Grid>
             </Border>
         </Grid>
+        <Border x:Name="TopRightResizeGrip"
+                Width="18"
+                Height="18"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0"
+                Background="Transparent"
+                Cursor="SizeNESW"
+                MouseLeftButtonDown="TopRightResizeGripMouseLeftButtonDown"
+                Panel.ZIndex="100">
+            <ResizeGrip Width="18"
+                        Height="18"
+                        IsHitTestVisible="False"
+                        Opacity="0.9"
+                        RenderTransformOrigin="0.5,0.5">
+                <ResizeGrip.RenderTransform>
+                    <RotateTransform Angle="-90"/>
+                </ResizeGrip.RenderTransform>
+            </ResizeGrip>
+        </Border>
     </Grid>
 </Window>
