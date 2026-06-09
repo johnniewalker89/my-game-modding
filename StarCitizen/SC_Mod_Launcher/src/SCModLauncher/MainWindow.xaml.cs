@@ -1161,7 +1161,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
             else if (line.StartsWith("Wiki blueprints:", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(55);
             else if (line.StartsWith("Cache mining blueprints:", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(68);
             else if (line.StartsWith("Quest cache warmup:", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(86);
-            else if (line.StartsWith("Cache quest items:", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(96);
+            else if (line.StartsWith("Cache quest items:", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(94);
+            else if (line.StartsWith("Cache mining recipe families:", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(98);
         }
         else if (mode == BackendRunMode.LiveApply)
         {
@@ -2261,7 +2262,6 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var backup = FindValue("Backup:");
         var writeSucceeded = FindValue("Write succeeded:");
         var miningModule = lines.FirstOrDefault(line => line.StartsWith("Module Майнинг", StringComparison.OrdinalIgnoreCase)) ?? "";
-        var miningMethods = FindValue("Mining methods:");
         var planetDescriptions = FindValue("Planet descriptions:");
         var itemCraftHints = FindValue("Item craft hints:");
         var questModule = lines.FirstOrDefault(line => line.StartsWith("Module Квесты и рецепты:", StringComparison.OrdinalIgnoreCase)) ?? "";
@@ -2283,7 +2283,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         if (!string.IsNullOrWhiteSpace(miningModule))
         {
-            AddMetricLog($"Майнинг: {AfterColon(miningModule)}; {TextOrUnknown(miningMethods)}; планеты {ShortPlanetLine(planetDescriptions)}.");
+            AddMetricLog($"Майнинг: {AfterColon(miningModule)}; планеты {ShortPlanetLine(planetDescriptions)}.");
             if (!string.IsNullOrWhiteSpace(itemCraftHints))
             {
                 AddMetricLog($"Предметы: {itemCraftHints}.");

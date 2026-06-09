@@ -86,17 +86,6 @@ function Format-SelectedOptionNames {
     return ($names -join ', ')
 }
 
-function Format-MiningMethodCodes {
-    param([object]$ModuleReport)
-
-    $methods = @($ModuleReport.metadata.selectedMethods)
-    if ($methods.Count -eq 0) {
-        return 'none'
-    }
-
-    return ($methods | ForEach-Object { "[$_]" }) -join ' '
-}
-
 function Get-ModuleSummaryLines {
     param([object]$Report)
 
@@ -106,7 +95,6 @@ function Get-ModuleSummaryLines {
         $lines += "Module $($module.name): $optionNames"
 
         if ($module.id -eq 'mining') {
-            $lines += "  Mining methods: $(Format-MiningMethodCodes -ModuleReport $module)"
             $lines += "  Planet descriptions: $($module.metadata.changedPlanetDescriptions) changed of $($module.metadata.planetBlocksFound) with SCMDB hints"
             if ($module.metadata.itemCraftHints -and $module.metadata.itemCraftHints.enabled) {
                 $craft = $module.metadata.itemCraftHints
@@ -413,10 +401,12 @@ function Write-ConsolePreflightSummary {
         if ($version -and -not [string]::IsNullOrWhiteSpace([string]$version.version)) {
             $miningCachePath = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$version.version)
             Write-SCCacheStatusLine -Name 'mining blueprints' -Path $miningCachePath
+            $familyIndexPath = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$version.version)
+            Write-SCCacheStatusLine -Name 'mining recipe families' -Path $familyIndexPath
         }
     }
     catch {
-        Write-Host "Cache mining blueprints: FAIL; $($_.Exception.Message)"
+        Write-Host "Cache mining module: FAIL; $($_.Exception.Message)"
     }
 
     Write-SCCacheStatusLine -Name 'quest items' -Path (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json')
