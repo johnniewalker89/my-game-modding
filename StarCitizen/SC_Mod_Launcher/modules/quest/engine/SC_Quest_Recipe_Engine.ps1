@@ -14,6 +14,8 @@
 
     [switch]$NoCraftIntel,
 
+    [switch]$CacheOnly,
+
     [switch]$NoCache,
 
     [switch]$KeepExistingBlueprintBlocks,
@@ -854,7 +856,7 @@ function Get-WikiItemsByName {
         return $itemsByName
     }
 
-    $chunkSize = 5
+    $chunkSize = 20
     for ($offset = 0; $offset -lt $Names.Count; $offset += $chunkSize) {
         $chunk = @($Names[$offset..([Math]::Min($offset + $chunkSize - 1, $Names.Count - 1))])
         $query = ($chunk | ForEach-Object { 'filter[name][]=' + [System.Uri]::EscapeDataString($_) }) -join '&'
@@ -977,13 +979,12 @@ function New-EnrichmentMap {
             $cache[$name] = $cached
             if ($cached.found) {
                 $result[$name] = $cached
+                if (-not $cached.PSObject.Properties['blueprintUuid']) {
+                    $namesForWiki.Add($name)
+                }
             }
             else {
                 $result[$name] = $cached
-            }
-
-            if (-not $cached.PSObject.Properties['blueprintUuid']) {
-                $namesForWiki.Add($name)
             }
         }
         else {
@@ -2565,7 +2566,7 @@ $globalPath = Resolve-GlobalIniPath -InputLivePath $LivePath -InputGlobalIniPath
 
 if ($RestoreLatestBackup) {
     Restore-LatestBackup -TargetGlobalIni $globalPath
-    exit 0
+    return
 }
 
 $encodingInfo = Get-TextEncodingInfo -Path $globalPath
@@ -2582,6 +2583,43 @@ $titleRewardMap = $rewardInfo.TitleMap
 $uniqueBlueprintNames = Get-UniqueBlueprintNames -DescriptionMap $descriptionRewardMap
 $script:BlueprintEnrichment = New-EnrichmentMap -Names $uniqueBlueprintNames
 $enrichmentStats = Get-EnrichmentStats -Map $script:BlueprintEnrichment
+
+if ($CacheOnly) {
+    if (-not $ReportPath) {
+        $reportDir = Join-Path $ScriptDir 'reports'
+        New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
+        $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $ReportPath = Join-Path $reportDir "scmdb-recipe-cacheonly-$stamp.json"
+    }
+
+    $report = [pscustomobject]@{
+        mode = 'cacheOnly'
+        createdAt = (Get-Date).ToString('o')
+        globalIniPath = $globalPath
+        originalSha256 = $originalHash
+        originalSize = $originalSize
+        scmdbVersion = $scmdb.Version
+        uniqueBlueprintNames = @($uniqueBlueprintNames).Count
+        wikiMatched = $enrichmentStats.wikiMatched
+        overrideMatched = $enrichmentStats.overrideMatched
+        patternMatched = $enrichmentStats.patternMatched
+        unknownBlueprints = @($enrichmentStats.unknownBlueprints | Sort-Object)
+        reportPath = $ReportPath
+    }
+
+    $reportJson = $report | ConvertTo-Json -Depth 8
+    $reportEncoding = New-Object System.Text.UTF8Encoding($true)
+    [System.IO.File]::WriteAllText($ReportPath, $reportJson, $reportEncoding)
+
+    Write-Host "Quest cache warmup: OK; names: $(@($uniqueBlueprintNames).Count)"
+    Write-Host "SCMDB version: $($scmdb.Version)"
+    Write-Host "Wiki matched: $($enrichmentStats.wikiMatched)"
+    Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
+    Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
+    Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
+    Write-Host "Report: $ReportPath"
+    return
+}
 
 $lines = [System.IO.File]::ReadAllLines($globalPath, $encodingInfo.Encoding)
 $lineValues = New-LineValueMap -Lines $lines
@@ -2776,7 +2814,7 @@ if ($changedLines -eq 0) {
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
     Write-Host "Report: $ReportPath"
-    exit 0
+    return
 }
 
 if ($DryRun) {
@@ -2788,7 +2826,7 @@ if ($DryRun) {
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
     Write-Host "Report: $ReportPath"
-    exit 0
+    return
 }
 
 if (-not $NoBackup) {

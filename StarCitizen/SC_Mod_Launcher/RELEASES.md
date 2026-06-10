@@ -1,5 +1,24 @@
 # SC Mod Launcher Releases
 
+## 1.0.5
+
+### Что нового
+
+- Исправлено зависание `Применить в LIVE`, когда `quest items` cache был формально HIT, но cached `wiki-miss` повторно отправлялся в Wiki.
+- Квестовый engine теперь запускается внутри backend-процесса, без вложенного Windows PowerShell.
+- Добавлены подробные этапы прогресса квестового модуля: engine, filter, extras, diff.
+- `Прогреть кэш` осталось одной кнопкой, но квестовый cache теперь греется лёгким путём без построения полного patch-plan.
+- Wiki lookup для квестового cache идёт крупнее пачками.
+- В бортовом журнале показывается время успешного прогрева cache и успешного применения в LIVE.
+- Исправлена ссылка `Отчёт`: теперь journal показывает финальный `sc-mod-launcher-apply-*.json`, а не внутренний `quest-engine-report.json`.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_1.0.5.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 1.0.5`
+- Проверено: scaffold backend, WPF build/smoke, update installer mirror/preserve cleanup, проверка состава release ZIP.
+
 ## 1.0.4
 
 ### Что нового

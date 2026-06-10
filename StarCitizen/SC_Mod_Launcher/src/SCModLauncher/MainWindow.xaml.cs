@@ -38,7 +38,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "1.0.4";
+    private const string CurrentLauncherVersion = "1.0.5";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string LauncherAssetPrefix = "SC_Mod_Launcher_";
     private const string LauncherAssetSuffix = ".zip";
@@ -1579,6 +1579,14 @@ Write-Host "FAMILY_INDEX:$indexPath"
             else if (line.Equals("Progress: module mining start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(34);
             else if (line.Equals("Progress: module mining done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(48);
             else if (line.Equals("Progress: module quest start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(58);
+            else if (line.Equals("Progress: quest engine start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(60);
+            else if (line.Equals("Progress: quest engine done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(64);
+            else if (line.Equals("Progress: quest filter start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(65);
+            else if (line.Equals("Progress: quest filter done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(67);
+            else if (line.Equals("Progress: quest extras start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(68);
+            else if (line.Equals("Progress: quest extras done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(70);
+            else if (line.Equals("Progress: quest diff start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(71);
+            else if (line.Equals("Progress: quest diff done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(72);
             else if (line.Equals("Progress: module quest done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(72);
             else if (line.Equals("Progress: apply merge", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(78);
             else if (line.Equals("Progress: apply preview", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(84);
@@ -2416,7 +2424,9 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
             var args = BuildBackendArguments(mode, mode is BackendRunMode.DryRun or BackendRunMode.LiveApply ? optionsPath : null);
             var timeout = GetBackendTimeout(mode);
+            var backendStopwatch = Stopwatch.StartNew();
             var result = await RunProcessAsync("powershell.exe", args.ToString(), line => HandleBackendProgressLine(mode, line), timeout);
+            backendStopwatch.Stop();
             var diagnosticPath = WriteBackendDiagnosticLog(mode, result, timeout);
             if (mode is BackendRunMode.WarmCache or BackendRunMode.LiveApply)
             {
@@ -2432,12 +2442,17 @@ Write-Host "FAMILY_INDEX:$indexPath"
                         break;
                     case BackendRunMode.WarmCache:
                         AddWarmCacheSummary(result.Output);
+                        AddMetricLog($"Время прогрева: {FormatDuration(backendStopwatch.Elapsed)}.");
                         _miningCraftFamilyIndexRepairQueued = false;
                         _miningCraftFamilyIndexRepairFailed = false;
                         RebuildModuleCardsPreservingSelection();
                         break;
                     default:
                         AddBackendSummary(result.Output, mode);
+                        if (mode == BackendRunMode.LiveApply)
+                        {
+                            AddMetricLog($"Время применения: {FormatDuration(backendStopwatch.Elapsed)}.");
+                        }
                         break;
                 }
             }
@@ -2689,12 +2704,16 @@ Write-Host "FAMILY_INDEX:$indexPath"
     {
         var lines = GetBackendLines(output);
 
-        string FindValue(string prefix) => lines.FirstOrDefault(line => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Substring(prefix.Length).Trim() ?? "";
+        string FindValue(string prefix, bool last = false)
+        {
+            var source = last ? lines.Reverse() : lines;
+            return source.FirstOrDefault(line => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Substring(prefix.Length).Trim() ?? "";
+        }
 
         var operations = FindValue("Operations:");
         var conflicts = FindValue("Conflicts:");
         var backup = FindValue("Backup:");
-        var report = FindValue("Report:");
+        var report = FindValue("Report:", last: true);
         var writeSucceeded = FindValue("Write succeeded:");
         var miningModule = lines.FirstOrDefault(line => line.StartsWith("Module Майнинг", StringComparison.OrdinalIgnoreCase)) ?? "";
         var planetDescriptions = FindValue("Planet descriptions:");
@@ -2930,12 +2949,17 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private static string FormatDuration(TimeSpan value)
     {
-        if (value.TotalMinutes >= 1)
+        if (value.TotalHours >= 1)
         {
-            return $"{Math.Round(value.TotalMinutes)} мин";
+            return $"{(int)value.TotalHours} ч {value.Minutes} мин {value.Seconds} с";
         }
 
-        return $"{Math.Round(value.TotalSeconds)} сек";
+        if (value.TotalMinutes >= 1)
+        {
+            return $"{value.Minutes} мин {value.Seconds} с";
+        }
+
+        return $"{Math.Max(0, (int)Math.Round(value.TotalSeconds))} с";
     }
 
     private async Task CheckUpdatesAsync()

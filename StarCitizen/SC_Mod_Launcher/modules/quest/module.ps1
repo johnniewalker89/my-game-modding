@@ -44,7 +44,9 @@
         }
     }
 
+    Write-Host 'Progress: quest engine start'
     $engine = Invoke-SCQuestRecipeEngine -Context $Context
+    Write-Host 'Progress: quest engine done'
     $metadata.engine = $engine.EnginePath
     $metadata.engineExitCode = $engine.ExitCode
 
@@ -67,6 +69,7 @@
         filtered = 0
     }
 
+    Write-Host 'Progress: quest filter start'
     foreach ($key in @($patchedValues.Keys)) {
         $value = [string]$patchedValues[$key]
         if (-not (Test-SCQuestHasRewardBlock -Value $value)) {
@@ -109,15 +112,19 @@
         }
     }
 
+    Write-Host 'Progress: quest filter done'
+    Write-Host 'Progress: quest extras start'
     $highlightConfig = Get-SCQuestHighValueScripHighlightConfig
     $highlightStats = Set-SCQuestHighValueScripTitleHighlights -Values $patchedValues -Config $highlightConfig -Enable:$enableHighValueScripHighlights
     $wikeloHintStats = Set-SCQuestWikeloItemHints -Values $patchedValues -Enable:$enableWikeloItemHints
+    Write-Host 'Progress: quest extras done'
 
     $operations = @()
     $changedDescriptionLines = 0
     $changedTitleLines = 0
     $changedWikeloHintLines = 0
 
+    Write-Host 'Progress: quest diff start'
     foreach ($key in @($patchedValues.Keys | Sort-Object)) {
         if (-not $originalValues.ContainsKey($key)) {
             continue
@@ -154,6 +161,7 @@
             OwnedMarkers = $ownedMarkers
         }
     }
+    Write-Host 'Progress: quest diff done'
 
     $metadata.generatedDescriptionBlocks = $descriptionStats.generated
     $metadata.keptDescriptionBlocks = $descriptionStats.kept
@@ -206,25 +214,24 @@ function Invoke-SCQuestRecipeEngine {
     New-Item -ItemType Directory -Force -Path $tempLoc | Out-Null
     [System.IO.File]::WriteAllLines($tempGlobal, @($Context.Lines), $Context.EncodingInfo.Encoding)
 
-    $powershellExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    if (-not (Test-Path -LiteralPath $powershellExe -PathType Leaf)) {
-        $powershellExe = 'powershell.exe'
+    $arguments = @{
+        GlobalIniPath = $tempGlobal
+        NoBackup = $true
+        NoCraftIntel = $true
+        ReportPath = $tempReport
+        OverridesPath = Join-Path $engineRoot 'data\blueprint-overrides.ru.json'
+        WikiCachePath = Join-Path $engineRoot 'cache\wiki-items-cache.json'
     }
 
-    $arguments = @(
-        '-NoProfile',
-        '-ExecutionPolicy', 'Bypass',
-        '-File', $engineScript,
-        '-GlobalIniPath', $tempGlobal,
-        '-NoBackup',
-        '-NoCraftIntel',
-        '-ReportPath', $tempReport,
-        '-OverridesPath', (Join-Path $engineRoot 'data\blueprint-overrides.ru.json'),
-        '-WikiCachePath', (Join-Path $engineRoot 'cache\wiki-items-cache.json')
-    )
-
-    $engineOutput = @(& $powershellExe @arguments 2>&1 | ForEach-Object { [string]$_ })
-    $exitCode = if ($global:LASTEXITCODE -eq $null) { 0 } else { [int]$global:LASTEXITCODE }
+    $engineOutput = @()
+    $exitCode = 0
+    try {
+        $engineOutput = @(& $engineScript @arguments 2>&1 | ForEach-Object { [string]$_ })
+    }
+    catch {
+        $exitCode = 1
+        $engineOutput += [string]$_
+    }
 
     $patchedLines = @()
     if (Test-Path -LiteralPath $tempGlobal -PathType Leaf) {

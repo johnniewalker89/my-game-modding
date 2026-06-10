@@ -481,16 +481,23 @@ function Write-ConsoleWarmCacheSummary {
     Write-Host "Wiki blueprints: $($blueprints.Count)"
     Write-SCRefreshedCacheLine -Name 'mining blueprints' -Path $cachePath
 
-    $questModule = Get-SCModuleById -Id 'quest'
     foreach ($questCachePath in Get-SCQuestCachePaths) {
         Reset-SCCacheFile -Path $questCachePath
     }
 
-    $context = Read-SCLocalizationData -LivePath $LivePath
-    $questOptions = @($questModule.Manifest.options | ForEach-Object { [string]$_.id })
-    $questPlan = Invoke-SCModulePlan -Module $questModule -Context $context -SelectedOptions $questOptions
-    Write-Host "Quest cache warmup: OK; operations: $(@($questPlan.Operations).Count)"
     $questItemsCachePath = Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json'
+    $questEngineScript = Join-Path $ScriptRoot 'modules\quest\engine\SC_Quest_Recipe_Engine.ps1'
+    $questReportPath = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-quest-cache-warmup-" + [guid]::NewGuid().ToString('N') + ".json")
+    $questEngineArgs = @{
+        GlobalIniPath = Resolve-SCGlobalIniPath -LivePath $LivePath
+        NoBackup = $true
+        NoCraftIntel = $true
+        CacheOnly = $true
+        ReportPath = $questReportPath
+        OverridesPath = Join-Path $ScriptRoot 'modules\quest\engine\data\blueprint-overrides.ru.json'
+        WikiCachePath = $questItemsCachePath
+    }
+    & $questEngineScript @questEngineArgs | ForEach-Object { Write-Host ([string]$_) }
     Write-SCCacheTimestampMetadata -Path $questItemsCachePath
     Write-SCRefreshedCacheLine -Name 'quest items' -Path $questItemsCachePath
 
