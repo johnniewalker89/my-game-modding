@@ -104,6 +104,10 @@ function Get-ModuleSummaryLines {
         elseif ($module.id -eq 'quest') {
             $lines += "  Quest descriptions: $($module.metadata.changedDescriptionLines) changed; kept blocks: $($module.metadata.keptDescriptionBlocks), filtered blocks: $($module.metadata.filteredDescriptionBlocks)"
             $lines += "  Quest titles: $($module.metadata.changedTitleLines) changed"
+            if ($module.metadata.wikeloItemHints -and $module.metadata.wikeloItemHints.enabled) {
+                $wikelo = $module.metadata.wikeloItemHints
+                $lines += "  Wikelo item hints: $($wikelo.changedItemDescriptions) changed of $($wikelo.targetDescriptionKeys) mapped; resources: $($wikelo.mappedResources)/$($wikelo.resourceCount), unmapped: $($wikelo.unmappedResources)"
+            }
         }
         else {
             $lines += "  Operations: $($module.operationCount)"
@@ -129,6 +133,7 @@ function Write-ConsoleDryRunSummary {
     Write-Host "Changed lines: $($report.changedLines)"
     Write-Host "Fixed EM lines: $($report.fixedMalformedEmphasisLines)"
     Write-Host "Conflicts: $($report.conflictCount)"
+    Write-Host "Report: $($Result.ReportPath)"
     foreach ($line in (Get-ModuleSummaryLines -Report $report)) {
         Write-Host $line
     }
@@ -148,6 +153,7 @@ function Write-ConsoleStagingSummary {
     Write-Host "Fixed EM lines: $($report.fixedMalformedEmphasisLines)"
     Write-Host "Conflicts: $($report.conflictCount)"
     Write-Host "Write succeeded: $($report.writeSucceeded)"
+    Write-Host "Report: $($Result.ReportPath)"
     foreach ($line in (Get-ModuleSummaryLines -Report $report)) {
         Write-Host $line
     }
@@ -168,6 +174,7 @@ function Write-ConsoleLiveApplySummary {
     if (-not [string]::IsNullOrWhiteSpace($report.backupPath)) {
         Write-Host "Backup: $($report.backupPath)"
     }
+    Write-Host "Report: $($Result.ReportPath)"
     foreach ($line in (Get-ModuleSummaryLines -Report $report)) {
         Write-Host $line
     }

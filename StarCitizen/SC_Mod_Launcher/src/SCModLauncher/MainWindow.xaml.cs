@@ -38,13 +38,13 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "1.0.3";
+    private const string CurrentLauncherVersion = "1.0.4";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string LauncherAssetPrefix = "SC_Mod_Launcher_";
     private const string LauncherAssetSuffix = ".zip";
     private static readonly TimeSpan PreflightProcessTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan WarmCacheProcessTimeout = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan LiveApplyProcessTimeout = TimeSpan.FromMinutes(8);
+    private static readonly TimeSpan LiveApplyProcessTimeout = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DefaultBackendProcessTimeout = TimeSpan.FromMinutes(3);
     private static readonly HttpClient UpdateHttpClient = CreateUpdateHttpClient();
     private LauncherRelease? _latestLauncherRelease;
@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private string _backendProgressLabel = "";
     private int _backendProgressPercent;
     private int _backendProgressSoftCap;
+    private int _backendProgressWaitFrame;
     private bool _launchButtonGlitchesStarted;
     private bool _journalIsError;
     private bool _miningCraftFamilyIndexRepairQueued;
@@ -613,7 +614,9 @@ public partial class MainWindow : Window
         foreach (var group in optionGroups)
         {
             var visibleItems = group
-                .Where(item => string.Equals((string)item.Option.Id, "highValueScripHighlights", StringComparison.OrdinalIgnoreCase))
+                .Where(item =>
+                    string.Equals((string)item.Option.Id, "highValueScripHighlights", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals((string)item.Option.Id, "wikeloItemHints", StringComparison.OrdinalIgnoreCase))
                 .ToList();
             if (visibleItems.Count == 0)
             {
@@ -1482,6 +1485,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         _backendProgressLabel = label;
         _backendProgressPercent = 4;
         _backendProgressSoftCap = softCap;
+        _backendProgressWaitFrame = 0;
         var paragraph = CreateJournalParagraph(JournalLineKind.Metric);
         _backendProgressRun = new Run(BuildBackendProgressText(_backendProgressLabel, _backendProgressPercent))
         {
@@ -1503,7 +1507,15 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 return;
             }
 
-            SetBackendProgress(Math.Min(_backendProgressSoftCap, _backendProgressPercent + 1));
+            if (_backendProgressPercent >= _backendProgressSoftCap)
+            {
+                _backendProgressWaitFrame++;
+                _backendProgressRun.Text = BuildBackendProgressText(_backendProgressLabel, _backendProgressPercent, _backendProgressWaitFrame);
+            }
+            else
+            {
+                SetBackendProgress(Math.Min(_backendProgressSoftCap, _backendProgressPercent + 1));
+            }
         };
         _backendProgressTimer.Start();
     }
@@ -1539,7 +1551,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
 
         _backendProgressPercent = Math.Max(_backendProgressPercent, Math.Clamp(percent, 0, 100));
-        _backendProgressRun.Text = BuildBackendProgressText(_backendProgressLabel, _backendProgressPercent);
+        _backendProgressWaitFrame = 0;
+        _backendProgressRun.Text = BuildBackendProgressText(_backendProgressLabel, _backendProgressPercent, _backendProgressWaitFrame);
     }
 
     private void HandleBackendProgressLine(BackendRunMode mode, string line)
@@ -1561,18 +1574,25 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
         else if (mode == BackendRunMode.LiveApply)
         {
-            if (line.Equals("Progress: apply sources", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(18);
-            else if (line.Equals("Progress: apply plan", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(42);
-            else if (line.Equals("Progress: apply write", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(78);
-            else if (line.StartsWith("SC Mod Launcher LIVE apply", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(92);
+            if (line.Equals("Progress: apply sources", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(12);
+            else if (line.Equals("Progress: apply read", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(20);
+            else if (line.Equals("Progress: module mining start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(34);
+            else if (line.Equals("Progress: module mining done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(48);
+            else if (line.Equals("Progress: module quest start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(58);
+            else if (line.Equals("Progress: module quest done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(72);
+            else if (line.Equals("Progress: apply merge", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(78);
+            else if (line.Equals("Progress: apply preview", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(84);
+            else if (line.Equals("Progress: apply write", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(92);
+            else if (line.StartsWith("SC Mod Launcher LIVE apply", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(96);
         }
     }
 
-    private static string BuildBackendProgressText(string label, int percent)
+    private static string BuildBackendProgressText(string label, int percent, int waitFrame = 0)
     {
         var safePercent = Math.Clamp(percent, 0, 100);
         var filled = Math.Clamp(safePercent / 10, 0, 10);
-        return $"{label} [{new string('#', filled)}{new string('-', 10 - filled)}] {safePercent}%";
+        var activity = safePercent is > 0 and < 100 ? new string('.', waitFrame % 4) : "";
+        return $"{label} [{new string('#', filled)}{new string('-', 10 - filled)}] {safePercent}%{activity}";
     }
 
     private Paragraph CreateJournalParagraph(JournalLineKind kind)
@@ -2391,11 +2411,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
             }
             else if (mode == BackendRunMode.LiveApply)
             {
-                StartBackendProgress("Применение в LIVE", softCap: 88);
+                StartBackendProgress("Применение в LIVE", softCap: 96);
             }
 
             var args = BuildBackendArguments(mode, mode is BackendRunMode.DryRun or BackendRunMode.LiveApply ? optionsPath : null);
-            var result = await RunProcessAsync("powershell.exe", args.ToString(), line => HandleBackendProgressLine(mode, line), GetBackendTimeout(mode));
+            var timeout = GetBackendTimeout(mode);
+            var result = await RunProcessAsync("powershell.exe", args.ToString(), line => HandleBackendProgressLine(mode, line), timeout);
+            var diagnosticPath = WriteBackendDiagnosticLog(mode, result, timeout);
             if (mode is BackendRunMode.WarmCache or BackendRunMode.LiveApply)
             {
                 StopBackendProgress(result.ExitCode == 0 && string.IsNullOrWhiteSpace(result.Error));
@@ -2424,10 +2446,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
             {
                 var message = !string.IsNullOrWhiteSpace(result.Error) ? result.Error.Trim() : result.Output.Trim();
                 AddError(string.IsNullOrWhiteSpace(message) ? $"Процесс завершился с кодом {result.ExitCode}." : message);
+                AddPathLog("Диагностика", diagnosticPath);
             }
             else if (!string.IsNullOrWhiteSpace(result.Error))
             {
                 AddError(result.Error.Trim());
+                AddPathLog("Диагностика", diagnosticPath);
             }
         }
         catch (Exception ex)
@@ -2670,6 +2694,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var operations = FindValue("Operations:");
         var conflicts = FindValue("Conflicts:");
         var backup = FindValue("Backup:");
+        var report = FindValue("Report:");
         var writeSucceeded = FindValue("Write succeeded:");
         var miningModule = lines.FirstOrDefault(line => line.StartsWith("Module Майнинг", StringComparison.OrdinalIgnoreCase)) ?? "";
         var planetDescriptions = FindValue("Planet descriptions:");
@@ -2677,6 +2702,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var questModule = lines.FirstOrDefault(line => line.StartsWith("Module Квесты и рецепты:", StringComparison.OrdinalIgnoreCase)) ?? "";
         var questDescriptions = FindValue("Quest descriptions:");
         var questTitles = FindValue("Quest titles:");
+        var wikeloHints = FindValue("Wikelo item hints:");
 
         var modeLabel = mode switch
         {
@@ -2707,11 +2733,19 @@ Write-Host "FAMILY_INDEX:$indexPath"
             {
                 AddMetricLog($"Чертежи: {ShortQuestLine(questDescriptions)}; названия {TextOrUnknown(questTitles)}.");
             }
+            if (!string.IsNullOrWhiteSpace(wikeloHints))
+            {
+                AddMetricLog($"Wikelo: {wikeloHints}.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(backup))
         {
             AddPathLog("Backup", backup);
+        }
+        if (!string.IsNullOrWhiteSpace(report))
+        {
+            AddPathLog("Отчёт", report);
         }
 
         var hasConflicts = int.TryParse(conflicts, out var conflictCount) && conflictCount > 0;
@@ -2789,6 +2823,32 @@ Write-Host "FAMILY_INDEX:$indexPath"
         BackendRunMode.LiveApply => LiveApplyProcessTimeout,
         _ => DefaultBackendProcessTimeout
     };
+
+    private string WriteBackendDiagnosticLog(BackendRunMode mode, ProcessResult result, TimeSpan timeout)
+    {
+        var reportsDir = Path.Combine(_rootPath, "reports");
+        Directory.CreateDirectory(reportsDir);
+
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var path = Path.Combine(reportsDir, $"sc-mod-launcher-diagnostic-{mode.ToString().ToLowerInvariant()}-{stamp}.json");
+        var payload = new
+        {
+            schemaVersion = 1,
+            createdAt = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
+            launcherVersion = CurrentLauncherVersion,
+            mode = mode.ToString(),
+            timeout = FormatDuration(timeout),
+            exitCode = result.ExitCode,
+            output = result.Output,
+            error = result.Error
+        };
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+        File.WriteAllText(path, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        return path;
+    }
 
     private async Task<ProcessResult> RunProcessAsync(
         string fileName,

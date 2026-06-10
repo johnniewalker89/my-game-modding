@@ -327,6 +327,97 @@ function Test-SCPatchConflicts {
     return @($conflicts)
 }
 
+function Test-SCOperationOwnsMarker {
+    param(
+        [object]$Operation,
+        [string]$Marker
+    )
+
+    foreach ($ownedMarker in @($Operation.OwnedMarkers)) {
+        if ([string]$ownedMarker -eq $Marker) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-SCWikeloItemHintBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $match = [regex]::Match(
+        [string]$Value,
+        '(?s)(?<block>\\n\\n<EM\d>Wikelo-заказы</EM\d>.*)$')
+    if (-not $match.Success) {
+        return ''
+    }
+
+    return [string]$match.Groups['block'].Value
+}
+
+function Remove-SCWikeloItemHintBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    return [regex]::Replace(
+        [string]$Value,
+        '\\n\\n<EM\d>Wikelo-заказы</EM\d>.*$',
+        '',
+        [System.Text.RegularExpressions.RegexOptions]::Singleline)
+}
+
+function Merge-SCComposableModuleOperations {
+    param([object[]]$Operations)
+
+    $result = @()
+    $operationsWithKey = @($Operations | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Key) })
+    $processedKeys = @{}
+
+    foreach ($group in ($operationsWithKey | Group-Object Key)) {
+        if ($group.Count -le 1) {
+            continue
+        }
+
+        $wikeloOps = @($group.Group | Where-Object { Test-SCOperationOwnsMarker -Operation $_ -Marker 'SCMDB_WIKELO_ITEM_HINT' })
+        $baseOps = @($group.Group | Where-Object { -not (Test-SCOperationOwnsMarker -Operation $_ -Marker 'SCMDB_WIKELO_ITEM_HINT') })
+
+        if ($wikeloOps.Count -ne 1 -or $baseOps.Count -ne 1) {
+            continue
+        }
+
+        $wikeloBlock = Get-SCWikeloItemHintBlock -Value ([string]$wikeloOps[0].NewValue)
+        $wikeloWasPresent = -not [string]::IsNullOrWhiteSpace((Get-SCWikeloItemHintBlock -Value ([string]$wikeloOps[0].OriginalValue)))
+        if ([string]::IsNullOrWhiteSpace($wikeloBlock) -and -not $wikeloWasPresent) {
+            continue
+        }
+
+        $base = $baseOps[0]
+        $wikelo = $wikeloOps[0]
+        $baseValue = (Remove-SCWikeloItemHintBlock -Value ([string]$base.NewValue)).TrimEnd()
+        $combinedValue = if ([string]::IsNullOrWhiteSpace($wikeloBlock)) { $baseValue } else { $baseValue + $wikeloBlock }
+
+        $result += [pscustomobject]@{
+            ModuleId = "$($base.ModuleId)+$($wikelo.ModuleId)"
+            OptionId = "$($base.OptionId)+$($wikelo.OptionId)"
+            Key = [string]$base.Key
+            Operation = [string]$base.Operation
+            OriginalValue = [string]$base.OriginalValue
+            NewValue = $combinedValue
+            OwnedMarkers = @()
+        }
+        $processedKeys[$group.Name] = $true
+    }
+
+    foreach ($operation in @($Operations)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$operation.Key) -and $processedKeys.ContainsKey([string]$operation.Key)) {
+            continue
+        }
+
+        $result += $operation
+    }
+
+    return @($result)
+}
+
 function Merge-SCPatchOperations {
     param(
         [object[]]$SharedOperations,
@@ -334,7 +425,9 @@ function Merge-SCPatchOperations {
     )
 
     $moduleKeys = @{}
-    foreach ($operation in @($ModuleOperations)) {
+    $moduleOperations = @(Merge-SCComposableModuleOperations -Operations $ModuleOperations)
+
+    foreach ($operation in @($moduleOperations)) {
         if (-not [string]::IsNullOrWhiteSpace($operation.Key)) {
             $moduleKeys[$operation.Key] = $true
         }
@@ -347,7 +440,7 @@ function Merge-SCPatchOperations {
         }
     }
 
-    $merged += @($ModuleOperations)
+    $merged += @($moduleOperations)
     return @($merged)
 }
 
@@ -498,6 +591,7 @@ function Invoke-SCModPatchPlan {
 
     $modulesRoot = Join-Path $ScriptRoot 'modules'
     $modules = Import-SCModManifests -ModulesRoot $modulesRoot
+    Write-Host 'Progress: apply read'
     $context = Read-SCLocalizationData -LivePath $LivePath -GlobalIniPath $GlobalIniPath
     $sharedOperations = @(New-SCEmphasisRepairOperations -Context $context)
 
@@ -506,10 +600,12 @@ function Invoke-SCModPatchPlan {
     $allWarnings = @()
 
     foreach ($module in $modules) {
+        Write-Host "Progress: module $($module.Id) start"
         $selectedOptions = @(Get-SCSelectedOptionsForModule -Module $module -SelectedOptionsByModule $SelectedOptionsByModule)
         $plan = Invoke-SCModulePlan -Module $module -Context $context -SelectedOptions $selectedOptions
         $operations = @($plan.Operations)
         $warnings = @($plan.Warnings)
+        Write-Host "Progress: module $($module.Id) done"
 
         $moduleOperations += $operations
         $allWarnings += $warnings
@@ -523,10 +619,12 @@ function Invoke-SCModPatchPlan {
         }
     }
 
+    Write-Host 'Progress: apply merge'
     $allOperations = @(Merge-SCPatchOperations -SharedOperations $sharedOperations -ModuleOperations $moduleOperations)
     $conflicts = @(Test-SCPatchConflicts -Operations $allOperations)
     $applyPreview = $null
     if ($conflicts.Count -eq 0) {
+        Write-Host 'Progress: apply preview'
         $applyPreview = Apply-SCPatchOperationsToLines -Context $context -Operations $allOperations
     }
 
@@ -576,6 +674,9 @@ function Invoke-SCModPatch {
     $newHash = $null
     $writeAttempted = $false
     $writeSucceeded = $false
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $reportMode = if ($DryRun) { 'dryrun' } else { 'apply' }
+    $reportPath = Join-Path $ReportDirectory "$ReportPrefix-$reportMode-$stamp.json"
 
     if (-not $DryRun -and $plan.Conflicts.Count -eq 0 -and $changedLineCount -gt 0) {
         $writeAttempted = $true
@@ -583,6 +684,7 @@ function Invoke-SCModPatch {
             $backupPath = New-SCBackup -GlobalIniPath $context.GlobalIniPath -BackupDirectory $BackupDirectory
         }
 
+        Write-Host 'Progress: apply write'
         [System.IO.File]::WriteAllLines($context.GlobalIniPath, $plan.ApplyPreview.Lines, $context.EncodingInfo.Encoding)
         $newHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $context.GlobalIniPath).Hash
         $writeSucceeded = $true
@@ -601,6 +703,7 @@ function Invoke-SCModPatch {
         originalSha256 = $context.OriginalSha256
         newSha256 = $newHash
         backupPath = $backupPath
+        reportPath = $reportPath
         lineCount = $context.LineCount
         keyCount = $context.KeyCount
         moduleCount = $plan.Modules.Count
@@ -618,9 +721,11 @@ function Invoke-SCModPatch {
         operations = $plan.Operations
     }
 
+    Write-SCJsonReport -Report $report -ReportPath $reportPath
+
     return [pscustomobject]@{
         Report = $report
-        ReportPath = $null
+        ReportPath = $reportPath
     }
 }
 

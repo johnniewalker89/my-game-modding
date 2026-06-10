@@ -9,12 +9,14 @@
     $familyIndex = Get-SCQuestCraftFamilyIndex
     $allSelectableCategoriesSelected = Test-SCQuestAllSelectableCategoriesSelected -SelectedCategoryNames $selectedCategoryNames
     $enableHighValueScripHighlights = @($SelectedOptions) -contains 'highValueScripHighlights'
+    $enableWikeloItemHints = @($SelectedOptions) -contains 'wikeloItemHints'
     $metadata = @{
         source = 'SC Quest Recipe Engine'
         selectedOptionCount = @($SelectedOptions).Count
         selectedBlueprintCategories = @($selectedCategoryNames)
         selectedRecipeFamilies = @($selectedFamilyOptionIds).Count
         highValueScripHighlightsEnabled = $enableHighValueScripHighlights
+        wikeloItemHintsEnabled = $enableWikeloItemHints
         blueprintMarkerPolicy = 'Title marker [CH] is kept only when the contract has visible selected blueprint categories.'
         specialMarkerPolicy = 'Ace pilot [A] and scrip [S] markers are always kept when reported by SCMDB; high-value scrip title highlighting is optional.'
         inspectedKeys = $Context.KeyCount
@@ -26,6 +28,7 @@
         highValueScripHighlightConfigured = 0
         highValueScripHighlightFound = 0
         highValueScripHighlightChanged = 0
+        wikeloItemHints = $null
         changedDescriptionLines = 0
         changedTitleLines = 0
         allSelectableCategoriesSelected = $allSelectableCategoriesSelected
@@ -108,10 +111,12 @@
 
     $highlightConfig = Get-SCQuestHighValueScripHighlightConfig
     $highlightStats = Set-SCQuestHighValueScripTitleHighlights -Values $patchedValues -Config $highlightConfig -Enable:$enableHighValueScripHighlights
+    $wikeloHintStats = Set-SCQuestWikeloItemHints -Values $patchedValues -Enable:$enableWikeloItemHints
 
     $operations = @()
     $changedDescriptionLines = 0
     $changedTitleLines = 0
+    $changedWikeloHintLines = 0
 
     foreach ($key in @($patchedValues.Keys | Sort-Object)) {
         if (-not $originalValues.ContainsKey($key)) {
@@ -127,8 +132,16 @@
         if ((Test-SCQuestHasRewardBlock -Value $original) -or (Test-SCQuestHasRewardBlock -Value $newValue)) {
             $changedDescriptionLines++
         }
+        elseif ((Test-SCQuestHasWikeloItemHintBlock -Value $original) -or (Test-SCQuestHasWikeloItemHintBlock -Value $newValue)) {
+            $changedWikeloHintLines++
+        }
         elseif (Test-SCQuestLooksLikeTitleKey -Key $key) {
             $changedTitleLines++
+        }
+
+        $ownedMarkers = @('SCMDB_QUEST_REWARD_BLOCK', 'SCMDB_QUEST_TITLE_MARKERS')
+        if ((Test-SCQuestHasWikeloItemHintBlock -Value $original) -or (Test-SCQuestHasWikeloItemHintBlock -Value $newValue)) {
+            $ownedMarkers += 'SCMDB_WIKELO_ITEM_HINT'
         }
 
         $operations += [pscustomobject]@{
@@ -138,7 +151,7 @@
             Operation = 'replaceValue'
             OriginalValue = $original
             NewValue = $newValue
-            OwnedMarkers = @('SCMDB_QUEST_REWARD_BLOCK', 'SCMDB_QUEST_TITLE_MARKERS')
+            OwnedMarkers = $ownedMarkers
         }
     }
 
@@ -151,6 +164,7 @@
     $metadata.highValueScripHighlightFound = $highlightStats.Found
     $metadata.highValueScripHighlightChanged = $highlightStats.Changed
     $metadata.highValueScripHighlightTag = $highlightConfig.Tag
+    $metadata.wikeloItemHints = $wikeloHintStats
     $metadata.removedBlueprintTitleMarkers = @($patchedValues.Keys | Where-Object {
         $normalizedKey = Get-SCQuestNormalizedIniKey -Key $_
         (Test-SCQuestLooksLikeTitleKey -Key $_) -and
@@ -159,6 +173,7 @@
         [int]$titleVisibility[$normalizedKey].Visible -eq 0
     }).Count
     $metadata.changedDescriptionLines = $changedDescriptionLines
+    $metadata.changedWikeloHintLines = $changedWikeloHintLines
     $metadata.changedTitleLines = $changedTitleLines
     $metadata.engineReportPath = $engine.ReportPath
     $metadata.engineOutputSample = @($engine.OutputLines | Select-Object -First 20)
@@ -368,6 +383,362 @@ function Remove-SCQuestVisibleScmdbBranding {
         [string]$Value,
         '<EM(?<tag>[1-5])>(?<title>Доступные чертежи|Возможные чертежи) \(SCMDB\)</EM\k<tag>>',
         '<EM${tag}>${title}</EM${tag}>')
+}
+
+function Test-SCQuestHasWikeloItemHintBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    return ([string]$Value -match '\\n\\n<EM\d>Wikelo-заказы</EM\d>')
+}
+
+function Remove-SCQuestWikeloItemHintBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    return [regex]::Replace(
+        [string]$Value,
+        '\\n\\n<EM\d>Wikelo-заказы</EM\d>.*$',
+        '',
+        [System.Text.RegularExpressions.RegexOptions]::Singleline)
+}
+
+function ConvertTo-SCQuestArray {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return @()
+    }
+
+    if ($Value -is [System.Array]) {
+        return $Value
+    }
+
+    return @($Value)
+}
+
+function Get-SCQuestPropertyValue {
+    param(
+        [Parameter(Mandatory = $true)]$Object,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Invoke-SCQuestScmdbJson {
+    param([Parameter(Mandatory = $true)][string]$Uri)
+
+    try {
+        return (Invoke-RestMethod -Uri $Uri -UseBasicParsing -TimeoutSec 20)
+    }
+    catch {
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            $json = & curl.exe -L --silent --show-error --fail --max-time 40 `
+                -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
+                -H 'Accept: application/json,text/plain,*/*' `
+                -e 'https://scmdb.net/' `
+                $Uri
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
+                return ($json | ConvertFrom-Json)
+            }
+        }
+
+        throw
+    }
+}
+
+function Get-SCQuestScmdbData {
+    $baseUrl = 'https://scmdb.net/data'
+    $versions = @(ConvertTo-SCQuestArray (Invoke-SCQuestScmdbJson -Uri "$baseUrl/game-versions.json"))
+    if ($versions.Count -eq 0) {
+        throw 'SCMDB version index is empty.'
+    }
+
+    $active = $versions[0]
+    if ([string]::IsNullOrWhiteSpace([string]$active.file)) {
+        throw 'SCMDB version index does not contain file field.'
+    }
+
+    return [pscustomobject]@{
+        Version = [string]$active.version
+        Data = Invoke-SCQuestScmdbJson -Uri "$baseUrl/$($active.file)"
+    }
+}
+
+function Get-SCQuestCleanWikeloShipName {
+    param([AllowEmptyString()][string]$Name)
+
+    $ship = (([string]$Name) -replace '\s+', ' ').Trim()
+    $ship = [regex]::Replace($ship, '\s+Wikelo\s+(?:War|Work|Sneak|Savior|Speedy)?\s*Special\s*$', '', 'IgnoreCase').Trim()
+    $ship = [regex]::Replace($ship, '\s+Wikelo\s+Special\s*$', '', 'IgnoreCase').Trim()
+    $ship = [regex]::Replace($ship, '\s+Wikelo\s*$', '', 'IgnoreCase').Trim()
+
+    return $ship
+}
+
+function New-SCQuestWikeloResourceShipMap {
+    $scmdb = Get-SCQuestScmdbData
+    $data = $scmdb.Data
+    $contracts = @()
+    $contracts += @(ConvertTo-SCQuestArray $data.contracts)
+    $contracts += @(ConvertTo-SCQuestArray (Get-SCQuestPropertyValue -Object $data -Name 'legacyContracts'))
+
+    $resources = @{}
+    foreach ($contract in $contracts) {
+        if ([string]$contract.debugName -notmatch 'TheCollector') {
+            continue
+        }
+
+        $vehicleRewards = @(
+            ConvertTo-SCQuestArray $contract.itemRewards |
+                Where-Object { [string]$_.itemType -eq 'vehicle' -and -not [string]::IsNullOrWhiteSpace([string]$_.name) }
+        )
+        $orders = @(ConvertTo-SCQuestArray $contract.haulingOrders)
+        if ($vehicleRewards.Count -eq 0 -or $orders.Count -eq 0) {
+            continue
+        }
+
+        $ships = @(
+            $vehicleRewards |
+                ForEach-Object { Get-SCQuestCleanWikeloShipName -Name ([string]$_.name) } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                Sort-Object -Unique
+        )
+        if ($ships.Count -eq 0) {
+            continue
+        }
+
+        foreach ($order in $orders) {
+            $resourceId = [string]$order.resource
+            if ([string]::IsNullOrWhiteSpace($resourceId)) {
+                continue
+            }
+
+            $resourcePool = Get-SCQuestPropertyValue -Object $data.resourcePools -Name $resourceId
+            $resourceName = if ($resourcePool -and -not [string]::IsNullOrWhiteSpace([string]$resourcePool.name)) {
+                [string]$resourcePool.name
+            }
+            else {
+                $resourceId
+            }
+            if ($resourceName -eq 'Wikelo Favor') {
+                continue
+            }
+
+            if (-not $resources.ContainsKey($resourceName)) {
+                $resources[$resourceName] = @{
+                    Name = $resourceName
+                    Ships = @{}
+                    ResourceIds = @{}
+                }
+            }
+
+            $resources[$resourceName].ResourceIds[$resourceId] = $true
+            foreach ($ship in $ships) {
+                $resources[$resourceName].Ships[$ship] = $true
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Version = $scmdb.Version
+        Resources = $resources
+    }
+}
+
+function Get-SCQuestWikeloDescriptionCandidates {
+    param([Parameter(Mandatory = $true)][string]$NameKey)
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    function Add-Candidate([string]$Key) {
+        if (-not [string]::IsNullOrWhiteSpace($Key)) {
+            $candidates.Add($Key)
+        }
+    }
+
+    function Add-ReplacedCandidate([string]$Pattern, [string]$Replacement) {
+        $candidate = $NameKey -replace $Pattern, $Replacement
+        if ($candidate -ne $NameKey) {
+            Add-Candidate $candidate
+        }
+    }
+
+    Add-ReplacedCandidate '_Name' '_Desc'
+    Add-ReplacedCandidate '_name' '_desc'
+    Add-ReplacedCandidate 'item_Name' 'item_Desc'
+    Add-ReplacedCandidate 'item_name' 'item_desc'
+    Add-ReplacedCandidate 'item_NameCarryable' 'item_DescCarryable'
+    Add-ReplacedCandidate 'item_Name_Carryable' 'item_Desc_Carryable'
+    Add-ReplacedCandidate 'vehicle_Name' 'vehicle_Desc'
+    Add-Candidate ($NameKey + '_desc')
+    Add-Candidate ($NameKey + '_des')
+
+    if ($NameKey -match '^items_commodities_(.+)$') {
+        Add-Candidate ($NameKey + '_desc')
+        Add-Candidate ($NameKey + '_des')
+        if ($NameKey -match 'valakkarfang_.*irradiated') {
+            Add-Candidate 'items_commodities_valakkarfang_irradiated_desc'
+        }
+        elseif ($NameKey -match 'valakkarfang') {
+            Add-Candidate 'items_commodities_valakkarfang_desc'
+        }
+
+        if ($NameKey -match 'valakkarpearl_.*irradiated') {
+            Add-Candidate 'items_commodities_valakkarpearl_irradiated_desc'
+        }
+    }
+
+    return @($candidates.ToArray() | Sort-Object -Unique)
+}
+
+function Resolve-SCQuestWikeloDescriptionKeys {
+    param(
+        [Parameter(Mandatory = $true)][string]$ResourceName,
+        [Parameter(Mandatory = $true)][hashtable]$Values
+    )
+
+    $keys = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in $Values.GetEnumerator()) {
+        $value = (([string]$entry.Value) -replace 'Â ', ' ' -replace [string][char]0x00A0, ' ').Trim()
+        if ($value -ne $ResourceName) {
+            continue
+        }
+
+        foreach ($candidate in Get-SCQuestWikeloDescriptionCandidates -NameKey ([string]$entry.Key)) {
+            if ($Values.ContainsKey($candidate)) {
+                $keys.Add($candidate)
+            }
+        }
+    }
+
+    return @($keys.ToArray() | Sort-Object -Unique)
+}
+
+function Format-SCQuestWikeloShipList {
+    param([string[]]$Ships)
+
+    $clean = @($Ships | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    if ($clean.Count -eq 0) {
+        return ''
+    }
+
+    return ($clean -join '; ')
+}
+
+function Format-SCQuestWikeloItemHintBlock {
+    param([object[]]$Entries)
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add('<EM4>Wikelo-заказы</EM4>')
+
+    foreach ($entry in @($Entries | Sort-Object Name)) {
+        $ships = Format-SCQuestWikeloShipList -Ships @($entry.Ships)
+        if ([string]::IsNullOrWhiteSpace($ships)) {
+            continue
+        }
+
+        $lines.Add("$($entry.Name):")
+        foreach ($ship in @($entry.Ships | Sort-Object -Unique)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$ship)) {
+                $lines.Add("- $ship")
+            }
+        }
+    }
+
+    if ($lines.Count -le 1) {
+        return ''
+    }
+
+    return ($lines.ToArray() -join '\n')
+}
+
+function Set-SCQuestWikeloItemHints {
+    param(
+        [Parameter(Mandatory = $true)][hashtable]$Values,
+        [bool]$Enable = $true
+    )
+
+    $cleaned = 0
+    foreach ($key in @($Values.Keys)) {
+        $current = [string]$Values[$key]
+        $clean = Remove-SCQuestWikeloItemHintBlock -Value $current
+        if ($clean -ne $current) {
+            $Values[$key] = $clean
+            $cleaned++
+        }
+    }
+
+    $stats = [ordered]@{
+        enabled = [bool]$Enable
+        scmdbVersion = ''
+        resourceCount = 0
+        mappedResources = 0
+        unmappedResources = 0
+        targetDescriptionKeys = 0
+        changedItemDescriptions = 0
+        cleanedExistingBlocks = $cleaned
+        unmappedResourceSample = @()
+    }
+
+    if (-not $Enable) {
+        return [pscustomobject]$stats
+    }
+
+    $wikelo = New-SCQuestWikeloResourceShipMap
+    $stats.scmdbVersion = [string]$wikelo.Version
+    $stats.resourceCount = @($wikelo.Resources.Keys).Count
+
+    $targets = @{}
+    $unmapped = New-Object System.Collections.Generic.List[string]
+    foreach ($resourceName in @($wikelo.Resources.Keys | Sort-Object)) {
+        $descriptionKeys = @(Resolve-SCQuestWikeloDescriptionKeys -ResourceName ([string]$resourceName) -Values $Values)
+        if ($descriptionKeys.Count -eq 0) {
+            $unmapped.Add([string]$resourceName)
+            continue
+        }
+
+        $stats.mappedResources++
+        $entry = [pscustomobject]@{
+            Name = [string]$resourceName
+            Ships = @($wikelo.Resources[$resourceName].Ships.Keys | Sort-Object)
+        }
+
+        foreach ($descriptionKey in $descriptionKeys) {
+            if (-not $targets.ContainsKey($descriptionKey)) {
+                $targets[$descriptionKey] = New-Object System.Collections.Generic.List[object]
+            }
+            $targets[$descriptionKey].Add($entry)
+        }
+    }
+
+    foreach ($target in $targets.GetEnumerator()) {
+        $key = [string]$target.Key
+        $block = Format-SCQuestWikeloItemHintBlock -Entries @($target.Value)
+        if ([string]::IsNullOrWhiteSpace($block)) {
+            continue
+        }
+
+        $current = ([string]$Values[$key]).TrimEnd()
+        $updated = $current + '\n\n' + $block
+        if ($updated -ne [string]$Values[$key]) {
+            $Values[$key] = $updated
+            $stats.changedItemDescriptions++
+        }
+    }
+
+    $stats.unmappedResources = $unmapped.Count
+    $stats.targetDescriptionKeys = $targets.Keys.Count
+    $stats.unmappedResourceSample = @($unmapped | Select-Object -First 20)
+
+    return [pscustomobject]$stats
 }
 
 function Get-SCQuestSelectedCategoryNames {
