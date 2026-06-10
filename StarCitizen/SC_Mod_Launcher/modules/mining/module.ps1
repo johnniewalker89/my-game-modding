@@ -512,6 +512,7 @@ function Write-SCMiningCraftFamilyIndexCache {
     $payload = [pscustomobject]@{
         cacheKey = [string]$CacheKey
         createdAt = (Get-Date).ToString('o')
+        shipComponentGradeFilter = 'A'
         families = @(
             $families |
                 Sort-Object `
@@ -1100,6 +1101,7 @@ function Get-SCMiningPlanetRecipeFamily {
 
         $base = $label
         $base = $base -replace '\s*\([^)]*\)', ''
+        $base = $base -replace '\s+["“]Rucksack["”](?=\s+Backpack\b)', ''
         $base = $base -replace '\b(Arms|Core|Helmet|Legs|Backpack)\b.*$', ''
         $base = $base -replace '\b(Exploration Suit|Flight Suit|Undersuit|Suit)\b.*$', ''
         $base = $base.Trim()

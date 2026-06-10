@@ -34,10 +34,11 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, string> _strings = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ModuleManifest> _modules = new();
     private readonly Dictionary<string, CheckBox> _optionChecks = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<MiningCraftFamilySection> _miningCraftFamilySections = new();
-    private readonly List<Button> _miningCraftFamilyActionButtons = new();
+    private readonly List<RecipeFamilySection> _miningCraftFamilySections = new();
+    private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
+    private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "1.0.2";
+    private const string CurrentLauncherVersion = "1.0.3";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string LauncherAssetPrefix = "SC_Mod_Launcher_";
     private const string LauncherAssetSuffix = ".zip";
@@ -190,9 +191,9 @@ public partial class MainWindow : Window
             pair.Value.IsChecked = moduleOptions.Contains(parts[1]);
         }
 
-        foreach (var section in _miningCraftFamilySections)
+        foreach (var section in _miningCraftFamilySections.Concat(_questCraftFamilySections))
         {
-            UpdateMiningCraftFamilyCounter(section);
+            UpdateRecipeFamilyCounter(section);
         }
     }
 
@@ -225,10 +226,10 @@ public partial class MainWindow : Window
         StartLaunchButtonGlitch(OverviewNavButton, TimeSpan.FromMilliseconds(960), TimeSpan.FromMilliseconds(7600), 0.8, 1.004);
         StartLaunchButtonGlitch(ModulesNavButton, TimeSpan.FromMilliseconds(2860), TimeSpan.FromMilliseconds(8400), -0.7, 1.005);
         StartLaunchButtonGlitch(RestoreBackupButton, TimeSpan.FromMilliseconds(4380), TimeSpan.FromMilliseconds(7100), 0.6, 1.004);
-        for (var i = 0; i < _miningCraftFamilyActionButtons.Count; i++)
+        for (var i = 0; i < _craftFamilyActionButtons.Count; i++)
         {
             StartLaunchButtonGlitch(
-                _miningCraftFamilyActionButtons[i],
+                _craftFamilyActionButtons[i],
                 TimeSpan.FromMilliseconds(620 + ((i * 470) % 5200)),
                 TimeSpan.FromMilliseconds(6500 + ((i * 390) % 2400)),
                 i % 2 == 0 ? 0.45 : -0.45,
@@ -490,7 +491,8 @@ public partial class MainWindow : Window
         ModuleCardsPanel.Children.Clear();
         _optionChecks.Clear();
         _miningCraftFamilySections.Clear();
-        _miningCraftFamilyActionButtons.Clear();
+        _questCraftFamilySections.Clear();
+        _craftFamilyActionButtons.Clear();
 
         foreach (var module in _modules)
         {
@@ -576,6 +578,10 @@ public partial class MainWindow : Window
             {
                 BuildMiningPrimaryOptionGroups(stack, module, optionGroups);
             }
+            else if (module.Id.Equals("quest", StringComparison.OrdinalIgnoreCase))
+            {
+                BuildQuestPrimaryOptionGroups(stack, module, optionGroups);
+            }
             else
             {
                 foreach (var group in optionGroups)
@@ -588,11 +594,34 @@ public partial class MainWindow : Window
             {
                 BuildMiningCraftFamilyFilters(stack);
             }
+            else if (module.Id.Equals("quest", StringComparison.OrdinalIgnoreCase))
+            {
+                BuildQuestCraftFamilyFilters(stack);
+            }
 
             ModuleCardsPanel.Children.Add(card);
         }
 
         UpdateMiningRecipeFilterState();
+    }
+
+    private void BuildQuestPrimaryOptionGroups(
+        StackPanel stack,
+        ModuleManifest module,
+        IOrderedEnumerable<IGrouping<string, dynamic>> optionGroups)
+    {
+        foreach (var group in optionGroups)
+        {
+            var visibleItems = group
+                .Where(item => string.Equals((string)item.Option.Id, "highValueScripHighlights", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (visibleItems.Count == 0)
+            {
+                continue;
+            }
+
+            BuildModuleOptionGroup(stack, module, visibleItems.GroupBy(_ => group.Key).First(), 1);
+        }
     }
 
     private void BuildMiningPrimaryOptionGroups(
@@ -601,7 +630,7 @@ public partial class MainWindow : Window
         IOrderedEnumerable<IGrouping<string, dynamic>> optionGroups)
     {
         var groups = optionGroups.ToDictionary(group => group.Key, group => group, StringComparer.OrdinalIgnoreCase);
-        var pairedKeys = new[] { "Подсказки предметов", "Способы добычи" };
+        var pairedKeys = new[] { "Предметы", "Способы добычи" };
 
         var pairGrid = new Grid
         {
@@ -687,9 +716,19 @@ public partial class MainWindow : Window
 
     private void BuildMiningCraftFamilyFilters(StackPanel stack)
     {
+        BuildRecipeFamilyFilters(stack, "mining", "ФИЛЬТР ЧЕРТЕЖЕЙ В МАЙНИНГЕ");
+    }
+
+    private void BuildQuestCraftFamilyFilters(StackPanel stack)
+    {
+        BuildRecipeFamilyFilters(stack, "quest", "ФИЛЬТР ЧЕРТЕЖЕЙ В КВЕСТАХ");
+    }
+
+    private void BuildRecipeFamilyFilters(StackPanel stack, string moduleId, string title)
+    {
         stack.Children.Add(new TextBlock
         {
-            Text = "ФИЛЬТР СЕМЕЙСТВ РЕЦЕПТОВ",
+            Text = title,
             Margin = new Thickness(0, 12, 0, 5),
             Foreground = (Brush)FindResource("SignalAmber"),
             FontSize = 11,
@@ -712,10 +751,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        var order = new[] { "Корабельные компоненты", "Корабельные орудия", "Добывающие лазеры", "Броня/одежда", "Оружие" };
+        var order = new[] { "Корабельные компоненты", "Корабельные орудия", "Броня/одежда", "FPS-оружие" };
         var groups = index.Families
             .Where(entry => !string.IsNullOrWhiteSpace(entry.OptionId))
-            .GroupBy(entry => entry.Category)
+            .GroupBy(GetRecipeFamilyDisplayCategory)
             .OrderBy(group =>
             {
                 var indexOf = Array.IndexOf(order, group.Key);
@@ -725,15 +764,25 @@ public partial class MainWindow : Window
 
         foreach (var group in groups)
         {
-            var section = BuildMiningCraftFamilySection(GetMiningCraftFamilyCategoryDisplayName(group.Key), group.OrderBy(entry => entry.Subcategory).ThenBy(entry => entry.Label).ToList());
+            var section = BuildRecipeFamilySection(
+                moduleId,
+                group.Key,
+                group.OrderBy(GetRecipeFamilyDisplaySubcategory).ThenBy(entry => entry.Label).ToList());
             section.Expander.IsExpanded = false;
-            _miningCraftFamilySections.Add(section);
+            if (moduleId.Equals("quest", StringComparison.OrdinalIgnoreCase))
+            {
+                _questCraftFamilySections.Add(section);
+            }
+            else
+            {
+                _miningCraftFamilySections.Add(section);
+            }
             stack.Children.Add(section.Root);
-            UpdateMiningCraftFamilyCounter(section);
+            UpdateRecipeFamilyCounter(section);
         }
     }
 
-    private MiningCraftFamilySection BuildMiningCraftFamilySection(string category, List<MiningCraftFamilyEntry> entries)
+    private RecipeFamilySection BuildRecipeFamilySection(string moduleId, string category, List<MiningCraftFamilyEntry> entries)
     {
         var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -777,6 +826,12 @@ public partial class MainWindow : Window
         };
         body.Children.Add(search);
 
+        var actionPanel = new WrapPanel
+        {
+            Margin = new Thickness(0, 0, 0, 7)
+        };
+        body.Children.Add(actionPanel);
+
         var resetButton = new Button
         {
             Content = "сброс",
@@ -784,16 +839,43 @@ public partial class MainWindow : Window
             MinHeight = 30,
             Width = 84,
             Padding = new Thickness(8, 2, 8, 2),
-            Margin = new Thickness(0, 0, 0, 7),
+            Margin = new Thickness(0, 0, 6, 6),
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        body.Children.Add(resetButton);
-        _miningCraftFamilyActionButtons.Add(resetButton);
+        actionPanel.Children.Add(resetButton);
+        _craftFamilyActionButtons.Add(resetButton);
+
+        var selectAllButton = new Button
+        {
+            Content = "все",
+            Style = (Style)FindResource("LaunchCommandButton"),
+            MinHeight = 30,
+            Width = 74,
+            Padding = new Thickness(8, 2, 8, 2),
+            Margin = new Thickness(0, 0, 6, 6),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        actionPanel.Children.Add(selectAllButton);
+        _craftFamilyActionButtons.Add(selectAllButton);
+
+        var sourceModuleId = moduleId.Equals("quest", StringComparison.OrdinalIgnoreCase) ? "mining" : "quest";
+        var importButton = new Button
+        {
+            Content = moduleId.Equals("quest", StringComparison.OrdinalIgnoreCase) ? "из майнинга" : "из квестов",
+            Style = (Style)FindResource("LaunchCommandButton"),
+            MinHeight = 30,
+            Width = 112,
+            Padding = new Thickness(8, 2, 8, 2),
+            Margin = new Thickness(0, 0, 6, 6),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        actionPanel.Children.Add(importButton);
+        _craftFamilyActionButtons.Add(importButton);
 
         var listPanel = new StackPanel();
         var listScroll = new ScrollViewer
         {
-            MaxHeight = 150,
+            MaxHeight = 190,
             Padding = new Thickness(8, 6, 8, 6),
             Background = new SolidColorBrush(Color.FromArgb(0x58, 0x05, 0x0D, 0x12)),
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -802,8 +884,9 @@ public partial class MainWindow : Window
         };
         body.Children.Add(listScroll);
 
-        var section = new MiningCraftFamilySection
+        var section = new RecipeFamilySection
         {
+            ModuleId = moduleId,
             Root = expander,
             Expander = expander,
             Counter = counter,
@@ -811,43 +894,168 @@ public partial class MainWindow : Window
             Entries = entries
         };
 
-        foreach (var entry in entries)
+        var subgroups = entries
+            .GroupBy(GetRecipeFamilyDisplaySubcategory)
+            .OrderBy(group => GetRecipeFamilySubcategorySortKey(category, group.Key))
+            .ThenBy(group => group.Key)
+            .ToList();
+
+        foreach (var subgroup in subgroups)
         {
-            var check = new CheckBox
+            var subgroupHeader = new Grid();
+            subgroupHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            subgroupHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            subgroupHeader.Children.Add(new TextBlock
             {
-                Content = entry.Label,
-                IsChecked = false,
-                Tag = $"mining|{entry.OptionId}",
-                Margin = new Thickness(0, 0, 8, 4),
-                Foreground = (Brush)FindResource("TextPrimary")
-            };
-            check.Checked += (_, _) =>
+                Text = subgroup.Key,
+                Foreground = (Brush)FindResource("TextSecondary"),
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            var subgroupCounter = new TextBlock
             {
-                UpdateMiningCraftFamilyCounter(section);
-                SaveLauncherStateAfterUserChange();
+                Foreground = (Brush)FindResource("SignalAmber"),
+                FontSize = 10,
+                Margin = new Thickness(8, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
             };
-            check.Unchecked += (_, _) =>
+            Grid.SetColumn(subgroupCounter, 1);
+            subgroupHeader.Children.Add(subgroupCounter);
+
+            var subgroupExpander = new Expander
             {
-                UpdateMiningCraftFamilyCounter(section);
-                SaveLauncherStateAfterUserChange();
+                Header = subgroupHeader,
+                Style = (Style)FindResource("CraftFamilyExpander"),
+                Foreground = (Brush)FindResource("TextPrimary"),
+                Margin = new Thickness(0, 0, 0, 5)
             };
-            listPanel.Children.Add(check);
-            section.Checks.Add(check);
-            _optionChecks[(string)check.Tag] = check;
+            var subgroupBody = new StackPanel
+            {
+                Margin = new Thickness(4, 0, 0, 0)
+            };
+            subgroupExpander.Content = subgroupBody;
+            listPanel.Children.Add(subgroupExpander);
+
+            var subsection = new RecipeFamilySubsection
+            {
+                Expander = subgroupExpander,
+                Counter = subgroupCounter
+            };
+            section.Subsections.Add(subsection);
+
+            foreach (var entry in subgroup.OrderBy(entry => entry.Label))
+            {
+                var check = new CheckBox
+                {
+                    Content = entry.Label,
+                    IsChecked = false,
+                    Tag = $"{moduleId}|{GetRecipeFamilyOptionId(moduleId, entry.OptionId)}",
+                    Margin = new Thickness(0, 0, 8, 4),
+                    Foreground = (Brush)FindResource("TextPrimary")
+                };
+                check.Checked += (_, _) =>
+                {
+                    UpdateRecipeFamilyCounter(section);
+                    SaveLauncherStateAfterUserChange();
+                };
+                check.Unchecked += (_, _) =>
+                {
+                    UpdateRecipeFamilyCounter(section);
+                    SaveLauncherStateAfterUserChange();
+                };
+                subgroupBody.Children.Add(check);
+                subsection.Checks.Add(check);
+                section.Checks.Add(check);
+                _optionChecks[(string)check.Tag] = check;
+            }
         }
 
-        search.TextChanged += (_, _) => UpdateMiningCraftFamilyVisibility(section);
+        search.TextChanged += (_, _) => UpdateRecipeFamilyVisibility(section);
         resetButton.Click += (_, _) =>
         {
             foreach (var check in section.Checks)
             {
                 check.IsChecked = false;
             }
-            UpdateMiningCraftFamilyCounter(section);
+            UpdateRecipeFamilyCounter(section);
             SaveLauncherStateAfterUserChange();
         };
-
+        selectAllButton.Click += (_, _) =>
+        {
+            foreach (var check in section.Checks.Where(check => check.Visibility == Visibility.Visible))
+            {
+                check.IsChecked = true;
+            }
+            UpdateRecipeFamilyCounter(section);
+            SaveLauncherStateAfterUserChange();
+        };
+        importButton.Click += (_, _) =>
+        {
+            ApplyRecipeFamilySelectionToSection(section, GetSelectedRecipeFamilySuffixes(sourceModuleId));
+            SaveLauncherStateAfterUserChange();
+        };
         return section;
+    }
+
+    private static string GetRecipeFamilyOptionId(string moduleId, string sourceOptionId)
+    {
+        if (moduleId.Equals("quest", StringComparison.OrdinalIgnoreCase))
+        {
+            return "questCraftFamily|" + GetRecipeFamilySuffix(sourceOptionId);
+        }
+
+        return sourceOptionId;
+    }
+
+    private static string GetRecipeFamilySuffix(string optionId)
+    {
+        var separator = optionId.IndexOf('|');
+        return separator >= 0 ? optionId[(separator + 1)..] : optionId;
+    }
+
+    private static string GetRecipeFamilyDisplayCategory(MiningCraftFamilyEntry entry)
+    {
+        if (entry.Category.Equals("Добывающие лазеры", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Корабельные компоненты";
+        }
+
+        return GetMiningCraftFamilyCategoryDisplayName(entry.Category);
+    }
+
+    private static string GetRecipeFamilyDisplaySubcategory(MiningCraftFamilyEntry entry)
+    {
+        if (entry.Category.Equals("Добывающие лазеры", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Добывающие лазеры";
+        }
+
+        return string.IsNullOrWhiteSpace(entry.Subcategory) ? "Прочее" : entry.Subcategory;
+    }
+
+    private static int GetRecipeFamilySubcategorySortKey(string category, string subcategory)
+    {
+        if (category.Equals("Корабельные компоненты", StringComparison.OrdinalIgnoreCase) &&
+            subcategory.Equals("Добывающие лазеры", StringComparison.OrdinalIgnoreCase))
+        {
+            return 999;
+        }
+
+        if (category.Equals("FPS-оружие", StringComparison.OrdinalIgnoreCase))
+        {
+            if (subcategory.Equals("Пистолеты", StringComparison.OrdinalIgnoreCase))
+            {
+                return 900;
+            }
+
+            if (subcategory.Equals("Дробовики", StringComparison.OrdinalIgnoreCase))
+            {
+                return 910;
+            }
+        }
+
+        return 0;
     }
 
     private static string GetMiningCraftFamilyCategoryDisplayName(string category)
@@ -855,13 +1063,14 @@ public partial class MainWindow : Window
         return category.Equals("Оружие", StringComparison.OrdinalIgnoreCase) ? "FPS-оружие" : category;
     }
 
-    private void UpdateMiningCraftFamilyVisibility(MiningCraftFamilySection section)
+    private void UpdateRecipeFamilyVisibility(RecipeFamilySection section)
     {
         var query = section.SearchBox.Text.Trim();
         foreach (var check in section.Checks)
         {
             var optionId = ((string)check.Tag).Split('|', 2)[1];
-            var entry = section.Entries.FirstOrDefault(candidate => candidate.OptionId.Equals(optionId, StringComparison.OrdinalIgnoreCase));
+            var optionSuffix = GetRecipeFamilySuffix(optionId);
+            var entry = section.Entries.FirstOrDefault(candidate => GetRecipeFamilySuffix(candidate.OptionId).Equals(optionSuffix, StringComparison.OrdinalIgnoreCase));
             if (entry is null || string.IsNullOrWhiteSpace(query))
             {
                 check.Visibility = Visibility.Visible;
@@ -873,12 +1082,89 @@ public partial class MainWindow : Window
                 .Concat(entry.Resources));
             check.Visibility = haystack.Contains(query, StringComparison.OrdinalIgnoreCase) ? Visibility.Visible : Visibility.Collapsed;
         }
+
+        foreach (var subsection in section.Subsections)
+        {
+            var hasVisible = subsection.Checks.Any(check => check.Visibility == Visibility.Visible);
+            subsection.Expander.Visibility = hasVisible ? Visibility.Visible : Visibility.Collapsed;
+            if (!string.IsNullOrWhiteSpace(query) && hasVisible)
+            {
+                subsection.Expander.IsExpanded = true;
+            }
+        }
     }
 
-    private void UpdateMiningCraftFamilyCounter(MiningCraftFamilySection section)
+    private void UpdateRecipeFamilyCounter(RecipeFamilySection section)
     {
         var selected = section.Checks.Count(check => check.IsChecked == true);
         section.Counter.Text = $"{selected}/{section.Checks.Count}";
+
+        foreach (var subsection in section.Subsections)
+        {
+            var subsectionSelected = subsection.Checks.Count(check => check.IsChecked == true);
+            subsection.Counter.Text = $"{subsectionSelected}/{subsection.Checks.Count}";
+        }
+    }
+
+    private IEnumerable<RecipeFamilySection> GetRecipeFamilySections(string moduleId)
+    {
+        return moduleId.Equals("quest", StringComparison.OrdinalIgnoreCase)
+            ? _questCraftFamilySections
+            : _miningCraftFamilySections;
+    }
+
+    private HashSet<string> GetSelectedRecipeFamilySuffixes(string moduleId)
+    {
+        var suffixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var section in GetRecipeFamilySections(moduleId))
+        {
+            foreach (var suffix in GetSelectedRecipeFamilySuffixes(section))
+            {
+                suffixes.Add(suffix);
+            }
+        }
+
+        return suffixes;
+    }
+
+    private HashSet<string> GetSelectedRecipeFamilySuffixes(RecipeFamilySection section)
+    {
+        var suffixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var check in section.Checks.Where(check => check.IsChecked == true))
+        {
+            var optionId = ((string)check.Tag).Split('|', 2)[1];
+            suffixes.Add(GetRecipeFamilySuffix(optionId));
+        }
+
+        return suffixes;
+    }
+
+    private void ApplyRecipeFamilySelectionToSection(RecipeFamilySection section, HashSet<string> sourceSuffixes)
+    {
+        foreach (var check in section.Checks)
+        {
+            var optionId = ((string)check.Tag).Split('|', 2)[1];
+            check.IsChecked = sourceSuffixes.Contains(GetRecipeFamilySuffix(optionId));
+        }
+
+        UpdateRecipeFamilyCounter(section);
+    }
+
+    private void ApplyRecipeFamilySelectionToModule(string moduleId, HashSet<string> sourceSuffixes)
+    {
+        foreach (var section in GetRecipeFamilySections(moduleId))
+        {
+            var sectionSuffixes = section.Checks
+                .Select(check => GetRecipeFamilySuffix(((string)check.Tag).Split('|', 2)[1]))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (!sectionSuffixes.Overlaps(sourceSuffixes))
+            {
+                continue;
+            }
+
+            ApplyRecipeFamilySelectionToSection(section, sourceSuffixes);
+        }
     }
 
     private void QueueMiningCraftFamilyIndexRepair()
@@ -1356,18 +1642,28 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void SetWarmCacheAttention(bool enabled)
     {
+        SetButtonAttention(WarmCacheButton, enabled);
+    }
+
+    private void SetUpdateAttention(bool enabled)
+    {
+        SetButtonAttention(InstallUpdateButton, enabled);
+    }
+
+    private void SetButtonAttention(Button button, bool enabled)
+    {
         if (!enabled)
         {
-            ClearWarmCacheAttentionVisual();
+            ClearButtonAttentionVisual(button);
             return;
         }
 
-        ApplyWarmCacheAttentionVisual();
+        ApplyButtonAttentionVisual(button);
     }
 
-    private void ApplyWarmCacheAttentionVisual()
+    private void ApplyButtonAttentionVisual(Button button)
     {
-        WarmCacheButton.ApplyTemplate();
+        button.ApplyTemplate();
         var backgroundBrush = CreatePulsingBrush(
             Color.FromArgb(0xB8, 0x1B, 0x1E, 0x18),
             Color.FromArgb(0xC2, 0x2A, 0x27, 0x18),
@@ -1376,11 +1672,11 @@ Write-Host "FAMILY_INDEX:$indexPath"
             Color.FromRgb(0x66, 0x55, 0x35),
             Color.FromRgb(0xA8, 0x82, 0x3E),
             3000);
-        WarmCacheButton.Background = backgroundBrush;
-        WarmCacheButton.BorderBrush = borderBrush;
-        WarmCacheButton.ClearValue(Control.ForegroundProperty);
+        button.Background = backgroundBrush;
+        button.BorderBrush = borderBrush;
+        button.ClearValue(Control.ForegroundProperty);
 
-        if (WarmCacheButton.Template.FindName("Body", WarmCacheButton) is Border body)
+        if (button.Template.FindName("Body", button) is Border body)
         {
             var bodyBackgroundBrush = CreatePulsingBrush(
                 Color.FromArgb(0xB8, 0x1B, 0x1E, 0x18),
@@ -1394,25 +1690,25 @@ Write-Host "FAMILY_INDEX:$indexPath"
             body.BorderBrush = bodyBorderBrush;
         }
 
-        SetTemplateOpacity(WarmCacheButton, "WarpFrame", true, 0.24);
-        SetTemplateOpacity(WarmCacheButton, "PlateGhosts", true, 0.10);
-        SetTemplateOpacity(WarmCacheButton, "Scanlines", true, 0.12);
-        SetTemplateOpacity(WarmCacheButton, "TearLayer", true, 0.08);
-        SetTemplateOpacity(WarmCacheButton, "AmberPlateGhost", true, 0.06);
-        SetTemplateOpacity(WarmCacheButton, "FrameAmberRip", true, 0.04);
-        SetTemplateOpacity(WarmCacheButton, "TearRightBorderAmber", true, 0.04);
+        SetTemplateOpacity(button, "WarpFrame", true, 0.24);
+        SetTemplateOpacity(button, "PlateGhosts", true, 0.10);
+        SetTemplateOpacity(button, "Scanlines", true, 0.12);
+        SetTemplateOpacity(button, "TearLayer", true, 0.08);
+        SetTemplateOpacity(button, "AmberPlateGhost", true, 0.06);
+        SetTemplateOpacity(button, "FrameAmberRip", true, 0.04);
+        SetTemplateOpacity(button, "TearRightBorderAmber", true, 0.04);
     }
 
-    private void ClearWarmCacheAttentionVisual()
+    private void ClearButtonAttentionVisual(Button button)
     {
-        WarmCacheButton.ApplyTemplate();
-        StopBrushPulse(WarmCacheButton.Background);
-        StopBrushPulse(WarmCacheButton.BorderBrush);
-        WarmCacheButton.ClearValue(Control.BackgroundProperty);
-        WarmCacheButton.ClearValue(Control.BorderBrushProperty);
-        WarmCacheButton.ClearValue(Control.ForegroundProperty);
+        button.ApplyTemplate();
+        StopBrushPulse(button.Background);
+        StopBrushPulse(button.BorderBrush);
+        button.ClearValue(Control.BackgroundProperty);
+        button.ClearValue(Control.BorderBrushProperty);
+        button.ClearValue(Control.ForegroundProperty);
 
-        if (WarmCacheButton.Template.FindName("Body", WarmCacheButton) is Border body)
+        if (button.Template.FindName("Body", button) is Border body)
         {
             StopBrushPulse(body.Background);
             StopBrushPulse(body.BorderBrush);
@@ -1420,13 +1716,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
             body.ClearValue(Border.BorderBrushProperty);
         }
 
-        SetTemplateOpacity(WarmCacheButton, "WarpFrame", false, 0);
-        SetTemplateOpacity(WarmCacheButton, "PlateGhosts", false, 0);
-        SetTemplateOpacity(WarmCacheButton, "Scanlines", false, 0);
-        SetTemplateOpacity(WarmCacheButton, "TearLayer", false, 0);
-        SetTemplateOpacity(WarmCacheButton, "AmberPlateGhost", false, 0);
-        SetTemplateOpacity(WarmCacheButton, "FrameAmberRip", false, 0);
-        SetTemplateOpacity(WarmCacheButton, "TearRightBorderAmber", false, 0);
+        SetTemplateOpacity(button, "WarpFrame", false, 0);
+        SetTemplateOpacity(button, "PlateGhosts", false, 0);
+        SetTemplateOpacity(button, "Scanlines", false, 0);
+        SetTemplateOpacity(button, "TearLayer", false, 0);
+        SetTemplateOpacity(button, "AmberPlateGhost", false, 0);
+        SetTemplateOpacity(button, "FrameAmberRip", false, 0);
+        SetTemplateOpacity(button, "TearRightBorderAmber", false, 0);
     }
 
     private static SolidColorBrush CreatePulsingBrush(Color from, Color to, int durationMs)
@@ -2588,6 +2884,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         _latestLauncherRelease = null;
         _verifiedUpdatePackagePath = null;
         _verifiedUpdateSha256 = null;
+        SetUpdateAttention(false);
         UpdatesScaffoldText.Foreground = (Brush)FindResource("TextSecondary");
         UpdatesScaffoldText.Text = "Запрос GitHub...";
         UpdateStatusText.Text = "Проверяю GitHub Releases...";
@@ -2605,6 +2902,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 UpdateStatusText.Text = "Релиз лаунчера не найден.";
                 SetJournalState("GitHub доступен. Релиз лаунчера пока не опубликован.");
                 AddLog("Обновления: релиз SC_Mod_Launcher_*.zip пока не найден.");
+                SetUpdateAttention(false);
                 return;
             }
 
@@ -2628,6 +2926,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 : $"Канал обновлений: актуально, версия {CurrentLauncherVersion}.");
             AddUriLog("Релиз", release.HtmlUrl, release.TagName);
             InstallUpdateButton.IsEnabled = comparison > 0 && !string.IsNullOrWhiteSpace(release.ExpectedSha256);
+            SetUpdateAttention(InstallUpdateButton.IsEnabled);
             if (string.IsNullOrWhiteSpace(release.ExpectedSha256))
             {
                 AddErrorLog("Канал обновлений: SHA-256 не найден, установка заблокирована.");
@@ -2641,6 +2940,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             UpdateStatusText.Text = "Канал обновлений недоступен.";
             SetJournalState("Канал обновлений временно недоступен.");
             AddMetricLog(message);
+            SetUpdateAttention(false);
         }
     }
 
@@ -3057,13 +3357,22 @@ public sealed class ModuleOption
     public bool Default { get; set; }
 }
 
-public sealed class MiningCraftFamilySection
+public sealed class RecipeFamilySection
 {
+    public string ModuleId { get; set; } = "";
     public FrameworkElement Root { get; set; } = null!;
     public Expander Expander { get; set; } = null!;
     public TextBlock Counter { get; set; } = null!;
     public TextBox SearchBox { get; set; } = null!;
     public List<MiningCraftFamilyEntry> Entries { get; set; } = new();
+    public List<CheckBox> Checks { get; } = new();
+    public List<RecipeFamilySubsection> Subsections { get; } = new();
+}
+
+public sealed class RecipeFamilySubsection
+{
+    public Expander Expander { get; set; } = null!;
+    public TextBlock Counter { get; set; } = null!;
     public List<CheckBox> Checks { get; } = new();
 }
 

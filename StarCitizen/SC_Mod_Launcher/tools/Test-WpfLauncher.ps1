@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$AppPath = '',
     [switch]$Build,
     [int]$TimeoutSeconds = 20

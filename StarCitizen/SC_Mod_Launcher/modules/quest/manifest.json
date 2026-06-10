@@ -10,43 +10,8 @@
       "id": "highValueScripHighlights",
       "name": "Подсветка фарм-квестов",
       "description": "Подсвечивать 5 выгодных контрактов для фарма скриптов в списке заданий.",
+      "group": "Квесты",
       "default": true
-    },
-    {
-      "id": "shipComponents",
-      "name": "Корабельные компоненты",
-      "description": "Показывать чертежи щитов, двигателей, силовых установок, охладителей и радаров.",
-      "default": true
-    },
-    {
-      "id": "shipWeapons",
-      "name": "Корабельные орудия",
-      "description": "Показывать чертежи корабельного оружия.",
-      "default": true
-    },
-    {
-      "id": "miningLasers",
-      "name": "Добывающие лазеры",
-      "description": "Показывать чертежи добывающих лазеров отдельно от корабельных орудий.",
-      "default": false
-    },
-    {
-      "id": "armorAndClothing",
-      "name": "Броня и одежда",
-      "description": "Показывать чертежи брони, костюмов, шлемов и одежды.",
-      "default": true
-    },
-    {
-      "id": "fpsWeapons",
-      "name": "FPS-оружие",
-      "description": "Показывать чертежи ручного оружия.",
-      "default": true
-    },
-    {
-      "id": "equipmentAndConsumables",
-      "name": "Снаряжение и расходники",
-      "description": "Показывать модули инструментов, расходники и полезное снаряжение.",
-      "default": false
     }
   ]
 }

@@ -5,12 +5,15 @@
     )
 
     $selectedCategoryNames = @(Get-SCQuestSelectedCategoryNames -SelectedOptions $SelectedOptions)
+    $selectedFamilyOptionIds = @(Get-SCQuestSelectedFamilyOptionIds -SelectedOptions $SelectedOptions)
+    $familyIndex = Get-SCQuestCraftFamilyIndex
     $allSelectableCategoriesSelected = Test-SCQuestAllSelectableCategoriesSelected -SelectedCategoryNames $selectedCategoryNames
     $enableHighValueScripHighlights = @($SelectedOptions) -contains 'highValueScripHighlights'
     $metadata = @{
         source = 'SC Quest Recipe Engine'
         selectedOptionCount = @($SelectedOptions).Count
         selectedBlueprintCategories = @($selectedCategoryNames)
+        selectedRecipeFamilies = @($selectedFamilyOptionIds).Count
         highValueScripHighlightsEnabled = $enableHighValueScripHighlights
         blueprintMarkerPolicy = 'Title marker [CH] is kept only when the contract has visible selected blueprint categories.'
         specialMarkerPolicy = 'Ace pilot [A] and scrip [S] markers are always kept when reported by SCMDB; high-value scrip title highlighting is optional.'
@@ -68,7 +71,7 @@
         }
 
         $descriptionStats.generated++
-        $filteredValue = Select-SCQuestRewardBlockCategories -Value $value -SelectedCategoryNames $selectedCategoryNames
+        $filteredValue = Select-SCQuestRewardBlockCategories -Value $value -SelectedCategoryNames $selectedCategoryNames -SelectedFamilyOptionIds $selectedFamilyOptionIds -FamilyIndex $familyIndex
         $patchedValues[$key] = Remove-SCQuestVisibleScmdbBranding -Value $filteredValue
 
         $hasVisibleRewardBlock = Test-SCQuestHasRewardBlock -Value $filteredValue
@@ -386,7 +389,111 @@ function Get-SCQuestSelectedCategoryNames {
         }
     }
 
-    return @($names)
+    foreach ($optionId in @(Get-SCQuestSelectedFamilyOptionIds -SelectedOptions $SelectedOptions)) {
+        $parts = ([string]$optionId).Split('|')
+        if ($parts.Count -ge 2 -and -not [string]::IsNullOrWhiteSpace($parts[1])) {
+            $names += [string]$parts[1]
+        }
+    }
+
+    return @($names | Sort-Object -Unique)
+}
+
+function Get-SCQuestSelectedFamilyOptionIds {
+    param([string[]]$SelectedOptions)
+
+    return @(
+        @($SelectedOptions) |
+            ForEach-Object { [string]$_ } |
+            Where-Object { $_.StartsWith('questCraftFamily|', [System.StringComparison]::OrdinalIgnoreCase) }
+    )
+}
+
+function Get-SCQuestCraftFamilyIndex {
+    $cacheDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'mining\cache'
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        return $null
+    }
+
+    $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'craft-family-index-*.json' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($null -eq $cacheFile) {
+        return $null
+    }
+
+    try {
+        return (Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json)
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-SCQuestFamilyOptionSuffix {
+    param([AllowEmptyString()][string]$OptionId)
+
+    $value = [string]$OptionId
+    $separator = $value.IndexOf('|')
+    if ($separator -lt 0) {
+        return $value
+    }
+
+    return $value.Substring($separator + 1)
+}
+
+function Normalize-SCQuestRecipeName {
+    param([AllowEmptyString()][string]$Name)
+
+    return (([string]$Name) -replace 'Â ', ' ' -replace [string][char]0x00A0, ' ' -replace '\s+', ' ').Trim()
+}
+
+function New-SCQuestFamilyLookup {
+    param([object]$FamilyIndex)
+
+    $lookup = @{}
+    if ($null -eq $FamilyIndex -or $null -eq $FamilyIndex.families) {
+        return $lookup
+    }
+
+    foreach ($entry in @($FamilyIndex.families)) {
+        $sourceOptionId = [string]$entry.optionId
+        if ([string]::IsNullOrWhiteSpace($sourceOptionId)) {
+            continue
+        }
+
+        $questOptionId = 'questCraftFamily|' + (Get-SCQuestFamilyOptionSuffix -OptionId $sourceOptionId)
+        foreach ($name in @($entry.names)) {
+            $normalized = Normalize-SCQuestRecipeName -Name ([string]$name)
+            if (-not [string]::IsNullOrWhiteSpace($normalized)) {
+                $lookup[$normalized] = $questOptionId
+            }
+        }
+
+        $label = Normalize-SCQuestRecipeName -Name ([string]$entry.label)
+        if (-not [string]::IsNullOrWhiteSpace($label) -and -not $lookup.ContainsKey($label)) {
+            $lookup[$label] = $questOptionId
+        }
+    }
+
+    return $lookup
+}
+
+function Get-SCQuestRecipeNameFromRewardLine {
+    param([AllowEmptyString()][string]$Line)
+
+    $lineText = [string]$Line
+    if ($lineText -notmatch '^\s*-\s*(.+)$') {
+        return $null
+    }
+
+    $name = [string]$Matches[1]
+    $dashIndex = $name.IndexOf(' — ')
+    if ($dashIndex -ge 0) {
+        $name = $name.Substring(0, $dashIndex)
+    }
+
+    return (Normalize-SCQuestRecipeName -Name $name)
 }
 
 function Get-SCQuestKnownCategoryNames {
@@ -439,7 +546,9 @@ function Test-SCQuestHasRewardBlock {
 function Select-SCQuestRewardBlockCategories {
     param(
         [Parameter(Mandatory = $true)][string]$Value,
-        [string[]]$SelectedCategoryNames
+        [string[]]$SelectedCategoryNames,
+        [string[]]$SelectedFamilyOptionIds,
+        [object]$FamilyIndex
     )
 
     $match = [regex]::Match(
@@ -455,6 +564,15 @@ function Select-SCQuestRewardBlockCategories {
     foreach ($name in @($SelectedCategoryNames)) {
         $selected[$name] = $true
     }
+
+    $selectedFamilies = @{}
+    foreach ($optionId in @($SelectedFamilyOptionIds)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$optionId)) {
+            $selectedFamilies[[string]$optionId] = $true
+        }
+    }
+    $useFamilyFilter = ($selectedFamilies.Count -gt 0)
+    $familyLookup = if ($useFamilyFilter) { New-SCQuestFamilyLookup -FamilyIndex $FamilyIndex } else { @{} }
 
     $known = @{}
     foreach ($name in Get-SCQuestKnownCategoryNames) {
@@ -475,6 +593,20 @@ function Select-SCQuestRewardBlockCategories {
     $keptItemCount = 0
     $currentCategory = $null
     $categoryItemCounts = [ordered]@{}
+    $categoryBuffer = New-Object System.Collections.Generic.List[string]
+    $pendingCategoryLines = New-Object System.Collections.Generic.List[string]
+    $categoryBulletCount = 0
+
+    function Flush-SCQuestCategoryBuffer {
+        if ($categoryBuffer -and $categoryBulletCount -gt 0) {
+            if ($kept.Count -gt 0) {
+                $kept.Add('')
+            }
+            foreach ($bufferLine in $categoryBuffer) {
+                $kept.Add([string]$bufferLine)
+            }
+        }
+    }
 
     for ($index = 1; $index -lt $lines.Count; $index++) {
         $line = [string]$lines[$index]
@@ -484,31 +616,54 @@ function Select-SCQuestRewardBlockCategories {
 
         $headingMatch = [regex]::Match($line, '^<EM\d>(.+?)</EM\d>$')
         if ($headingMatch.Success -and $known.ContainsKey([string]$headingMatch.Groups[1].Value)) {
+            Flush-SCQuestCategoryBuffer
             $category = [string]$headingMatch.Groups[1].Value
             $includeCurrentCategory = $selected.ContainsKey($category)
             $currentCategory = if ($includeCurrentCategory) { $category } else { $null }
+            $categoryBuffer = New-Object System.Collections.Generic.List[string]
+            $pendingCategoryLines = New-Object System.Collections.Generic.List[string]
+            $categoryBulletCount = 0
             if ($includeCurrentCategory) {
                 if (-not $categoryItemCounts.Contains($category)) {
                     $categoryItemCounts[$category] = 0
                 }
-                if ($kept.Count -gt 0) {
-                    $kept.Add('')
-                }
-                $kept.Add($line)
+                $categoryBuffer.Add($line)
             }
             continue
         }
 
         if ($includeCurrentCategory) {
-            $kept.Add($line)
             if ($line -match '^- ') {
+                $recipeName = Get-SCQuestRecipeNameFromRewardLine -Line $line
+                if ($useFamilyFilter) {
+                    if ([string]::IsNullOrWhiteSpace($recipeName) -or -not $familyLookup.ContainsKey($recipeName)) {
+                        continue
+                    }
+
+                    $familyOptionId = [string]$familyLookup[$recipeName]
+                    if (-not $selectedFamilies.ContainsKey($familyOptionId)) {
+                        continue
+                    }
+                }
+
+                foreach ($pendingLine in $pendingCategoryLines) {
+                    $categoryBuffer.Add([string]$pendingLine)
+                }
+                $pendingCategoryLines.Clear()
+                $categoryBuffer.Add($line)
+                $categoryBulletCount++
                 $keptItemCount++
                 if ($currentCategory) {
                     $categoryItemCounts[$currentCategory] = [int]$categoryItemCounts[$currentCategory] + 1
                 }
             }
+            else {
+                $pendingCategoryLines.Add($line)
+            }
         }
     }
+
+    Flush-SCQuestCategoryBuffer
 
     if ($keptItemCount -eq 0) {
         return $prefix.TrimEnd()

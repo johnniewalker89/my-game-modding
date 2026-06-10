@@ -61,7 +61,7 @@ function Format-SelectedOptionNames {
     $names = @()
     $craftFamilyCount = 0
     foreach ($optionId in @($ModuleReport.selectedOptions)) {
-        if ([string]$optionId -like 'craftFamily|*') {
+        if ([string]$optionId -like 'craftFamily|*' -or [string]$optionId -like 'questCraftFamily|*') {
             $craftFamilyCount++
             continue
         }

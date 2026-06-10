@@ -670,7 +670,7 @@ function Invoke-SCModStagingApply {
     )
 
     if ([string]::IsNullOrWhiteSpace($StagingRoot)) {
-        $StagingRoot = Join-Path (Join-Path $ScriptRoot 'reports') 'staging'
+        $StagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-staging-" + [guid]::NewGuid().ToString('N'))
     }
 
     $staging = New-SCStagingLiveCopy -SourceLivePath $LivePath -StagingRoot $StagingRoot
