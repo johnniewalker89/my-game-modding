@@ -1,5 +1,20 @@
 # SC Mod Launcher Releases
 
+## 1.0.7
+
+### Что нового
+
+- Убрана цветовая подсветка системных кодов `NY`, `PY`, `ST` в репутационных метках квестов.
+- Метки стали спокойнее: вместо `[<EM4>PY</EM4>:2K]` теперь `[PY:2K]`, без лишней пестроты в списке контрактов.
+- То же правило применено к строке репутации в описании контракта: системные коды больше не подсвечиваются отдельно.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_1.0.7.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 1.0.7`
+- Проверено: scaffold backend, WPF build/smoke, update installer mirror/preserve cleanup, temp LIVE apply.
+
 ## 1.0.6
 
 ### Что нового

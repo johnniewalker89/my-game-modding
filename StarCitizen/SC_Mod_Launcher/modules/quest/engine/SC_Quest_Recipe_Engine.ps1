@@ -431,7 +431,7 @@ function Format-ReputationTitleMarker {
             ) | Sort-Object -Unique
 
             if ($systemAmounts.Count -eq 1) {
-                $systemParts += ("<EM4>{0}</EM4>:{1}" -f $systemKey, (Format-ReputationTitleAmount -Amount $systemAmounts[0]))
+                $systemParts += ("{0}:{1}" -f $systemKey, (Format-ReputationTitleAmount -Amount $systemAmounts[0]))
             }
             else {
                 $allSystemsHaveOneAmount = $false
@@ -3330,7 +3330,7 @@ function Format-ReputationDescriptionBlock {
         $parts = @()
         foreach ($systemKey in @($Group.SystemReputationAmounts.Keys | Sort-Object)) {
             $systemEntries = @(Get-ReputationEntryList -EntryMap $Group.SystemReputationEntries[$systemKey])
-            $parts += ("<EM4>{0}</EM4> {1}" -f $systemKey, (Format-ReputationEntryList -Entries $systemEntries))
+            $parts += ("{0} {1}" -f $systemKey, (Format-ReputationEntryList -Entries $systemEntries))
         }
         return '<EM4>Репутация</EM4>: ' + ($parts -join ' / ')
     }
