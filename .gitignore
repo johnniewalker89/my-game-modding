@@ -2,6 +2,8 @@
 backups/
 reports/
 cache/
+!StarCitizen/SC_Mod_Launcher/modules/scmdb/cache/
+!StarCitizen/SC_Mod_Launcher/modules/scmdb/cache/*.json
 dist/
 updates/
 StarCitizen/SC_Mod_Launcher/app/

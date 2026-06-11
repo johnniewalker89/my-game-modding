@@ -2,6 +2,7 @@ param(
     [string]$LivePath,
     [string]$SelectedOptionsJson,
     [switch]$Preflight,
+    [switch]$CachePreflight,
     [switch]$WarmCache,
     [switch]$DryRun,
     [switch]$StagingApply,
@@ -180,25 +181,6 @@ function Write-ConsoleLiveApplySummary {
     }
 }
 
-function Assert-SCRemoteSourcesAvailable {
-    $uri = 'https://scmdb.net/data/game-versions.json'
-    $headers = @{ 'User-Agent' = 'SC_Mod_Launcher/1.0 preflight' }
-    $response = Get-SCRemoteJson -Name 'SCMDB index' -Uri $uri -Headers $headers
-    if ($null -eq $response) {
-        throw "REMOTE PREFLIGHT FAILED: SCMDB is unavailable. Write stopped before file changes. Source: $uri."
-    }
-
-    $version = @($response | Where-Object { [string]$_.version -match 'live' } | Select-Object -First 1)
-    if ($version.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string]$version[0].file)) {
-        throw "REMOTE PREFLIGHT FAILED: SCMDB live data entry is unavailable. Write stopped before file changes. Source: $uri."
-    }
-
-    $dataUri = "https://scmdb.net/data/$($version[0].file)"
-    if ($null -eq (Get-SCRemoteJson -Name 'SCMDB data' -Uri $dataUri -Headers $headers)) {
-        throw "REMOTE PREFLIGHT FAILED: SCMDB live data is unavailable. Write stopped before file changes. Source: $dataUri."
-    }
-}
-
 function Get-SCRelativeOrName {
     param([string]$Path)
 
@@ -217,6 +199,84 @@ function Get-SCRelativeOrName {
     }
 
     return (Split-Path -Leaf $Path)
+}
+
+function Get-SCScmdbCacheDirectory {
+    return (Join-Path $ScriptRoot 'modules\scmdb\cache')
+}
+
+function Get-SCSafeCacheKey {
+    param([string]$CacheKey)
+
+    return [regex]::Replace([string]$CacheKey, '[^A-Za-z0-9._-]', '_')
+}
+
+function Get-SCScmdbCachePath {
+    param([string]$Version)
+
+    return (Join-Path (Get-SCScmdbCacheDirectory) ("scmdb-{0}.json" -f (Get-SCSafeCacheKey -CacheKey $Version)))
+}
+
+function Get-SCLatestScmdbCachePath {
+    $cacheDir = Get-SCScmdbCacheDirectory
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        return $null
+    }
+
+    $latest = Get-ChildItem -LiteralPath $cacheDir -Filter 'scmdb-*.json' -File |
+        Where-Object { $_.Name -notlike '*.meta.json' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($null -eq $latest) {
+        return $null
+    }
+
+    return [string]$latest.FullName
+}
+
+function Read-SCScmdbCache {
+    $path = Get-SCLatestScmdbCachePath
+    if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        return $null
+    }
+
+    $payload = Get-Content -LiteralPath $path -Encoding UTF8 -Raw | ConvertFrom-Json
+    return [pscustomobject]@{
+        Path = $path
+        Version = [string]$payload.version
+        File = [string]$payload.file
+        CreatedAt = $payload.createdAt
+        Data = $payload.data
+    }
+}
+
+function Write-SCScmdbCache {
+    param(
+        [Parameter(Mandatory = $true)]$Version,
+        [Parameter(Mandatory = $true)]$Data
+    )
+
+    if ([string]::IsNullOrWhiteSpace([string]$Version.version) -or [string]::IsNullOrWhiteSpace([string]$Version.file)) {
+        throw 'SCMDB version entry is incomplete.'
+    }
+
+    $cacheDir = Get-SCScmdbCacheDirectory
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+    }
+
+    $path = Get-SCScmdbCachePath -Version ([string]$Version.version)
+    $payload = [ordered]@{
+        schemaVersion = 1
+        createdAt = (Get-Date).ToString('o')
+        version = [string]$Version.version
+        file = [string]$Version.file
+        data = $Data
+    }
+    $json = $payload | ConvertTo-Json -Depth 100
+    [System.IO.File]::WriteAllText($path, $json, [System.Text.UTF8Encoding]::new($false))
+    Write-SCCacheTimestampMetadata -Path $path
+    return $path
 }
 
 function Format-SCCacheAge {
@@ -388,6 +448,26 @@ function Get-SCQuestCachePaths {
     )
 }
 
+function Assert-SCLocalCachesAvailable {
+    $scmdbCache = Read-SCScmdbCache
+    if ($null -eq $scmdbCache -or [string]::IsNullOrWhiteSpace([string]$scmdbCache.Version)) {
+        throw 'CACHE PREFLIGHT FAILED: SCMDB cache is missing. Refresh cache before applying to LIVE.'
+    }
+
+    . (Get-SCMiningModuleScriptPath)
+    $required = @(
+        [pscustomobject]@{ Name = 'mining blueprints'; Path = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$scmdbCache.Version) },
+        [pscustomobject]@{ Name = 'mining recipe families'; Path = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version) },
+        [pscustomobject]@{ Name = 'quest items'; Path = (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json') }
+    )
+
+    foreach ($item in $required) {
+        if (-not (Test-Path -LiteralPath $item.Path -PathType Leaf)) {
+            throw "CACHE PREFLIGHT FAILED: $($item.Name) cache is missing. Refresh cache before applying to LIVE."
+        }
+    }
+}
+
 function Reset-SCCacheFile {
     param([string]$Path)
 
@@ -419,35 +499,88 @@ function Get-SCModuleNamesText {
     return (($script:Modules | ForEach-Object { [string]$_.Manifest.name }) -join '; ')
 }
 
-function Write-ConsolePreflightSummary {
-    param([string]$LivePath)
-
+function Write-ConsoleRemoteSourceSummary {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $headers = @{ 'User-Agent' = 'SC-Mod-Launcher/1.0 preflight' }
+
+    $versions = Get-SCRemoteJson -Name 'SCMDB index' -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers
+    if ($versions -and @($versions).Count -gt 0) {
+        $version = @($versions)[0]
+        if (-not [string]::IsNullOrWhiteSpace([string]$version.file)) {
+            [void](Get-SCRemoteJson -Name 'SCMDB data' -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers)
+        }
+        else {
+            Write-Host 'Source SCMDB data: FAIL; SCMDB index did not include data file.'
+        }
+    }
+    else {
+        Write-Host 'Source SCMDB data: FAIL; SCMDB index unavailable.'
+    }
+
+    [void](Test-SCWikiBlueprintSource -Headers $headers)
+    [void](Test-SCWikiItemsSource -Headers $headers)
+}
+
+function Test-SCWikiBlueprintSource {
+    param([hashtable]$Headers)
+
+    try {
+        [void](Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec 12)
+        Write-Host 'Source Wiki blueprints: OK'
+        return $true
+    }
+    catch {
+        Write-Host "Source Wiki blueprints: FAIL; $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Test-SCWikiItemsSource {
+    param([hashtable]$Headers)
+
+    try {
+        [void](Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/items?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec 12)
+        Write-Host 'Source Wiki items: OK'
+        return $true
+    }
+    catch {
+        Write-Host "Source Wiki items: FAIL; $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Write-ConsolePreflightSummary {
+    param(
+        [string]$LivePath,
+        [switch]$CheckSources
+    )
+
     Write-Host 'SC Mod Launcher preflight'
     Write-Host "LIVE: $LivePath"
     Write-Host "global.ini: $(if (Test-Path -LiteralPath (Get-SCGlobalIniPath -LivePath $LivePath) -PathType Leaf) { 'OK' } else { 'MISSING' })"
     Write-Host "Modules: $($script:Modules.Count)"
     Write-Host "Module names: $(Get-SCModuleNamesText)"
 
-    $versions = Get-SCRemoteJson -Name 'SCMDB index' -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers
-    $version = $null
-    if ($versions -and @($versions).Count -gt 0) {
-        $version = @($versions)[0]
-        Write-Host "SCMDB version: $($version.version)"
-        if (-not [string]::IsNullOrWhiteSpace([string]$version.file)) {
-            [void](Get-SCRemoteJson -Name 'SCMDB data' -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers)
-        }
+    if ($CheckSources) {
+        Write-ConsoleRemoteSourceSummary
     }
 
-    [void](Get-SCRemoteJson -Name 'Wiki blueprints' -Uri 'https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $headers)
+    $scmdbCache = Read-SCScmdbCache
+    if ($null -eq $scmdbCache) {
+        Write-Host 'SCMDB version: MISSING'
+        Write-SCCacheStatusLine -Name 'scmdb data' -Path (Join-Path (Get-SCScmdbCacheDirectory) 'scmdb-missing.json')
+    }
+    else {
+        Write-Host "SCMDB version: $($scmdbCache.Version)"
+        Write-SCCacheStatusLine -Name 'scmdb data' -Path $scmdbCache.Path
+    }
 
     try {
         . (Get-SCMiningModuleScriptPath)
-        if ($version -and -not [string]::IsNullOrWhiteSpace([string]$version.version)) {
-            $miningCachePath = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$version.version)
+        if ($scmdbCache -and -not [string]::IsNullOrWhiteSpace([string]$scmdbCache.Version)) {
+            $miningCachePath = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining blueprints' -Path $miningCachePath
-            $familyIndexPath = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$version.version)
+            $familyIndexPath = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining recipe families' -Path $familyIndexPath
         }
     }
@@ -456,7 +589,7 @@ function Write-ConsolePreflightSummary {
     }
 
     Write-SCCacheStatusLine -Name 'quest items' -Path (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json')
-    Write-Host 'Advice: refresh cache when important cache is older than 7 days or a source is FAIL.'
+    Write-Host 'Advice: refresh cache when important cache is MISSING or older than 7 days.'
 }
 
 function Write-ConsoleWarmCacheSummary {
@@ -471,11 +604,21 @@ function Write-ConsoleWarmCacheSummary {
 
     $version = @($versions)[0]
     Write-Host "SCMDB version: $($version.version)"
+    $scmdbData = $null
     if (-not [string]::IsNullOrWhiteSpace([string]$version.file)) {
-        [void](Get-SCRemoteJson -Name 'SCMDB data' -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers)
+        $scmdbData = Get-SCRemoteJson -Name 'SCMDB data' -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers
     }
+    if ($null -eq $scmdbData) {
+        throw 'SCMDB data returned no data.'
+    }
+    $scmdbCachePath = Write-SCScmdbCache -Version $version -Data $scmdbData
+    Write-SCRefreshedCacheLine -Name 'scmdb data' -Path $scmdbCachePath
 
     . (Get-SCMiningModuleScriptPath)
+    if (-not (Test-SCWikiBlueprintSource -Headers $headers)) {
+        throw 'Wiki blueprints source is unavailable.'
+    }
+
     $blueprints = @(Get-SCMiningWikiBlueprints -Headers $headers -CacheKey ([string]$version.version) -ForceRefresh)
     $cachePath = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$version.version)
     Write-Host "Wiki blueprints: $($blueprints.Count)"
@@ -483,6 +626,10 @@ function Write-ConsoleWarmCacheSummary {
 
     foreach ($questCachePath in Get-SCQuestCachePaths) {
         Reset-SCCacheFile -Path $questCachePath
+    }
+
+    if (-not (Test-SCWikiItemsSource -Headers $headers)) {
+        throw 'Wiki items source is unavailable.'
     }
 
     $questItemsCachePath = Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json'
@@ -513,6 +660,7 @@ function Write-ConsoleUsage {
     Write-Host ''
     Write-Host 'CLI modes:'
     Write-Host '  .\SC_Mod_Launcher.ps1 -LivePath "C:\Games\StarCitizen\LIVE" -Preflight'
+    Write-Host '  .\SC_Mod_Launcher.ps1 -LivePath "C:\Games\StarCitizen\LIVE" -CachePreflight'
     Write-Host '  .\SC_Mod_Launcher.ps1 -LivePath "C:\Games\StarCitizen\LIVE" -WarmCache'
     Write-Host '  .\SC_Mod_Launcher.ps1 -LivePath "C:\Games\StarCitizen\LIVE" -DryRun'
     Write-Host '  .\SC_Mod_Launcher.ps1 -LivePath "C:\Games\StarCitizen\LIVE" -ApplyLive'
@@ -523,6 +671,11 @@ if ([string]::IsNullOrWhiteSpace($LivePath)) {
 }
 
 if ($Preflight) {
+    Write-ConsolePreflightSummary -LivePath $LivePath -CheckSources
+    exit 0
+}
+
+if ($CachePreflight) {
     Write-ConsolePreflightSummary -LivePath $LivePath
     exit 0
 }
@@ -534,7 +687,7 @@ if ($WarmCache) {
 
 if ($DryRun) {
     $selected = Read-SelectedOptionsJson -Path $SelectedOptionsJson
-    Assert-SCRemoteSourcesAvailable
+    Assert-SCLocalCachesAvailable
     $result = Invoke-SCModDryRun -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected
     Write-ConsoleDryRunSummary -Result $result
     exit 0
@@ -542,7 +695,7 @@ if ($DryRun) {
 
 if ($StagingApply) {
     $selected = Read-SelectedOptionsJson -Path $SelectedOptionsJson
-    Assert-SCRemoteSourcesAvailable
+    Assert-SCLocalCachesAvailable
     $result = Invoke-SCModStagingApply -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected
     Write-ConsoleStagingSummary -Result $result
     exit 0
@@ -550,11 +703,10 @@ if ($StagingApply) {
 
 if ($ApplyLive) {
     $selected = Read-SelectedOptionsJson -Path $SelectedOptionsJson
-    Write-Host 'Progress: apply sources'
-    Assert-SCRemoteSourcesAvailable
+    Write-Host 'Progress: apply cache'
+    Assert-SCLocalCachesAvailable
     Write-Host 'Progress: apply plan'
     $result = Invoke-SCModPatch -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected
-    Write-Host 'Progress: apply write'
     Write-ConsoleLiveApplySummary -Result $result
     exit 0
 }

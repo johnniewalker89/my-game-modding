@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '1.0.5'
+    [string]$Version = '1.0.6'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,6 +26,8 @@ $packageItems = @(
 $releaseSeedItems = @(
     'backups\global.ini.20260608-230029.starter-clean.bak',
     'backups\global.ini.20260608-230029.starter-clean.bak.meta.json',
+    'modules\scmdb\cache\scmdb-4.8.1-live.11952564.json',
+    'modules\scmdb\cache\scmdb-4.8.1-live.11952564.json.meta.json',
     'modules\mining\cache\wiki-blueprints-4.8.1-live.11952564.json',
     'modules\mining\cache\craft-family-index-4.8.1-live.11952564.json',
     'modules\quest\engine\cache\wiki-items-cache.json',
@@ -38,6 +40,8 @@ $preservePaths = @(
     'backups/**',
     'modules/mining/cache',
     'modules/mining/cache/**',
+    'modules/scmdb/cache',
+    'modules/scmdb/cache/**',
     'modules/quest/engine/cache',
     'modules/quest/engine/cache/**',
     'config',

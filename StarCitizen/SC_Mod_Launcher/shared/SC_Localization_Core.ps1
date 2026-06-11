@@ -347,7 +347,7 @@ function Get-SCWikeloItemHintBlock {
 
     $match = [regex]::Match(
         [string]$Value,
-        '(?s)(?<block>\\n\\n<EM\d>Wikelo-заказы</EM\d>.*)$')
+        '(?s)(?<block>\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*)$')
     if (-not $match.Success) {
         return ''
     }
@@ -360,7 +360,7 @@ function Remove-SCWikeloItemHintBlock {
 
     return [regex]::Replace(
         [string]$Value,
-        '\\n\\n<EM\d>Wikelo-заказы</EM\d>.*$',
+        '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*$',
         '',
         [System.Text.RegularExpressions.RegexOptions]::Singleline)
 }

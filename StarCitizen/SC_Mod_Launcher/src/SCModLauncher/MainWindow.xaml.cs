@@ -38,7 +38,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "1.0.5";
+    private const string CurrentLauncherVersion = "1.0.6";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string LauncherAssetPrefix = "SC_Mod_Launcher_";
     private const string LauncherAssetSuffix = ".zip";
@@ -616,14 +616,20 @@ public partial class MainWindow : Window
             var visibleItems = group
                 .Where(item =>
                     string.Equals((string)item.Option.Id, "highValueScripHighlights", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals((string)item.Option.Id, "wikeloItemHints", StringComparison.OrdinalIgnoreCase))
+                    string.Equals((string)item.Option.Id, "wikeloItemHints", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals((string)item.Option.Id, "reputationHints", StringComparison.OrdinalIgnoreCase))
                 .ToList();
             if (visibleItems.Count == 0)
             {
                 continue;
             }
 
-            BuildModuleOptionGroup(stack, module, visibleItems.GroupBy(_ => group.Key).First(), 1);
+            var optionSlot = new StackPanel
+            {
+                Margin = new Thickness(0, 8, 0, 4)
+            };
+            BuildModuleOptionGroup(optionSlot, module, visibleItems.GroupBy(_ => group.Key).First(), 1, new Thickness(0, 0, 0, 5));
+            stack.Children.Add(optionSlot);
         }
     }
 
@@ -1574,7 +1580,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
         else if (mode == BackendRunMode.LiveApply)
         {
-            if (line.Equals("Progress: apply sources", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(12);
+            if (line.Equals("Progress: apply cache", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(12);
+            else if (line.Equals("Progress: apply plan", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(18);
             else if (line.Equals("Progress: apply read", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(20);
             else if (line.Equals("Progress: module mining start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(34);
             else if (line.Equals("Progress: module mining done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(48);
@@ -2409,6 +2416,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             AddHeadingLog(mode switch
             {
                 BackendRunMode.Preflight => T("runningPreflight"),
+                BackendRunMode.CachePreflight => T("runningPreflight"),
                 BackendRunMode.WarmCache => T("runningWarmCache"),
                 BackendRunMode.LiveApply => T("runningLiveApply"),
                 _ => T("runningDryRun")
@@ -2512,6 +2520,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         args.Append(mode switch
         {
             BackendRunMode.Preflight => " -Preflight",
+            BackendRunMode.CachePreflight => " -CachePreflight",
             BackendRunMode.WarmCache => " -WarmCache",
             BackendRunMode.DryRun => " -DryRun",
             _ => " -ApplyLive"
@@ -2532,9 +2541,9 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         try
         {
-            SetJournalState("Проверяю источники и cache перед LIVE apply.");
+            SetJournalState("Проверяю локальный cache перед LIVE apply.");
             AddHeadingLog("Предстартовая проверка LIVE...");
-            var result = await RunProcessAsync("powershell.exe", BuildBackendArguments(BackendRunMode.Preflight, null).ToString(), timeout: PreflightProcessTimeout);
+            var result = await RunProcessAsync("powershell.exe", BuildBackendArguments(BackendRunMode.CachePreflight, null).ToString(), timeout: PreflightProcessTimeout);
             if (result.ExitCode != 0)
             {
                 var message = !string.IsNullOrWhiteSpace(result.Error) ? result.Error.Trim() : result.Output.Trim();
@@ -2546,20 +2555,20 @@ Write-Host "FAMILY_INDEX:$indexPath"
             if (status.HasBlockingFailure)
             {
                 AddPreflightSummary(result.Output);
-                AddErrorLog("LIVE apply остановлен: источник или global.ini недоступен.");
+                AddErrorLog(status.HasCacheMissing
+                    ? "LIVE apply остановлен: cache не найден. Прогрей кэш."
+                    : "LIVE apply остановлен: global.ini или cache недоступен.");
                 return false;
             }
 
-            if (status.HasCacheIssue)
+            if (status.HasCacheStale)
             {
                 AddPreflightSummary(result.Output);
                 SetWarmCacheAttention(true);
-                SetJournalState("LIVE apply остановлен: cache требует прогрева.");
-                AddHeadingLog("Кэш не найден или устарел. Сначала прогрей кэш.");
-                return false;
+                AddHeadingLog("Cache старше 7 дней. Можно применить, но лучше прогреть.");
             }
 
-            AddMetricLog("Предстартовая проверка: OK. Cache свежий.");
+            AddMetricLog(status.HasCacheStale ? "Предстартовая проверка: OK. Cache доступен." : "Предстартовая проверка: OK. Cache свежий.");
             return true;
         }
         catch (Exception ex)
@@ -2608,19 +2617,25 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var status = GetPreflightStatus(output);
         var wikiFallback = IsWikiBlueprintFailureCoveredByCache(lines);
         var state = status.HasBlockingFailure
-            ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: источник или global.ini недоступен."
-            : staleOrMissing
-                ? "Источники доступны. Cache устарел: прогрей кэш перед применением."
+            ? status.HasCacheMissing
+                ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: cache не найден."
+                : "ХЬЮСТОН, У НАС ПРОБЛЕМА: global.ini или cache недоступен."
+            : status.HasCacheStale
+                ? "Cache доступен, но старше 7 дней."
                 : wikiFallback
                     ? "Wiki временно недоступна. Используем свежий cache."
-                    : "Источники доступны. Cache свежий.";
+                    : "Cache свежий. Можно применять в LIVE.";
         SetJournalState(state, status.HasBlockingFailure);
-        SetWarmCacheAttention(staleOrMissing && !status.HasBlockingFailure);
+        SetWarmCacheAttention(status.HasCacheIssue);
         if (wikiFallback && !staleOrMissing && !status.HasBlockingFailure)
         {
             AddMetricLog("Wiki временно недоступна, используем свежий cache.");
         }
-        if (staleOrMissing && !status.HasBlockingFailure)
+        if (status.HasCacheMissing)
+        {
+            AddHeadingLog("Кэш не найден. Прогрей кэш.");
+        }
+        else if (status.HasCacheStale)
         {
             AddHeadingLog("Пора прогреть кэш.");
         }
@@ -2639,13 +2654,15 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var cacheFail = lines.Any(line =>
             line.StartsWith("Cache ", StringComparison.OrdinalIgnoreCase) &&
             line.Contains("FAIL", StringComparison.OrdinalIgnoreCase));
-        var cacheIssue = lines.Any(line =>
+        var cacheMissing = lines.Any(line =>
             line.StartsWith("Cache ", StringComparison.OrdinalIgnoreCase) &&
-            (line.Contains("MISSING", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("STALE", StringComparison.OrdinalIgnoreCase) ||
-             line.Contains("FAIL", StringComparison.OrdinalIgnoreCase)));
+            line.Contains("MISSING", StringComparison.OrdinalIgnoreCase));
+        var cacheStale = lines.Any(line =>
+            line.StartsWith("Cache ", StringComparison.OrdinalIgnoreCase) &&
+            line.Contains("STALE", StringComparison.OrdinalIgnoreCase));
+        var cacheIssue = cacheFail || cacheMissing || cacheStale;
 
-        return new PreflightStatus(sourceFailure || globalMissing || cacheFail, cacheIssue);
+        return new PreflightStatus(sourceFailure || globalMissing || cacheFail || cacheMissing, cacheIssue, cacheMissing, cacheStale);
     }
 
     private static bool IsWikiBlueprintFailureCoveredByCache(IEnumerable<string> lines)
@@ -2838,6 +2855,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
     private static TimeSpan GetBackendTimeout(BackendRunMode mode) => mode switch
     {
         BackendRunMode.Preflight => PreflightProcessTimeout,
+        BackendRunMode.CachePreflight => PreflightProcessTimeout,
         BackendRunMode.WarmCache => WarmCacheProcessTimeout,
         BackendRunMode.LiveApply => LiveApplyProcessTimeout,
         _ => DefaultBackendProcessTimeout
@@ -3389,12 +3407,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private sealed record ProcessResult(string Output, string Error, int ExitCode);
 
-    private sealed record PreflightStatus(bool HasBlockingFailure, bool HasCacheIssue);
+    private sealed record PreflightStatus(bool HasBlockingFailure, bool HasCacheIssue, bool HasCacheMissing, bool HasCacheStale);
 }
 
 public enum BackendRunMode
 {
     Preflight,
+    CachePreflight,
     WarmCache,
     DryRun,
     LiveApply

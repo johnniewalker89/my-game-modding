@@ -332,18 +332,13 @@ function Remove-SCMiningItemCraftHintOperations {
 }
 
 function Get-SCMiningItemCraftRecipeData {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $headers = @{ 'User-Agent' = 'SC_Mod_Launcher/1.0 item-craft-hints' }
-
-    $versions = @(Invoke-SCMiningScmdbJson -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers)
-    if ($versions.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string]$versions[0].file)) {
-        throw 'SCMDB game version index returned no data.'
-    }
-
-    $version = $versions[0]
-    $scmdb = Invoke-SCMiningScmdbJson -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers
+    $scmdbCache = Read-SCMiningScmdbCache
+    $scmdb = $scmdbCache.Data
     $rewardRecords = @(Get-SCMiningScmdbRewardBlueprintRecords -Scmdb $scmdb)
-    $wikiBlueprints = @(Get-SCMiningWikiBlueprints -Headers $headers -CacheKey ([string]$version.version))
+    $wikiBlueprints = @(Get-SCMiningCachedWikiBlueprints -CacheKey ([string]$scmdbCache.Version))
+    if ($wikiBlueprints.Count -eq 0) {
+        throw "Mining wiki blueprints cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
+    }
     $blueprintsByUuid = @{}
 
     foreach ($blueprint in $wikiBlueprints) {
@@ -353,7 +348,7 @@ function Get-SCMiningItemCraftRecipeData {
     }
 
     return [pscustomobject]@{
-        ScmdbVersion = [string]$version.version
+        ScmdbVersion = [string]$scmdbCache.Version
         RewardRecords = @($rewardRecords)
         WikiBlueprints = @($wikiBlueprints)
         BlueprintsByUuid = $blueprintsByUuid
@@ -366,14 +361,7 @@ function Get-SCMiningPlanetCraftBlueprints {
         return @($cached)
     }
 
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $headers = @{ 'User-Agent' = 'SC_Mod_Launcher/1.0 planet-craft-cache' }
-    $versions = @(Invoke-SCMiningScmdbJson -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers)
-    if ($versions.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string]$versions[0].version)) {
-        throw 'SCMDB game version index returned no cache key.'
-    }
-
-    return @(Get-SCMiningWikiBlueprints -Headers $headers -CacheKey ([string]$versions[0].version))
+    throw 'Mining wiki blueprints cache is missing. Refresh cache before applying.'
 }
 
 function Invoke-SCMiningScmdbJson {
@@ -401,15 +389,58 @@ function Invoke-SCMiningScmdbJson {
     }
 }
 
+function Get-SCMiningScmdbCacheDirectory {
+    return (Join-Path (Split-Path -Parent $PSScriptRoot) 'scmdb\cache')
+}
+
+function Read-SCMiningScmdbCache {
+    $cacheDir = Get-SCMiningScmdbCacheDirectory
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        throw 'SCMDB cache is missing. Refresh cache before applying.'
+    }
+
+    $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'scmdb-*.json' -File |
+        Where-Object { $_.Name -notlike '*.meta.json' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($null -eq $cacheFile) {
+        throw 'SCMDB cache is missing. Refresh cache before applying.'
+    }
+
+    $payload = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace([string]$payload.version) -or $null -eq $payload.data) {
+        throw "SCMDB cache is invalid: $($cacheFile.FullName)"
+    }
+
+    return [pscustomobject]@{
+        Path = [string]$cacheFile.FullName
+        Version = [string]$payload.version
+        Data = $payload.data
+    }
+}
+
 function Get-SCMiningCachedWikiBlueprints {
+    param([string]$CacheKey)
+
     $cacheDir = Get-SCMiningCacheDirectory
     if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
         return @()
     }
 
-    $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'wiki-blueprints-*.json' -File |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
+    if (-not [string]::IsNullOrWhiteSpace($CacheKey)) {
+        $path = Get-SCMiningWikiBlueprintCachePath -CacheKey $CacheKey
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $cacheFile = Get-Item -LiteralPath $path
+        }
+        else {
+            $cacheFile = $null
+        }
+    }
+    else {
+        $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'wiki-blueprints-*.json' -File |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
     if ($null -eq $cacheFile) {
         return @()
     }
@@ -1137,7 +1168,7 @@ function Get-SCMiningPlanetRecipeFamily {
         elseif ($Matches[1] -eq 'XL') { $token = 3 }
         return [pscustomobject]@{ Key = 'weapon:Suckerpunch Cannon'; Label = 'Suckerpunch Cannons'; Family = 'size'; Token = $token }
     }
-    if ($label -match '^SW16BR(\d+)\s+["“][^"”]+["”]\s+Repeater$') {
+    if ($label -match '^SW16BR(\d+)\s+.+\s+Repeater$') {
         return [pscustomobject]@{ Key = 'weapon:SW16BR Repeater'; Label = 'SW16BR Repeaters'; Family = 'numbered'; Token = [int]$Matches[1] }
     }
     if ($label -match '^Arbor\s+(MH(?:V|[12]))\s+Mining Laser$') {
@@ -1187,6 +1218,12 @@ function Get-SCMiningPlanetRecipeFamily {
         if ($label -match '^FullSpec(?:-(Go|Max))?$') {
             $token = if ([string]::IsNullOrWhiteSpace([string]$Matches[1])) { 'FullSpec' } else { "FullSpec-$($Matches[1])" }
             return [pscustomobject]@{ Key = 'component:FullSpec'; Label = 'FullSpec'; Family = 'name-list'; Token = $token }
+        }
+        if ($label -match '^QuadraCell(?:\s+(MT|MX))?$') {
+            return [pscustomobject]@{ Key = 'component:QuadraCell'; Label = 'QuadraCell / MT / MX'; Family = 'variant'; Token = $null }
+        }
+        if ($label -match '^(LumaCore|LuxCore)$') {
+            return [pscustomobject]@{ Key = 'component:LumaCore-LuxCore'; Label = 'LumaCore / LuxCore'; Family = 'variant'; Token = $null }
         }
         if ($label -match '^([567])(CA|MA|SA)\s+''[^'']+''$') {
             $series = $Matches[1]
@@ -1842,6 +1879,25 @@ function Get-SCMiningBlueprintOutputClass {
     return [string]$Reward.entityClass
 }
 
+function Repair-SCMiningBlueprintText {
+    param([AllowEmptyString()][string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return [string]$Value
+    }
+
+    $badLeftQuote = -join @([char]0x0432, [char]0x0402, [char]0x045A)
+    $badRightQuote = -join @([char]0x0432, [char]0x0402, [char]0x045C)
+    $badApostrophe = -join @([char]0x0432, [char]0x0402, [char]0x2122)
+    $badDash = -join @([char]0x0432, [char]0x0402, [char]0x201C)
+
+    return ([string]$Value).
+        Replace($badLeftQuote, [string][char]0x201C).
+        Replace($badRightQuote, [string][char]0x201D).
+        Replace($badApostrophe, [string][char]0x2019).
+        Replace($badDash, '-')
+}
+
 function Get-SCMiningBlueprintOutputName {
     param(
         [object]$Blueprint,
@@ -1849,13 +1905,13 @@ function Get-SCMiningBlueprintOutputName {
     )
 
     if (-not [string]::IsNullOrWhiteSpace([string]$Blueprint.output_name)) {
-        return [string]$Blueprint.output_name
+        return Repair-SCMiningBlueprintText -Value ([string]$Blueprint.output_name)
     }
     if ($null -ne $Blueprint.output -and -not [string]::IsNullOrWhiteSpace([string]$Blueprint.output.name)) {
-        return [string]$Blueprint.output.name
+        return Repair-SCMiningBlueprintText -Value ([string]$Blueprint.output.name)
     }
 
-    return [string]$Reward.name
+    return Repair-SCMiningBlueprintText -Value ([string]$Reward.name)
 }
 
 function Get-SCMiningBlueprintOutputType {

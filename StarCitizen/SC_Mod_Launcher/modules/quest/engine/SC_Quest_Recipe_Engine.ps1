@@ -14,6 +14,8 @@
 
     [switch]$NoCraftIntel,
 
+    [switch]$NoReputationIntel,
+
     [switch]$CacheOnly,
 
     [switch]$NoCache,
@@ -208,9 +210,9 @@ function Get-NormalizedIniKey {
 }
 
 function Remove-BlueprintBlock {
-    param([Parameter(Mandatory = $true)][string]$Value)
+    param([AllowEmptyString()][string]$Value)
 
-    $clean = $Value
+    $clean = [string]$Value
     $generatedPatterns = @(
         '\\n\\n<EM\d>Доступные чертежи \(SCMDB\)</EM\d>.*$',
         '\\n\\n<EM\d>Возможные чертежи \(SCMDB\)</EM\d>.*$',
@@ -230,6 +232,16 @@ function Remove-BlueprintBlock {
     return $clean
 }
 
+function Remove-ReputationDescriptionBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $clean = [string]$Value
+    $reputationHeaderPattern = '<EM\d>Репутация(?: по [^<]+|\s*\([^<]+\))?</EM\d>:'
+    $clean = [regex]::Replace($clean, "^(?:$reputationHeaderPattern\s*.*?\\n\\n)+", '')
+    $clean = [regex]::Replace($clean, "^$reputationHeaderPattern\s*.*$", '')
+    return $clean
+}
+
 function Remove-CraftIntelBlock {
     param([Parameter(Mandatory = $true)][string]$Value)
 
@@ -241,10 +253,20 @@ function Remove-CraftIntelBlock {
     )
 }
 
-function Repair-EmphasisTags {
-    param([Parameter(Mandatory = $true)][string]$Value)
+function Remove-BitZerosHexSignature {
+    param([AllowEmptyString()][string]$Value)
 
-    $repaired = $Value
+    return [regex]::Replace(
+        [string]$Value,
+        '(?:\\n){1,2}[0-9A-Fa-f]{2}(?:\s+[0-9A-Fa-f]{2}){2,}\s*$',
+        ''
+    )
+}
+
+function Repair-EmphasisTags {
+    param([AllowEmptyString()][string]$Value)
+
+    $repaired = [string]$Value
 
     for ($tagNumber = 1; $tagNumber -le 5; $tagNumber++) {
         $tag = "EM$tagNumber"
@@ -261,6 +283,25 @@ function Repair-EmphasisTags {
         '</EM$1>'
     )
 
+    for ($tagNumber = 1; $tagNumber -le 5; $tagNumber++) {
+        $tag = "EM$tagNumber"
+        $openCount = ([regex]::Matches($repaired, "<$tag>")).Count
+        $closeCount = ([regex]::Matches($repaired, "</$tag>")).Count
+
+        while ($closeCount -gt $openCount) {
+            $updated = [regex]::Replace($repaired, "</$tag>", '', 1)
+            if ($updated -eq $repaired) {
+                break
+            }
+            $repaired = $updated
+            $closeCount--
+        }
+
+        if ($openCount -gt $closeCount) {
+            $repaired += ("</$tag>" * ($openCount - $closeCount))
+        }
+    }
+
     return $repaired
 }
 
@@ -268,7 +309,12 @@ function Remove-TitleMarker {
     param([Parameter(Mandatory = $true)][string]$Value)
 
     $clean = $Value
+    $amountPattern = '\d+(?:\.\d+)?K?'
+    $reputationNumberPattern = "\[$amountPattern(?:\s*-\s*$amountPattern|\+)?\]"
     $patterns = @(
+        "^\s*<EM\d>$reputationNumberPattern</EM\d>\s*",
+        '^\s*<EM\d>\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]</EM\d>\s*',
+        '^\s*<EM\d>\[РЕП\]</EM\d>\s*',
         '^\s*<EM\d>\[BP\]</EM\d>\s*',
         '^\s*<EM\d>\[Ч\]</EM\d>\s*',
         '^\s*<EM\d>\[ЧЕРТ\]</EM\d>\s*',
@@ -277,6 +323,9 @@ function Remove-TitleMarker {
         '^\s*<EM\d>\[Чертежи\]\*?</EM\d>\s*',
         '^\s*<EM\d>\[А\]</EM\d>\s*',
         '^\s*<EM\d>\[С\]</EM\d>\s*',
+        "^\s*$reputationNumberPattern\s*",
+        '^\s*\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]\s*',
+        '^\s*\[РЕП\]\s*',
         '^\s*\[BP\]\s*',
         '^\s*\[Ч\]\s*',
         '^\s*\[ЧЕРТ\]\s*',
@@ -298,10 +347,34 @@ function Remove-TitleMarker {
     return $clean
 }
 
+function Remove-ReputationTitleMarker {
+    param([AllowEmptyString()][string]$Value)
+
+    $amountPattern = '\d+(?:\.\d+)?K?'
+    return [regex]::Replace([string]$Value, "^\s*(?:<EM\d>)?(?:\[$amountPattern(?:\s*-\s*$amountPattern|\+)?\]|\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]|\[РЕП\])(?:</EM\d>)?\s*", '')
+}
+
+function Test-ReputationRankKey {
+    param([AllowEmptyString()][string]$Key)
+
+    return ([string]$Key -match '^(RepScope_|RepStanding_|mobiGlas_Reputation_Stance_)')
+}
+
+function Test-ReputationTitleKey {
+    param([AllowEmptyString()][string]$Key)
+
+    return ([string]$Key -match '(?i)(^|_)(title|name)(_|$)')
+}
+
 function Format-TitleMarkers {
     param($TitleInfo)
 
     $markers = New-Object System.Collections.Generic.List[string]
+
+    $reputationMarker = Format-ReputationTitleMarker -TitleInfo $TitleInfo
+    if (-not [string]::IsNullOrWhiteSpace($reputationMarker)) {
+        $markers.Add($reputationMarker)
+    }
 
     if ($TitleInfo.HasBlueprint -and -not [string]::IsNullOrWhiteSpace($TitleMarker)) {
         $markers.Add($TitleMarker)
@@ -318,23 +391,597 @@ function Format-TitleMarkers {
     return (($markers | ForEach-Object { [string]$_ }) -join ' ')
 }
 
+function Format-ReputationTitleMarker {
+    param($TitleInfo)
+
+    if ($NoReputationIntel -or $null -eq $TitleInfo -or $null -eq $TitleInfo.ReputationAmounts) {
+        return ''
+    }
+
+    $amounts = @(
+        foreach ($key in $TitleInfo.ReputationAmounts.Keys) {
+            $value = 0
+            if ([int]::TryParse([string]$key, [ref]$value) -and $value -gt 0) {
+                $value
+            }
+        }
+    ) | Sort-Object -Unique
+
+    if ($amounts.Count -eq 0) {
+        return ''
+    }
+
+    if ($amounts.Count -eq 1) {
+        return "[$(Format-ReputationTitleAmount -Amount $amounts[0])]"
+    }
+
+    $systemParts = @()
+    $systemCount = 0
+    $allSystemsHaveOneAmount = $true
+    if ($TitleInfo.ContainsKey('SystemReputationAmounts') -and $null -ne $TitleInfo.SystemReputationAmounts) {
+        foreach ($systemKey in @($TitleInfo.SystemReputationAmounts.Keys | Sort-Object)) {
+            $systemCount++
+            $systemAmounts = @(
+                foreach ($amountKey in $TitleInfo.SystemReputationAmounts[$systemKey].Keys) {
+                    $value = 0
+                    if ([int]::TryParse([string]$amountKey, [ref]$value) -and $value -gt 0) {
+                        $value
+                    }
+                }
+            ) | Sort-Object -Unique
+
+            if ($systemAmounts.Count -eq 1) {
+                $systemParts += ("<EM4>{0}</EM4>:{1}" -f $systemKey, (Format-ReputationTitleAmount -Amount $systemAmounts[0]))
+            }
+            else {
+                $allSystemsHaveOneAmount = $false
+            }
+        }
+    }
+
+    if ($systemParts.Count -gt 1 -and $systemParts.Count -eq $systemCount -and $allSystemsHaveOneAmount) {
+        return '[' + ($systemParts -join '/') + ']'
+    }
+
+    return '[РЕП]'
+}
+
+function Format-ReputationTitleAmount {
+    param([int]$Amount)
+
+    return Format-ReputationRankAmount -Amount $Amount
+}
+
+function Get-ContractReputationSystemCodes {
+    param($Contract)
+
+    $systems = @()
+    foreach ($value in @($Contract.systems) + @($Contract.availableSystems)) {
+        $system = ([string]$value).Trim()
+        if ([string]::IsNullOrWhiteSpace($system)) {
+            continue
+        }
+
+        switch -Regex ($system) {
+            '^Stanton$' { $systems += 'ST'; break }
+            '^Pyro$' { $systems += 'PY'; break }
+            '^Nyx$' { $systems += 'NY'; break }
+            '^Terra$' { $systems += 'TR'; break }
+            default { $systems += ($system.ToUpperInvariant().Substring(0, [Math]::Min(2, $system.Length))) }
+        }
+    }
+
+    return @($systems | Sort-Object -Unique)
+}
+
+function Get-ContractReputationRewardAmounts {
+    param(
+        [Parameter(Mandatory = $true)]$Data,
+        $Contract
+    )
+
+    if ($NoReputationIntel -or $null -eq $Contract -or $null -eq $Contract.factionRewardsIndex) {
+        return @()
+    }
+
+    $index = 0
+    if (-not [int]::TryParse([string]$Contract.factionRewardsIndex, [ref]$index) -or $index -lt 0) {
+        return @()
+    }
+
+    $pools = @(ConvertTo-Array $Data.factionRewardsPools)
+    if ($index -ge $pools.Count) {
+        return @()
+    }
+
+    $amounts = New-Object System.Collections.Generic.List[int]
+    foreach ($reward in @(ConvertTo-Array $pools[$index])) {
+        $amount = 0
+        if ($null -ne $reward.amount -and [int]::TryParse([string]$reward.amount, [ref]$amount) -and $amount -gt 0) {
+            $amounts.Add($amount)
+        }
+    }
+
+    return @($amounts.ToArray() | Sort-Object -Unique)
+}
+
+function ConvertTo-ReputationScopeLabel {
+    param(
+        [Parameter(Mandatory = $true)]$Data,
+        [AllowEmptyString()][string]$ScopeGuid,
+        [hashtable]$LocalizationMap
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ScopeGuid)) {
+        return 'Rep'
+    }
+
+    $scope = Get-PropertyValue -Object $Data.scopes -Name $ScopeGuid
+    if ($null -ne $scope) {
+        foreach ($localizationKey in @([string]$scope.displayNameKey, [string]$scope.nameKey)) {
+            $normalizedKey = $localizationKey.Trim().TrimStart('@')
+            if (
+                -not [string]::IsNullOrWhiteSpace($normalizedKey) -and
+                $null -ne $LocalizationMap -and
+                $LocalizationMap.ContainsKey($normalizedKey)
+            ) {
+                $localized = (Remove-ReputationRankThreshold -Value ([string]$LocalizationMap[$normalizedKey])).Trim()
+                if (-not [string]::IsNullOrWhiteSpace($localized)) {
+                    return $localized
+                }
+            }
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace([string]$scope.displayName)) {
+            switch ([string]$scope.displayName) {
+                'Standing' { return 'Репутация' }
+                'Security' { return 'Безопасность' }
+                'Affinity' { return 'Доверие' }
+                'Bounty Hunting' { return 'Охота за головами' }
+                'Ship Combat' { return 'Корабельный бой' }
+                default { return [string]$scope.displayName }
+            }
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$scope.scopeName)) {
+            switch ([string]$scope.scopeName) {
+                'FactionReputation' { return 'Репутация' }
+                'Security' { return 'Безопасность' }
+                'Affinity' { return 'Доверие' }
+                'BountyHunting' { return 'Охота за головами' }
+                'ShipCombat_HeadHunters' { return 'Корабельный бой' }
+                default { return ([string]$scope.scopeName -replace '_', ' ') }
+            }
+        }
+    }
+
+    return 'Rep'
+}
+
+function Get-ContractReputationRewardEntries {
+    param(
+        [Parameter(Mandatory = $true)]$Data,
+        $Contract,
+        [hashtable]$LocalizationMap
+    )
+
+    if ($NoReputationIntel -or $null -eq $Contract -or $null -eq $Contract.factionRewardsIndex) {
+        return @()
+    }
+
+    $index = 0
+    if (-not [int]::TryParse([string]$Contract.factionRewardsIndex, [ref]$index) -or $index -lt 0) {
+        return @()
+    }
+
+    $pools = @(ConvertTo-Array $Data.factionRewardsPools)
+    if ($index -ge $pools.Count) {
+        return @()
+    }
+
+    $entries = New-Object System.Collections.Generic.List[object]
+    $seen = @{}
+    foreach ($reward in @(ConvertTo-Array $pools[$index])) {
+        $amount = 0
+        if ($null -eq $reward.amount -or -not [int]::TryParse([string]$reward.amount, [ref]$amount) -or $amount -le 0) {
+            continue
+        }
+
+        $scopeGuid = [string]$reward.scopeGuid
+        $scopeLabel = ConvertTo-ReputationScopeLabel -Data $Data -ScopeGuid $scopeGuid -LocalizationMap $LocalizationMap
+        $key = "$amount|$scopeLabel"
+        if ($seen.ContainsKey($key)) {
+            continue
+        }
+
+        $seen[$key] = $true
+        $entries.Add([pscustomobject]@{
+            Amount = $amount
+            ScopeLabel = $scopeLabel
+            ScopeGuid = $scopeGuid
+        })
+    }
+
+    return @($entries.ToArray() | Sort-Object Amount, ScopeLabel)
+}
+
+function Add-ReputationAmountsToTitleEntry {
+    param(
+        [hashtable]$TitleEntry,
+        [int[]]$Amounts,
+        [string[]]$SystemCodes
+    )
+
+    if ($null -eq $TitleEntry -or $null -eq $Amounts -or $Amounts.Count -eq 0) {
+        return
+    }
+
+    if (-not $TitleEntry.ContainsKey('ReputationAmounts') -or $null -eq $TitleEntry.ReputationAmounts) {
+        $TitleEntry.ReputationAmounts = @{}
+    }
+
+    foreach ($amount in $Amounts) {
+        if ($amount -gt 0) {
+            $TitleEntry.ReputationAmounts[[string]$amount] = $true
+        }
+    }
+
+    foreach ($systemCode in @($SystemCodes)) {
+        if ([string]::IsNullOrWhiteSpace([string]$systemCode)) {
+            continue
+        }
+
+        if (-not $TitleEntry.ContainsKey('SystemReputationAmounts') -or $null -eq $TitleEntry.SystemReputationAmounts) {
+            $TitleEntry.SystemReputationAmounts = @{}
+        }
+        if (-not $TitleEntry.SystemReputationAmounts.ContainsKey($systemCode)) {
+            $TitleEntry.SystemReputationAmounts[$systemCode] = @{}
+        }
+
+        foreach ($amount in $Amounts) {
+            if ($amount -gt 0) {
+                $TitleEntry.SystemReputationAmounts[$systemCode][[string]$amount] = $true
+            }
+        }
+    }
+}
+
+function Get-ContractReputationRiskLabel {
+    param($Contract)
+
+    $title = [string]$Contract.title
+    if ([string]::IsNullOrWhiteSpace($title)) {
+        return $null
+    }
+
+    if ($title -match '(?i)Extreme-Risk') { return 'Extreme' }
+    if ($title -match '(?i)Very\s+High-Risk') { return 'VH' }
+    if ($title -match '(?i)Very\s+Low-Risk') { return 'VL' }
+    if ($title -match '(?i)High-Risk') { return 'Hard' }
+    if ($title -match '(?i)Moderate-Risk') { return 'Medium' }
+    if ($title -match '(?i)Low-Risk') { return 'Low' }
+
+    return $null
+}
+
+function Add-ReputationAmountsToDescriptionEntry {
+    param(
+        [hashtable]$DescriptionEntry,
+        [object[]]$Entries,
+        [string[]]$SystemCodes,
+        [AllowNull()][string]$RiskLabel
+    )
+
+    if ($null -eq $DescriptionEntry -or $null -eq $Entries -or $Entries.Count -eq 0) {
+        return
+    }
+
+    foreach ($entry in @($Entries)) {
+        $amount = [int]$entry.Amount
+        $scopeLabel = if ([string]::IsNullOrWhiteSpace([string]$entry.ScopeLabel)) { 'Rep' } else { [string]$entry.ScopeLabel }
+        if ($amount -gt 0) {
+            $DescriptionEntry.ReputationAmounts[[string]$amount] = $true
+            $DescriptionEntry.ReputationEntrySignatures["$scopeLabel|$amount"] = $true
+        }
+    }
+
+    foreach ($systemCode in @($SystemCodes)) {
+        if ([string]::IsNullOrWhiteSpace([string]$systemCode)) {
+            continue
+        }
+
+        if (-not $DescriptionEntry.SystemReputationAmounts.ContainsKey($systemCode)) {
+            $DescriptionEntry.SystemReputationAmounts[$systemCode] = @{}
+        }
+
+        if (-not $DescriptionEntry.SystemReputationEntries.ContainsKey($systemCode)) {
+            $DescriptionEntry.SystemReputationEntries[$systemCode] = @{}
+        }
+
+        foreach ($entry in @($Entries)) {
+            $amount = [int]$entry.Amount
+            $scopeLabel = if ([string]::IsNullOrWhiteSpace([string]$entry.ScopeLabel)) { 'Rep' } else { [string]$entry.ScopeLabel }
+            if ($amount -gt 0) {
+                $DescriptionEntry.SystemReputationAmounts[$systemCode][[string]$amount] = $true
+                $DescriptionEntry.SystemReputationEntries[$systemCode]["$scopeLabel|$amount"] = $true
+            }
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($RiskLabel)) {
+        if (-not $DescriptionEntry.RiskReputationAmounts.ContainsKey($RiskLabel)) {
+            $DescriptionEntry.RiskReputationAmounts[$RiskLabel] = @{}
+        }
+
+        if (-not $DescriptionEntry.RiskReputationEntries.ContainsKey($RiskLabel)) {
+            $DescriptionEntry.RiskReputationEntries[$RiskLabel] = @{}
+        }
+
+        foreach ($entry in @($Entries)) {
+            $amount = [int]$entry.Amount
+            $scopeLabel = if ([string]::IsNullOrWhiteSpace([string]$entry.ScopeLabel)) { 'Rep' } else { [string]$entry.ScopeLabel }
+            if ($amount -gt 0) {
+                $DescriptionEntry.RiskReputationAmounts[$RiskLabel][[string]$amount] = $true
+                $DescriptionEntry.RiskReputationEntries[$RiskLabel]["$scopeLabel|$amount"] = $true
+            }
+        }
+    }
+
+    $signature = (@($Entries | ForEach-Object { "$($_.ScopeLabel):$($_.Amount)" } | Sort-Object -Unique) -join '+')
+    if (-not [string]::IsNullOrWhiteSpace($signature)) {
+        $DescriptionEntry.ReputationSignatures[$signature] = $true
+    }
+}
+
+function Add-ReputationRankThreshold {
+    param(
+        [hashtable]$Thresholds,
+        $Standing
+    )
+
+    if ($NoReputationIntel -or $null -eq $Standing) {
+        return
+    }
+
+    $key = ([string]$Standing.nameKey).Trim()
+    if ([string]::IsNullOrWhiteSpace($key)) {
+        return
+    }
+
+    $key = $key.TrimStart('@')
+    $amount = 0
+    if ($null -eq $Standing.minReputation -or -not [int]::TryParse([string]$Standing.minReputation, [ref]$amount) -or $amount -lt 0) {
+        return
+    }
+
+    if (-not $Thresholds.ContainsKey($key)) {
+        $Thresholds[$key] = @{
+            Min = $amount
+            ScopeName = [string]$Standing.scopeName
+            ScopeGuid = [string]$Standing.scopeGuid
+        }
+        return
+    }
+
+    if ([int]$Thresholds[$key].Min -gt $amount) {
+        $Thresholds[$key].Min = $amount
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$Thresholds[$key].ScopeName) -and -not [string]::IsNullOrWhiteSpace([string]$Standing.scopeName)) {
+        $Thresholds[$key].ScopeName = [string]$Standing.scopeName
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$Thresholds[$key].ScopeGuid) -and -not [string]::IsNullOrWhiteSpace([string]$Standing.scopeGuid)) {
+        $Thresholds[$key].ScopeGuid = [string]$Standing.scopeGuid
+    }
+}
+
+function Add-ReputationRankThresholdsFromScopes {
+    param(
+        [hashtable]$Thresholds,
+        $Data
+    )
+
+    if ($NoReputationIntel -or $null -eq $Data -or $null -eq $Data.scopes) {
+        return
+    }
+
+    foreach ($scopeProperty in @($Data.scopes.PSObject.Properties)) {
+        $scope = $scopeProperty.Value
+        if ($null -eq $scope) {
+            continue
+        }
+
+        $scopeRanks = @(ConvertTo-Array $scope.ranks)
+        $normalizedRankKeys = @{}
+
+        foreach ($rank in $scopeRanks) {
+            if ($null -eq $rank) {
+                continue
+            }
+
+            $rankKey = ([string]$rank.nameKey).Trim().TrimStart('@')
+            if (-not [string]::IsNullOrWhiteSpace($rankKey)) {
+                $normalizedRankKeys[$rankKey] = $true
+            }
+
+            $standing = [pscustomobject]@{
+                nameKey = $rankKey
+                minReputation = $rank.minReputation
+                scopeName = [string]$scope.scopeName
+                scopeGuid = [string]$scopeProperty.Name
+            }
+            Add-ReputationRankThreshold -Thresholds $Thresholds -Standing $standing
+        }
+
+        foreach ($rank in $scopeRanks) {
+            $rankKey = ([string]$rank.nameKey).Trim().TrimStart('@')
+            $rankMatch = [regex]::Match($rankKey, '^(?<prefix>.+_Rank)1(?<suffix>.*)$', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            if (-not $rankMatch.Success) {
+                continue
+            }
+
+            $syntheticRank0Key = "$($rankMatch.Groups['prefix'].Value)0$($rankMatch.Groups['suffix'].Value)"
+            if ($normalizedRankKeys.ContainsKey($syntheticRank0Key)) {
+                continue
+            }
+
+            $standing = [pscustomobject]@{
+                nameKey = $syntheticRank0Key
+                minReputation = 0
+                scopeName = [string]$scope.scopeName
+                scopeGuid = [string]$scopeProperty.Name
+            }
+            Add-ReputationRankThreshold -Thresholds $Thresholds -Standing $standing
+        }
+    }
+
+}
+
+function Remove-ReputationRankThreshold {
+    param([AllowEmptyString()][string]$Value)
+
+    $amountPattern = '\d+(?:\.\d+)?K?'
+    return [regex]::Replace([string]$Value, "^\s*(?:<EM\d>)?\[$amountPattern(?:\s*-\s*$amountPattern|\+)\](?:</EM\d>)?\s*", '')
+}
+
+function Set-ReputationRankThreshold {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [int]$Min,
+        [object]$Max
+    )
+
+    $clean = Remove-ReputationRankThreshold -Value $Value
+    if ($Min -lt 0) {
+        return $clean
+    }
+
+    $maxValue = 0
+    if ($null -ne $Max -and [int]::TryParse([string]$Max, [ref]$maxValue) -and $maxValue -ge $Min) {
+        return "[$(Format-ReputationRankAmount -Amount $Min)-$(Format-ReputationRankAmount -Amount $maxValue)] $clean"
+    }
+
+    return "[$(Format-ReputationRankAmount -Amount $Min)+] $clean"
+}
+
+function Format-ReputationRankAmount {
+    param([int]$Amount)
+
+    if ($Amount -ge 1000000) {
+        $value = [decimal]$Amount / 1000000
+        $culture = [Globalization.CultureInfo]::InvariantCulture
+        if ($Amount % 1000000 -eq 0) {
+            return ([string]::Format($culture, '{0:0}M', $value))
+        }
+
+        return ([string]::Format($culture, '{0:0.#}M', $value))
+    }
+
+    if ($Amount -ge 1000) {
+        $value = [decimal]$Amount / 1000
+        $culture = [Globalization.CultureInfo]::InvariantCulture
+        if ($Amount % 1000 -eq 0) {
+            return ([string]::Format($culture, '{0:0}K', $value))
+        }
+
+        return ([string]::Format($culture, '{0:0.#}K', $value))
+    }
+
+    return [string]$Amount
+}
+
+function ConvertTo-ReputationRankRangeMap {
+    param([hashtable]$Thresholds)
+
+    $ranges = @{}
+    if ($null -eq $Thresholds -or $Thresholds.Count -eq 0) {
+        return $ranges
+    }
+
+    $groups = @{}
+    $scopeGroups = @{}
+    foreach ($key in $Thresholds.Keys) {
+        $entry = $Thresholds[$key]
+        $min = 0
+        if ($null -eq $entry -or -not [int]::TryParse([string]$entry.Min, [ref]$min) -or $min -lt 0) {
+            continue
+        }
+
+        $rankMatch = [regex]::Match([string]$key, '^(?<prefix>.+_Rank)(?<rank>\d+)(?<suffix>.*)$', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($rankMatch.Success) {
+            $groupKey = "rank|$($rankMatch.Groups['prefix'].Value)|$($rankMatch.Groups['suffix'].Value)"
+            if (-not $groups.ContainsKey($groupKey)) {
+                $groups[$groupKey] = New-Object System.Collections.Generic.List[object]
+            }
+
+            $groups[$groupKey].Add([pscustomobject]@{
+                Key = [string]$key
+                Min = $min
+                Rank = [int]$rankMatch.Groups['rank'].Value
+            })
+            continue
+        }
+
+        $scopeKey = [string]$entry.ScopeGuid
+        if ([string]::IsNullOrWhiteSpace($scopeKey)) {
+            $scopeKey = [string]$entry.ScopeName
+        }
+        if ([string]::IsNullOrWhiteSpace($scopeKey)) {
+            $scopeKey = '__global'
+        }
+
+        if (-not $scopeGroups.ContainsKey($scopeKey)) {
+            $scopeGroups[$scopeKey] = New-Object System.Collections.Generic.List[object]
+        }
+
+        $scopeGroups[$scopeKey].Add([pscustomobject]@{
+            Key = [string]$key
+            Min = $min
+            Rank = $null
+        })
+    }
+
+    foreach ($scopeKey in $scopeGroups.Keys) {
+        $groups["scope|$scopeKey"] = $scopeGroups[$scopeKey]
+    }
+
+    foreach ($scopeKey in $groups.Keys) {
+        $items = @($groups[$scopeKey].ToArray() | Sort-Object @{ Expression = { if ($null -ne $_.Rank) { [int]$_.Rank } else { [int]$_.Min } } }, Min, Key)
+        for ($index = 0; $index -lt $items.Count; $index++) {
+            $current = $items[$index]
+            $next = if ($index + 1 -lt $items.Count) { $items[$index + 1] } else { $null }
+            $ranges[$current.Key] = [pscustomobject]@{
+                Min = [int]$current.Min
+                Max = if ($null -ne $next) { [int]$next.Min } else { $null }
+            }
+        }
+    }
+
+    return $ranges
+}
+
 function Get-ScmdbData {
-    Write-Host 'Downloading SCMDB version index...'
-    $versions = @(ConvertTo-Array (Invoke-ScmdbJson -Uri "$ScmdbBaseUrl/game-versions.json"))
-    if ($versions.Count -eq 0) {
-        throw 'SCMDB version index is empty.'
+    $cacheDir = Join-Path (Split-Path -Parent (Split-Path -Parent $ScriptDir)) 'scmdb\cache'
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        throw 'SCMDB cache is missing. Refresh cache before applying.'
     }
 
-    $activeVersion = $versions[0]
-    $version = $activeVersion.version
-    $file = $activeVersion.file
-
-    if (-not $version -or -not $file) {
-        throw 'SCMDB version index does not contain version/file fields.'
+    $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'scmdb-*.json' -File |
+        Where-Object { $_.Name -notlike '*.meta.json' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($null -eq $cacheFile) {
+        throw 'SCMDB cache is missing. Refresh cache before applying.'
     }
 
-    Write-Host "Downloading SCMDB game data: $version..."
-    $data = Invoke-ScmdbJson -Uri "$ScmdbBaseUrl/$file"
+    $payload = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
+    $version = [string]$payload.version
+    $file = [string]$payload.file
+    $data = $payload.data
+
+    if ([string]::IsNullOrWhiteSpace($version) -or $null -eq $data) {
+        throw "SCMDB cache is invalid: $($cacheFile.FullName)"
+    }
+
+    Write-Host "SCMDB cache: $($cacheFile.Name)"
 
     return [pscustomobject]@{
         Version = $version
@@ -429,7 +1076,10 @@ function Test-ScripRewardContract {
 }
 
 function New-RewardMap {
-    param([Parameter(Mandatory = $true)]$Scmdb)
+    param(
+        [Parameter(Mandatory = $true)]$Scmdb,
+        [hashtable]$LocalizationMap
+    )
 
     $data = $Scmdb.Data
     $contracts = @()
@@ -438,9 +1088,13 @@ function New-RewardMap {
     $contracts += @(ConvertTo-Array $data.PSObject.Properties[$archivedContractsProperty].Value)
 
     $descriptionMap = @{}
+    $descriptionReputationMap = @{}
     $titleMap = @{}
     $titleDescriptionMap = @{}
+    $reputationRankThresholds = @{}
     $rewardContractCount = 0
+
+    Add-ReputationRankThresholdsFromScopes -Thresholds $reputationRankThresholds -Data $data
 
     foreach ($contract in $contracts) {
         $titleKey = Get-ContractLocKey -Contract $contract -LocKeyProperty 'titleLocKey' -FallbackKeyProperty 'titleKey'
@@ -448,10 +1102,16 @@ function New-RewardMap {
         $hasBlueprintRewards = $rewards.Count -gt 0
         $hasAcePilot = Test-AcePilotContract -Contract $contract
         $hasScripReward = Test-ScripRewardContract -Contract $contract
+        $reputationRewardAmounts = @(Get-ContractReputationRewardAmounts -Data $data -Contract $contract)
+        $reputationRewardEntries = @(Get-ContractReputationRewardEntries -Data $data -Contract $contract -LocalizationMap $LocalizationMap)
+        $reputationSystemCodes = @(Get-ContractReputationSystemCodes -Contract $contract)
+        $reputationRiskLabel = Get-ContractReputationRiskLabel -Contract $contract
+
+        Add-ReputationRankThreshold -Thresholds $reputationRankThresholds -Standing $contract.minStanding
 
         if (
             -not [string]::IsNullOrWhiteSpace($titleKey) -and
-            ($hasBlueprintRewards -or $hasAcePilot -or $hasScripReward)
+            ($hasBlueprintRewards -or $hasAcePilot -or $hasScripReward -or $reputationRewardAmounts.Count -gt 0)
         ) {
             if (-not $titleMap.ContainsKey($titleKey)) {
                 $titleMap[$titleKey] = @{
@@ -459,6 +1119,8 @@ function New-RewardMap {
                     HasBlueprint = $false
                     HasAcePilot = $false
                     HasScrip = $false
+                    ReputationAmounts = @{}
+                    SystemReputationAmounts = @{}
                     Contracts = @{}
                 }
             }
@@ -467,8 +1129,31 @@ function New-RewardMap {
             $titleEntry.HasBlueprint = [bool]($titleEntry.HasBlueprint -or $hasBlueprintRewards)
             $titleEntry.HasAcePilot = [bool]($titleEntry.HasAcePilot -or $hasAcePilot)
             $titleEntry.HasScrip = [bool]($titleEntry.HasScrip -or $hasScripReward)
+            Add-ReputationAmountsToTitleEntry -TitleEntry $titleEntry -Amounts $reputationRewardAmounts -SystemCodes $reputationSystemCodes
             $debugNameForTitle = if ($contract.debugName) { [string]$contract.debugName } else { '<unknown>' }
             $titleEntry.Contracts[$debugNameForTitle] = $true
+        }
+
+        $descKey = Get-ContractLocKey -Contract $contract -LocKeyProperty 'descriptionLocKey' -FallbackKeyProperty 'descriptionKey'
+        if (-not [string]::IsNullOrWhiteSpace($descKey) -and $reputationRewardAmounts.Count -gt 0) {
+            if (-not $descriptionReputationMap.ContainsKey($descKey)) {
+                $descriptionReputationMap[$descKey] = @{
+                    Key = $descKey
+                    Contracts = @{}
+                    ReputationAmounts = @{}
+                    SystemReputationAmounts = @{}
+                    SystemReputationEntries = @{}
+                    RiskReputationEntries = @{}
+                    ReputationEntrySignatures = @{}
+                    RiskReputationAmounts = @{}
+                    ReputationSignatures = @{}
+                }
+            }
+
+            $reputationGroup = $descriptionReputationMap[$descKey]
+            $debugNameForReputation = if ($contract.debugName) { [string]$contract.debugName } else { '<unknown>' }
+            $reputationGroup.Contracts[$debugNameForReputation] = $true
+            Add-ReputationAmountsToDescriptionEntry -DescriptionEntry $reputationGroup -Entries $reputationRewardEntries -SystemCodes $reputationSystemCodes -RiskLabel $reputationRiskLabel
         }
 
         if ($rewards.Count -eq 0) {
@@ -477,7 +1162,6 @@ function New-RewardMap {
 
         $rewardContractCount++
 
-        $descKey = Get-ContractLocKey -Contract $contract -LocKeyProperty 'descriptionLocKey' -FallbackKeyProperty 'descriptionKey'
         if ([string]::IsNullOrWhiteSpace($descKey)) {
             continue
         }
@@ -553,8 +1237,10 @@ function New-RewardMap {
 
     return [pscustomobject]@{
         DescriptionMap = $descriptionMap
+        DescriptionReputationMap = $descriptionReputationMap
         TitleMap = $titleMap
         TitleDescriptionMap = $titleDescriptionMap
+        ReputationRankThresholds = $reputationRankThresholds
         TotalContracts = $contracts.Count
         RewardContracts = $rewardContractCount
     }
@@ -2425,6 +3111,190 @@ function Format-BlueprintLine {
     return "- $(Format-DisplayName -Name $Name) — " + ($details -join ', ')
 }
 
+function Get-ReputationAmountList {
+    param([hashtable]$AmountMap)
+
+    if ($null -eq $AmountMap) {
+        return @()
+    }
+
+    return @(
+        foreach ($amountKey in $AmountMap.Keys) {
+            $amount = 0
+            if ([int]::TryParse([string]$amountKey, [ref]$amount) -and $amount -gt 0) {
+                $amount
+            }
+        }
+    ) | Sort-Object -Unique
+}
+
+function Format-ReputationAmountList {
+    param([int[]]$Amounts)
+
+    return ((@($Amounts) | Sort-Object -Unique | ForEach-Object { Format-ReputationRankAmount -Amount $_ }) -join '/')
+}
+
+function Get-ReputationEntryList {
+    param([hashtable]$EntryMap)
+
+    if ($null -eq $EntryMap) {
+        return @()
+    }
+
+    $entries = @()
+    foreach ($entryKey in $EntryMap.Keys) {
+        $parts = ([string]$entryKey) -split '\|', 2
+        if ($parts.Count -ne 2) {
+            continue
+        }
+
+        $amount = 0
+        if (-not [int]::TryParse([string]$parts[1], [ref]$amount) -or $amount -le 0) {
+            continue
+        }
+
+        $scopeLabel = if ([string]::IsNullOrWhiteSpace([string]$parts[0])) { 'Rep' } else { [string]$parts[0] }
+        $entries += [pscustomobject]@{
+            ScopeLabel = $scopeLabel
+            Amount = $amount
+        }
+    }
+
+    return @($entries | Sort-Object ScopeLabel, Amount)
+}
+
+function Get-ReputationEntryScopeLabels {
+    param([object[]]$Entries)
+
+    return @($Entries | ForEach-Object { [string]$_.ScopeLabel } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+}
+
+function Format-ReputationEntryList {
+    param(
+        [object[]]$Entries,
+        [switch]$OmitScopeWhenSingle
+    )
+
+    $entryList = @($Entries)
+    if ($entryList.Count -eq 0) {
+        return ''
+    }
+
+    $scopeLabels = @(Get-ReputationEntryScopeLabels -Entries $entryList)
+    $omitScope = [bool]$OmitScopeWhenSingle -and $scopeLabels.Count -eq 1
+    $parts = @()
+
+    if ($omitScope) {
+        foreach ($entry in $entryList) {
+            $amountText = Format-ReputationRankAmount -Amount ([int]$entry.Amount)
+            $parts += $amountText
+        }
+
+        return ($parts -join '/')
+    }
+
+    foreach ($scopeLabel in $scopeLabels) {
+        $scopeAmounts = @(
+            $entryList |
+                Where-Object { [string]$_.ScopeLabel -eq $scopeLabel } |
+                Sort-Object Amount |
+                ForEach-Object { Format-ReputationRankAmount -Amount ([int]$_.Amount) }
+        ) | Select-Object -Unique
+
+        if ($scopeAmounts.Count -gt 0) {
+            $parts += ("{0} {1}" -f $scopeLabel, ($scopeAmounts -join '/'))
+        }
+    }
+
+    return ($parts -join '/')
+}
+
+function Test-ReputationSystemSplit {
+    param([hashtable]$SystemAmountMap)
+
+    if ($null -eq $SystemAmountMap -or $SystemAmountMap.Keys.Count -le 1) {
+        return $false
+    }
+
+    foreach ($systemKey in $SystemAmountMap.Keys) {
+        if ((Get-ReputationAmountList -AmountMap $SystemAmountMap[$systemKey]).Count -ne 1) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Test-ReputationRiskSplit {
+    param([hashtable]$RiskAmountMap)
+
+    if ($null -eq $RiskAmountMap -or $RiskAmountMap.Keys.Count -le 1) {
+        return $false
+    }
+
+    foreach ($riskKey in $RiskAmountMap.Keys) {
+        if ((Get-ReputationAmountList -AmountMap $RiskAmountMap[$riskKey]).Count -ne 1) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Get-ReputationRiskRank {
+    param([string]$Risk)
+
+    switch ($Risk) {
+        'VL' { return 5 }
+        'Low' { return 10 }
+        'Medium' { return 20 }
+        'Hard' { return 30 }
+        'VH' { return 40 }
+        'Extreme' { return 50 }
+        default { return 999 }
+    }
+}
+
+function Format-ReputationDescriptionBlock {
+    param($Group)
+
+    if ($NoReputationIntel -or $null -eq $Group -or $null -eq $Group.ReputationAmounts) {
+        return ''
+    }
+
+    $amounts = @(Get-ReputationAmountList -AmountMap $Group.ReputationAmounts)
+    if ($amounts.Count -eq 0) {
+        return ''
+    }
+
+    $allEntries = @(Get-ReputationEntryList -EntryMap $Group.ReputationEntrySignatures)
+    $singleScopeSuffix = ''
+
+    if ($amounts.Count -eq 1 -and $allEntries.Count -le 1) {
+        return "<EM4>Репутация</EM4>: $(Format-ReputationEntryList -Entries $allEntries)"
+    }
+
+    if (Test-ReputationSystemSplit -SystemAmountMap $Group.SystemReputationAmounts) {
+        $parts = @()
+        foreach ($systemKey in @($Group.SystemReputationAmounts.Keys | Sort-Object)) {
+            $systemEntries = @(Get-ReputationEntryList -EntryMap $Group.SystemReputationEntries[$systemKey])
+            $parts += ("<EM4>{0}</EM4> {1}" -f $systemKey, (Format-ReputationEntryList -Entries $systemEntries))
+        }
+        return '<EM4>Репутация</EM4>: ' + ($parts -join ' / ')
+    }
+
+    if (Test-ReputationRiskSplit -RiskAmountMap $Group.RiskReputationAmounts) {
+        $parts = @()
+        foreach ($riskKey in @($Group.RiskReputationAmounts.Keys | Sort-Object { Get-ReputationRiskRank -Risk $_ }, { $_ })) {
+            $riskEntries = @(Get-ReputationEntryList -EntryMap $Group.RiskReputationEntries[$riskKey])
+            $parts += ("{0} {1}" -f $riskKey, (Format-ReputationEntryList -Entries $riskEntries -OmitScopeWhenSingle))
+        }
+        return "<EM4>Репутация$singleScopeSuffix</EM4>: " + ($parts -join ' / ')
+    }
+
+    return "<EM4>Репутация по вариантам$singleScopeSuffix</EM4>: " + (Format-ReputationEntryList -Entries $allEntries)
+}
+
 function Format-RewardBlock {
     param([Parameter(Mandatory = $true)]$Group)
 
@@ -2576,10 +3446,16 @@ $originalSize = (Get-Item -LiteralPath $globalPath).Length
 Write-Host "global.ini: $globalPath"
 Write-Host "Encoding: $($encodingInfo.Name)"
 
+$lines = [System.IO.File]::ReadAllLines($globalPath, $encodingInfo.Encoding)
+$lineValues = New-LineValueMap -Lines $lines
+
 $scmdb = Get-ScmdbData
-$rewardInfo = New-RewardMap -Scmdb $scmdb
+$rewardInfo = New-RewardMap -Scmdb $scmdb -LocalizationMap $lineValues
 $descriptionRewardMap = $rewardInfo.DescriptionMap
+$descriptionReputationMap = $rewardInfo.DescriptionReputationMap
 $titleRewardMap = $rewardInfo.TitleMap
+$reputationRankThresholdMap = $rewardInfo.ReputationRankThresholds
+$reputationRankRangeMap = ConvertTo-ReputationRankRangeMap -Thresholds $reputationRankThresholdMap
 $uniqueBlueprintNames = Get-UniqueBlueprintNames -DescriptionMap $descriptionRewardMap
 $script:BlueprintEnrichment = New-EnrichmentMap -Names $uniqueBlueprintNames
 $enrichmentStats = Get-EnrichmentStats -Map $script:BlueprintEnrichment
@@ -2621,18 +3497,19 @@ if ($CacheOnly) {
     return
 }
 
-$lines = [System.IO.File]::ReadAllLines($globalPath, $encodingInfo.Encoding)
-$lineValues = New-LineValueMap -Lines $lines
 $resourceLocationMap = New-ResourceLocationMap -Lines $lines -LineValues $lineValues
 $blueprintCraftMap = @{}
 
 $changedLines = 0
 $changedDescriptionLines = 0
 $changedTitleLines = 0
+$changedReputationDescriptionLines = 0
+$changedReputationRankLines = 0
 $changedPlanetDescriptionLines = 0
 $changedCraftGuideLines = 0
 $cleanedExistingBlocks = 0
 $cleanedExistingCraftIntelBlocks = 0
+$cleanedBitZerosHexLines = 0
 $fixedMalformedEmphasisLines = 0
 $missingDescriptionKeys = New-Object System.Collections.Generic.List[string]
 $missingTitleKeys = New-Object System.Collections.Generic.List[string]
@@ -2643,6 +3520,7 @@ $fixedMalformedEmphasisKeys = New-Object System.Collections.Generic.List[string]
 $conflictKeys = New-Object System.Collections.Generic.List[string]
 $seenDescriptionKeys = @{}
 $seenTitleKeys = @{}
+$seenReputationRankKeys = @{}
 
 for ($i = 0; $i -lt $lines.Count; $i++) {
     $line = $lines[$i]
@@ -2654,6 +3532,54 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
     $rawKey = $line.Substring(0, $separator)
     $key = Get-NormalizedIniKey -LineKey $rawKey
     $currentValue = $line.Substring($separator + 1)
+
+    if ($key -match '(?i)^bitzeros_.*_desc(?:_\d+)?$') {
+        $cleanBitZerosValue = Remove-BitZerosHexSignature -Value $currentValue
+        if ($cleanBitZerosValue -ne $currentValue) {
+            $lines[$i] = $rawKey + '=' + $cleanBitZerosValue
+            $changedLines++
+            $cleanedBitZerosHexLines++
+            $currentValue = $cleanBitZerosValue
+        }
+    }
+
+    if ($NoReputationIntel) {
+        $cleanNoReputationValue = $currentValue
+        if (Test-ReputationTitleKey -Key $key) {
+            $cleanNoReputationValue = Remove-ReputationTitleMarker -Value $cleanNoReputationValue
+        }
+        if (Test-ReputationRankKey -Key $key) {
+            $cleanNoReputationValue = Remove-ReputationRankThreshold -Value $cleanNoReputationValue
+        }
+        $cleanNoReputationValue = Remove-ReputationDescriptionBlock -Value $cleanNoReputationValue
+
+        if ($cleanNoReputationValue -ne $currentValue) {
+            $lines[$i] = $rawKey + '=' + $cleanNoReputationValue
+            $changedLines++
+            if (Test-ReputationRankKey -Key $key) {
+                $changedReputationRankLines++
+            }
+            elseif ($currentValue -match '^<EM\d>Репутация') {
+                $changedReputationDescriptionLines++
+            }
+            else {
+                $changedTitleLines++
+            }
+            $currentValue = $cleanNoReputationValue
+        }
+    }
+
+    if (-not $NoReputationIntel -and $reputationRankRangeMap.ContainsKey($key)) {
+        $seenReputationRankKeys[$key] = $true
+        $rankRange = $reputationRankRangeMap[$key]
+        $newRankValue = Set-ReputationRankThreshold -Value $currentValue -Min ([int]$rankRange.Min) -Max $rankRange.Max
+        if ($newRankValue -ne $currentValue) {
+            $lines[$i] = $rawKey + '=' + $newRankValue
+            $changedLines++
+            $changedReputationRankLines++
+            $currentValue = $newRankValue
+        }
+    }
 
     if (-not $NoCraftIntel) {
         if ($key -match '(?i)_desc$' -and $currentValue -match 'Потенциально добываемые ресурсы') {
@@ -2684,9 +3610,13 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
         }
     }
 
-    if ($descriptionRewardMap.ContainsKey($key)) {
-        $seenDescriptionKeys[$key] = $true
-        $cleanValue = Remove-BlueprintBlock -Value $currentValue
+    if ($descriptionRewardMap.ContainsKey($key) -or $descriptionReputationMap.ContainsKey($key)) {
+        if ($descriptionRewardMap.ContainsKey($key)) {
+            $seenDescriptionKeys[$key] = $true
+        }
+
+        $cleanValue = Remove-ReputationDescriptionBlock -Value $currentValue
+        $cleanValue = Remove-BlueprintBlock -Value $cleanValue
         if ($cleanValue -ne $currentValue) {
             $cleanedExistingBlocks++
         }
@@ -2698,18 +3628,32 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
             $cleanValue = $repairedValue
         }
 
-        $group = $descriptionRewardMap[$key]
-        if ($group.RewardSignatures.Count -gt 1) {
-            $conflictKeys.Add($key)
+        $newValue = $cleanValue
+
+        if ($descriptionReputationMap.ContainsKey($key)) {
+            $reputationBlock = Format-ReputationDescriptionBlock -Group $descriptionReputationMap[$key]
+            if (-not [string]::IsNullOrWhiteSpace($reputationBlock)) {
+                $newValue = $reputationBlock + '\n\n' + $newValue
+            }
         }
 
-        $block = Format-RewardBlock -Group $group
-        $newValue = $cleanValue + '\n\n' + $block
+        if ($descriptionRewardMap.ContainsKey($key)) {
+            $group = $descriptionRewardMap[$key]
+            if ($group.RewardSignatures.Count -gt 1) {
+                $conflictKeys.Add($key)
+            }
+
+            $block = Format-RewardBlock -Group $group
+            $newValue = $newValue + '\n\n' + $block
+        }
 
         if ($newValue -ne $currentValue) {
             $lines[$i] = $rawKey + '=' + $newValue
             $changedLines++
             $changedDescriptionLines++
+            if ($descriptionReputationMap.ContainsKey($key)) {
+                $changedReputationDescriptionLines++
+            }
             $modifiedDescriptionKeys.Add($key)
             $currentValue = $newValue
         }
@@ -2771,19 +3715,26 @@ $report = [pscustomobject]@{
     acePilotTitleMarker = $AcePilotTitleMarker
     scripTitleMarker = $ScripTitleMarker
     scmdbRewardDescriptionKeys = $descriptionRewardMap.Keys.Count
+    scmdbReputationDescriptionKeys = $descriptionReputationMap.Keys.Count
     scmdbRewardTitleKeys = $titleRewardMap.Keys.Count
+    reputationRankThresholdKeys = $reputationRankRangeMap.Keys.Count
     titleKeysWithBlueprintMarker = @($titleRewardMap.Values | Where-Object { $_.HasBlueprint }).Count
     titleKeysWithAcePilotMarker = @($titleRewardMap.Values | Where-Object { $_.HasAcePilot }).Count
     titleKeysWithScripMarker = @($titleRewardMap.Values | Where-Object { $_.HasScrip }).Count
+    titleKeysWithReputationMarker = @($titleRewardMap.Values | Where-Object { (Format-ReputationTitleMarker -TitleInfo $_) }).Count
     matchedDescriptionKeys = $seenDescriptionKeys.Keys.Count
     matchedTitleKeys = $seenTitleKeys.Keys.Count
+    matchedReputationRankKeys = $seenReputationRankKeys.Keys.Count
     changedLines = $changedLines
     changedDescriptionLines = $changedDescriptionLines
     changedTitleLines = $changedTitleLines
+    changedReputationDescriptionLines = $changedReputationDescriptionLines
+    changedReputationRankLines = $changedReputationRankLines
     changedPlanetDescriptionLines = $changedPlanetDescriptionLines
     changedCraftGuideLines = $changedCraftGuideLines
     cleanedExistingBlocks = $cleanedExistingBlocks
     cleanedExistingCraftIntelBlocks = $cleanedExistingCraftIntelBlocks
+    cleanedBitZerosHexLines = $cleanedBitZerosHexLines
     fixedMalformedEmphasisLines = $fixedMalformedEmphasisLines
     conflictingSharedDescriptionKeys = $conflictKeys.Count
     missingDescriptionKeys = $missingDescriptionKeys.Count

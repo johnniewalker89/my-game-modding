@@ -1,6 +1,6 @@
 {
     "cacheKey":  "4.8.1-live.11952564",
-    "createdAt":  "2026-06-10T16:41:33.2357953+03:00",
+    "createdAt":  "2026-06-11T14:31:42.4780492+03:00",
     "shipComponentGradeFilter":  "A",
     "families":  [
                      {
@@ -439,31 +439,15 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:LumaCore",
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:LumaCore-LuxCore",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:LumaCore",
-                         "label":  "LumaCore",
-                         "sortLabel":  "LumaCore",
+                         "familyKey":  "component:LumaCore-LuxCore",
+                         "label":  "LumaCore / LuxCore",
+                         "sortLabel":  "LumaCore / LuxCore",
                          "defaultSelected":  false,
                          "names":  [
-                                       "LumaCore"
-                                   ],
-                         "resources":  [
-                                           "Beryl",
-                                           "Borase",
-                                           "Laranite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:LuxCore",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:LuxCore",
-                         "label":  "LuxCore",
-                         "sortLabel":  "LuxCore",
-                         "defaultSelected":  false,
-                         "names":  [
+                                       "LumaCore",
                                        "LuxCore"
                                    ],
                          "resources":  [
@@ -492,48 +476,16 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:QuadraCell",
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:QuadraCell",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:QuadraCell",
-                         "label":  "QuadraCell",
-                         "sortLabel":  "QuadraCell",
+                         "familyKey":  "component:QuadraCell",
+                         "label":  "QuadraCell / MT / MX",
+                         "sortLabel":  "QuadraCell / MT / MX",
                          "defaultSelected":  false,
                          "names":  [
-                                       "QuadraCell"
-                                   ],
-                         "resources":  [
-                                           "Beryl",
-                                           "Savrilium",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:QuadraCell MT",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:QuadraCell MT",
-                         "label":  "QuadraCell MT",
-                         "sortLabel":  "QuadraCell MT",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "QuadraCell MT"
-                                   ],
-                         "resources":  [
-                                           "Beryl",
-                                           "Savrilium",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:QuadraCell MX",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:QuadraCell MX",
-                         "label":  "QuadraCell MX",
-                         "sortLabel":  "QuadraCell MX",
-                         "defaultSelected":  false,
-                         "names":  [
+                                       "QuadraCell",
+                                       "QuadraCell MT",
                                        "QuadraCell MX"
                                    ],
                          "resources":  [
@@ -1612,48 +1564,16 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные орудия|Баллистика|exact:SW16BR1 “Buzzsaw” Repeater",
+                         "optionId":  "craftFamily|Корабельные орудия|Баллистика|weapon:SW16BR Repeater",
                          "category":  "Корабельные орудия",
                          "subcategory":  "Баллистика",
-                         "familyKey":  "exact:SW16BR1 “Buzzsaw” Repeater",
-                         "label":  "SW16BR1 “Buzzsaw” Repeater",
-                         "sortLabel":  "SW16BR1 “Buzzsaw” Repeater",
+                         "familyKey":  "weapon:SW16BR Repeater",
+                         "label":  "SW16BR Repeaters 1-3",
+                         "sortLabel":  "SW16BR Repeaters",
                          "defaultSelected":  false,
                          "names":  [
-                                       "SW16BR1 “Buzzsaw” Repeater"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Riccite",
-                                           "Titanium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные орудия|Баллистика|exact:SW16BR2 “Sawbuck” Repeater",
-                         "category":  "Корабельные орудия",
-                         "subcategory":  "Баллистика",
-                         "familyKey":  "exact:SW16BR2 “Sawbuck” Repeater",
-                         "label":  "SW16BR2 “Sawbuck” Repeater",
-                         "sortLabel":  "SW16BR2 “Sawbuck” Repeater",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "SW16BR2 “Sawbuck” Repeater"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Riccite",
-                                           "Titanium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные орудия|Баллистика|exact:SW16BR3 “Shredder” Repeater",
-                         "category":  "Корабельные орудия",
-                         "subcategory":  "Баллистика",
-                         "familyKey":  "exact:SW16BR3 “Shredder” Repeater",
-                         "label":  "SW16BR3 “Shredder” Repeater",
-                         "sortLabel":  "SW16BR3 “Shredder” Repeater",
-                         "defaultSelected":  false,
-                         "names":  [
+                                       "SW16BR1 “Buzzsaw” Repeater",
+                                       "SW16BR2 “Sawbuck” Repeater",
                                        "SW16BR3 “Shredder” Repeater"
                                    ],
                          "resources":  [
