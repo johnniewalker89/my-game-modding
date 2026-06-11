@@ -57,6 +57,7 @@ try {
     Set-Content -LiteralPath (Join-Path $target 'config\launcher-state.json') -Value '{"width":1190,"height":760,"livePath":"C:\\Games\\StarCitizen\\LIVE"}' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -Value 'mining-cache' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -Value 'quest-cache' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.old.json') -Value 'old-quest-cache' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'updates\backups\launcher-before-update-old\keep.txt') -Value 'update-backup' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'updates\downloads\old.zip') -Value 'download' -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $target 'dist\old.zip') -Value 'dist' -Encoding UTF8
@@ -78,10 +79,12 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'config\launcher-state.json') -PathType Leaf) 'Launcher local state should be preserved.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260608-230029.starter-clean.bak') -PathType Leaf) 'Starter clean backup should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260608-230029.starter-clean.bak.meta.json') -PathType Leaf) 'Starter clean backup metadata should be installed.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -PathType Leaf) 'Mining cache should be preserved.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -PathType Leaf)) 'Old mining cache should be replaced by release cache.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki-blueprints-4.8.1-live.11952564.json') -PathType Leaf) 'Seed mining blueprints cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\craft-family-index-4.8.1-live.11952564.json') -PathType Leaf) 'Seed mining recipe family cache should be installed.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -PathType Leaf) 'Quest cache should be preserved.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.old.json') -PathType Leaf)) 'Old quest cache leftovers should be removed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -PathType Leaf) 'Seed quest items cache should be installed.'
+    Assert-True ((Get-Content -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -Encoding UTF8 -Raw) -ne 'quest-cache') 'Seed quest items cache should replace old cache content.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json.meta.json') -PathType Leaf) 'Seed quest items cache metadata should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'updates\backups\launcher-before-update-old\keep.txt') -PathType Leaf) 'Update backups should be preserved.'
     Assert-True ((Get-ChildItem -LiteralPath (Join-Path $target 'updates\backups') -Directory | Measure-Object).Count -ge 2) 'Installer should create a before-update backup.'

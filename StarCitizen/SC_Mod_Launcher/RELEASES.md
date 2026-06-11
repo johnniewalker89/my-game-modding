@@ -1,5 +1,20 @@
 # SC Mod Launcher Releases
 
+## 1.0.8
+
+### Что нового
+
+- Updater теперь накатывает свежий cache из release ZIP поверх старого локального cache.
+- Пользовательские `backups`, `config` и `updates\backups` всё ещё сохраняются при обновлении.
+- Update-installer test теперь отдельно проверяет, что старые cache-хвосты удаляются, а релизный cache устанавливается.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_1.0.8.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 1.0.8`
+- Проверено: scaffold backend, WPF build/smoke, update installer cache replacement, release ZIP audit.
+
 ## 1.0.7
 
 ### Что нового

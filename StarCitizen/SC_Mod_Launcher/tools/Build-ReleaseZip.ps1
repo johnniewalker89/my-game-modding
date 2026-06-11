@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '1.0.7'
+    [string]$Version = '1.0.8'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,12 +38,6 @@ $managedPaths = @('.')
 $preservePaths = @(
     'backups',
     'backups/**',
-    'modules/mining/cache',
-    'modules/mining/cache/**',
-    'modules/scmdb/cache',
-    'modules/scmdb/cache/**',
-    'modules/quest/engine/cache',
-    'modules/quest/engine/cache/**',
     'config',
     'config/**',
     'updates/backups',
