@@ -66,6 +66,9 @@ E9C7595B7ED6A00F232AD03D8A85006A3C9C64AE74C3C6F66AA09271C0A08ED8
     <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-contract-recipes.png" alt="Метки контрактов, репутация и список доступных чертежей"></td>
     <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-farm-contract-highlight.png" alt="Подсветка выгодного фарм-квеста"></td>
   </tr>
+  <tr>
+    <td colspan="2"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-wikelo-item-orders.png" alt="Wikelo-заказы в описании предмета"></td>
+  </tr>
 </table>
 
 ### Майнинг и крафт
@@ -76,9 +79,6 @@ E9C7595B7ED6A00F232AD03D8A85006A3C9C64AE74C3C6F66AA09271C0A08ED8
   <tr>
     <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-item-craft-composition.png" alt="Состав предмета в инвентаре"></td>
     <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-mining-map-hints.png" alt="Подсказки добычи и крафта на карте Mobiglas"></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-wikelo-item-orders.png" alt="Wikelo-заказы в описании предмета"></td>
   </tr>
 </table>
 
