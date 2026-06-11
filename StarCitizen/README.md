@@ -35,16 +35,16 @@
 Как поставить:
 
 1. Установите русский перевод [RuSC](https://www.expanseunion.com/sc/locru).
-2. Скачайте `SC_Mod_Launcher_1.0.5.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-mod-launcher-v1.0.5).
-3. Откройте архив и извлеките из него папку `SC_Mod_Launcher` в удобное место. Не используйте внешнюю папку `SC_Mod_Launcher_1.0.5` как рабочую.
+2. Скачайте `SC_Mod_Launcher_1.0.6.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-mod-launcher-v1.0.6).
+3. Откройте архив и извлеките из него папку `SC_Mod_Launcher` в удобное место. Не используйте внешнюю папку `SC_Mod_Launcher_1.0.6` как рабочую.
 4. Запустите `SC_Mod_Launcher\SC_Mod_Launcher.exe`.
 5. Проверьте путь к `StarCitizen\LIVE`.
 6. Нажмите `Проверить`, при необходимости `Прогреть кэш`, затем `Применить в LIVE`.
 
-SHA-256 релиза `1.0.5`:
+SHA-256 релиза `1.0.6`:
 
 ```text
-9D80153F4D33A506A3246C6A39B68AF2BD224BC65B35FDDA12BC88DC3F91C312
+9D4AC153F638EA56320A5B07108278F27885C9EE2340ACE825F9A80026F49DA2
 ```
 
 Подробности: [SC_Mod_Launcher/README.md](SC_Mod_Launcher/README.md).
@@ -61,7 +61,12 @@ SHA-256 релиза `1.0.5`:
 - `[А]` — контракт для асов-пилотов.
 - `[С]` — в награде есть скрипты; особенно выгодные контракты дополнительно подсвечиваются синим.
 
-![Метки контрактов и список доступных чертежей](SC_Mod_Launcher/docs/images/sc-mod-launcher-contract-recipes.png)
+<table>
+  <tr>
+    <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-contract-recipes.png" alt="Метки контрактов, репутация и список доступных чертежей"></td>
+    <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-farm-contract-highlight.png" alt="Подсветка выгодного фарм-квеста"></td>
+  </tr>
+</table>
 
 ### Майнинг и крафт
 
@@ -71,6 +76,9 @@ SHA-256 релиза `1.0.5`:
   <tr>
     <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-item-craft-composition.png" alt="Состав предмета в инвентаре"></td>
     <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-mining-map-hints.png" alt="Подсказки добычи и крафта на карте Mobiglas"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-wikelo-item-orders.png" alt="Wikelo-заказы в описании предмета"></td>
   </tr>
 </table>
 

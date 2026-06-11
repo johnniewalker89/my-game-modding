@@ -505,6 +505,37 @@ function Get-ContractReputationRewardAmounts {
     return @($amounts.ToArray() | Sort-Object -Unique)
 }
 
+function ConvertTo-ReputationScopeFallbackLabel {
+    param($Scope)
+
+    if ($null -eq $Scope) {
+        return ''
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$Scope.displayName)) {
+        switch ([string]$Scope.displayName) {
+            'Standing' { return 'Репутация' }
+            'Security' { return 'Безопасность' }
+            'Affinity' { return 'Доверие' }
+            'Bounty Hunting' { return 'Охота за головами' }
+            'Ship Combat' { return 'Корабельный бой' }
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$Scope.scopeName)) {
+        switch ([string]$Scope.scopeName) {
+            'FactionReputation' { return 'Репутация' }
+            'Security' { return 'Безопасность' }
+            'Affinity' { return 'Доверие' }
+            'BountyHunting' { return 'Охота за головами' }
+            'ShipCombat_HeadHunters' { return 'Корабельный бой' }
+            default { return ([string]$Scope.scopeName -replace '_', ' ') }
+        }
+    }
+
+    return ''
+}
+
 function ConvertTo-ReputationScopeLabel {
     param(
         [Parameter(Mandatory = $true)]$Data,
@@ -532,29 +563,50 @@ function ConvertTo-ReputationScopeLabel {
             }
         }
 
-        if (-not [string]::IsNullOrWhiteSpace([string]$scope.displayName)) {
-            switch ([string]$scope.displayName) {
-                'Standing' { return 'Репутация' }
-                'Security' { return 'Безопасность' }
-                'Affinity' { return 'Доверие' }
-                'Bounty Hunting' { return 'Охота за головами' }
-                'Ship Combat' { return 'Корабельный бой' }
-                default { return [string]$scope.displayName }
-            }
-        }
-        if (-not [string]::IsNullOrWhiteSpace([string]$scope.scopeName)) {
-            switch ([string]$scope.scopeName) {
-                'FactionReputation' { return 'Репутация' }
-                'Security' { return 'Безопасность' }
-                'Affinity' { return 'Доверие' }
-                'BountyHunting' { return 'Охота за головами' }
-                'ShipCombat_HeadHunters' { return 'Корабельный бой' }
-                default { return ([string]$scope.scopeName -replace '_', ' ') }
-            }
+        $fallbackLabel = ConvertTo-ReputationScopeFallbackLabel -Scope $scope
+        if (-not [string]::IsNullOrWhiteSpace($fallbackLabel)) {
+            return $fallbackLabel
         }
     }
 
     return 'Rep'
+}
+
+function New-ReputationScopeLocalizationMap {
+    param(
+        [Parameter(Mandatory = $true)]$Data,
+        [hashtable]$LocalizationMap
+    )
+
+    $map = [ordered]@{}
+    if ($null -eq $Data -or $null -eq $Data.scopes) {
+        return $map
+    }
+
+    foreach ($scopeProperty in @($Data.scopes.PSObject.Properties)) {
+        $scope = $scopeProperty.Value
+        $label = ConvertTo-ReputationScopeFallbackLabel -Scope $scope
+        if ([string]::IsNullOrWhiteSpace($label)) {
+            continue
+        }
+
+        foreach ($localizationKey in @([string]$scope.displayNameKey, [string]$scope.nameKey)) {
+            $normalizedKey = $localizationKey.Trim().TrimStart('@')
+            if ([string]::IsNullOrWhiteSpace($normalizedKey)) {
+                continue
+            }
+
+            if ($null -ne $LocalizationMap -and $LocalizationMap.ContainsKey($normalizedKey)) {
+                continue
+            }
+
+            if (-not $map.Contains($normalizedKey)) {
+                $map[$normalizedKey] = $label
+            }
+        }
+    }
+
+    return $map
 }
 
 function Get-ContractReputationRewardEntries {
@@ -3456,6 +3508,7 @@ $descriptionReputationMap = $rewardInfo.DescriptionReputationMap
 $titleRewardMap = $rewardInfo.TitleMap
 $reputationRankThresholdMap = $rewardInfo.ReputationRankThresholds
 $reputationRankRangeMap = ConvertTo-ReputationRankRangeMap -Thresholds $reputationRankThresholdMap
+$reputationScopeLocalizationMap = New-ReputationScopeLocalizationMap -Data $scmdb.Data -LocalizationMap $lineValues
 $uniqueBlueprintNames = Get-UniqueBlueprintNames -DescriptionMap $descriptionRewardMap
 $script:BlueprintEnrichment = New-EnrichmentMap -Names $uniqueBlueprintNames
 $enrichmentStats = Get-EnrichmentStats -Map $script:BlueprintEnrichment
@@ -3505,6 +3558,7 @@ $changedDescriptionLines = 0
 $changedTitleLines = 0
 $changedReputationDescriptionLines = 0
 $changedReputationRankLines = 0
+$changedReputationScopeNameLines = 0
 $changedPlanetDescriptionLines = 0
 $changedCraftGuideLines = 0
 $cleanedExistingBlocks = 0
@@ -3521,6 +3575,7 @@ $conflictKeys = New-Object System.Collections.Generic.List[string]
 $seenDescriptionKeys = @{}
 $seenTitleKeys = @{}
 $seenReputationRankKeys = @{}
+$seenReputationScopeNameKeys = @{}
 
 for ($i = 0; $i -lt $lines.Count; $i++) {
     $line = $lines[$i]
@@ -3579,6 +3634,10 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
             $changedReputationRankLines++
             $currentValue = $newRankValue
         }
+    }
+
+    if (-not $NoReputationIntel -and $reputationScopeLocalizationMap.Contains($key)) {
+        $seenReputationScopeNameKeys[$key] = $true
     }
 
     if (-not $NoCraftIntel) {
@@ -3687,6 +3746,37 @@ foreach ($key in $titleRewardMap.Keys) {
     }
 }
 
+if (-not $NoReputationIntel) {
+    $missingReputationScopeNameKeys = @(
+        $reputationScopeLocalizationMap.Keys |
+            Where-Object { -not $seenReputationScopeNameKeys.ContainsKey([string]$_) } |
+            Sort-Object
+    )
+
+    if ($missingReputationScopeNameKeys.Count -gt 0) {
+        $lineList = New-Object System.Collections.Generic.List[string]
+        $lineList.AddRange([string[]]$lines)
+
+        $insertIndex = $lineList.Count
+        for ($i = $lineList.Count - 1; $i -ge 0; $i--) {
+            $line = [string]$lineList[$i]
+            if ($line -match '^(RepScope_|mobiGlas_Reputation_)') {
+                $insertIndex = $i + 1
+                break
+            }
+        }
+
+        foreach ($missingKey in @($missingReputationScopeNameKeys)) {
+            $lineList.Insert($insertIndex, "$missingKey=$($reputationScopeLocalizationMap[$missingKey])")
+            $insertIndex++
+            $changedLines++
+            $changedReputationScopeNameLines++
+        }
+
+        $lines = $lineList.ToArray()
+    }
+}
+
 if (-not $ReportPath) {
     $reportDir = Join-Path $ScriptDir 'reports'
     New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
@@ -3718,6 +3808,7 @@ $report = [pscustomobject]@{
     scmdbReputationDescriptionKeys = $descriptionReputationMap.Keys.Count
     scmdbRewardTitleKeys = $titleRewardMap.Keys.Count
     reputationRankThresholdKeys = $reputationRankRangeMap.Keys.Count
+    reputationScopeNameKeys = $reputationScopeLocalizationMap.Keys.Count
     titleKeysWithBlueprintMarker = @($titleRewardMap.Values | Where-Object { $_.HasBlueprint }).Count
     titleKeysWithAcePilotMarker = @($titleRewardMap.Values | Where-Object { $_.HasAcePilot }).Count
     titleKeysWithScripMarker = @($titleRewardMap.Values | Where-Object { $_.HasScrip }).Count
@@ -3725,11 +3816,13 @@ $report = [pscustomobject]@{
     matchedDescriptionKeys = $seenDescriptionKeys.Keys.Count
     matchedTitleKeys = $seenTitleKeys.Keys.Count
     matchedReputationRankKeys = $seenReputationRankKeys.Keys.Count
+    matchedReputationScopeNameKeys = $seenReputationScopeNameKeys.Keys.Count
     changedLines = $changedLines
     changedDescriptionLines = $changedDescriptionLines
     changedTitleLines = $changedTitleLines
     changedReputationDescriptionLines = $changedReputationDescriptionLines
     changedReputationRankLines = $changedReputationRankLines
+    changedReputationScopeNameLines = $changedReputationScopeNameLines
     changedPlanetDescriptionLines = $changedPlanetDescriptionLines
     changedCraftGuideLines = $changedCraftGuideLines
     cleanedExistingBlocks = $cleanedExistingBlocks

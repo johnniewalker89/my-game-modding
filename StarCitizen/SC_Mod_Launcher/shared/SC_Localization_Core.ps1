@@ -453,13 +453,11 @@ function Apply-SCPatchOperationsToLines {
     $newLines = @($Context.Lines)
     $changedKeys = @()
 
-    foreach ($operation in @($Operations)) {
-        if ($operation.Operation -ne 'replaceValue') {
-            throw "Unsupported patch operation '$($operation.Operation)' for key '$($operation.Key)'."
-        }
+    foreach ($operation in @($Operations | Where-Object { $_.Operation -eq 'replaceValue' })) {
         if ([string]::IsNullOrWhiteSpace($operation.Key)) {
             throw 'Patch operation key is required.'
         }
+
         if (-not $Context.KeyLineIndexes.ContainsKey($operation.Key)) {
             throw "Localization key not found: $($operation.Key)"
         }
@@ -475,6 +473,38 @@ function Apply-SCPatchOperationsToLines {
             $newLines[$index] = $newLine
             $changedKeys += $operation.Key
         }
+    }
+
+    foreach ($operation in @($Operations | Where-Object { $_.Operation -eq 'insertLine' })) {
+        if ([string]::IsNullOrWhiteSpace($operation.Key)) {
+            throw 'Patch operation key is required.'
+        }
+        if ($Context.KeyLineIndexes.ContainsKey($operation.Key)) {
+            continue
+        }
+
+        $insertIndex = $newLines.Count
+        $insertAfterPattern = [string]$operation.InsertAfterPattern
+        if (-not [string]::IsNullOrWhiteSpace($insertAfterPattern)) {
+            for ($i = $newLines.Count - 1; $i -ge 0; $i--) {
+                if ([string]$newLines[$i] -match $insertAfterPattern) {
+                    $insertIndex = $i + 1
+                    break
+                }
+            }
+        }
+
+        $lineList = New-Object System.Collections.Generic.List[string]
+        $lineList.AddRange([string[]]$newLines)
+        $lineList.Insert($insertIndex, "$($operation.Key)=$($operation.NewValue)")
+        $newLines = $lineList.ToArray()
+        $changedKeys += $operation.Key
+    }
+
+    $unsupportedOperations = @($Operations | Where-Object { $_.Operation -ne 'replaceValue' -and $_.Operation -ne 'insertLine' })
+    if ($unsupportedOperations.Count -gt 0) {
+        $operation = $unsupportedOperations[0]
+        throw "Unsupported patch operation '$($operation.Operation)' for key '$($operation.Key)'."
     }
 
     return [pscustomobject]@{

@@ -125,10 +125,22 @@
     $changedDescriptionLines = 0
     $changedTitleLines = 0
     $changedWikeloHintLines = 0
+    $insertedLocalizationLines = 0
 
     Write-Host 'Progress: quest diff start'
     foreach ($key in @($patchedValues.Keys | Sort-Object)) {
         if (-not $originalValues.ContainsKey($key)) {
+            $operations += [pscustomobject]@{
+                ModuleId = 'quest'
+                OptionId = 'questRewards'
+                Key = $key
+                Operation = 'insertLine'
+                OriginalValue = ''
+                NewValue = [string]$patchedValues[$key]
+                InsertAfterPattern = '^(RepScope_|mobiGlas_Reputation_)'
+                OwnedMarkers = @('SCMDB_QUEST_REPUTATION_SCOPE_NAME')
+            }
+            $insertedLocalizationLines++
             continue
         }
 
@@ -185,6 +197,7 @@
     $metadata.changedDescriptionLines = $changedDescriptionLines
     $metadata.changedWikeloHintLines = $changedWikeloHintLines
     $metadata.changedTitleLines = $changedTitleLines
+    $metadata.insertedLocalizationLines = $insertedLocalizationLines
     $metadata.engineReportPath = $engine.ReportPath
     $metadata.engineOutputSample = @($engine.OutputLines | Select-Object -First 20)
 
