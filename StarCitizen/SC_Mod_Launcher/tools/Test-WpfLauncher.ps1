@@ -132,6 +132,7 @@ try {
         'SignatureButton',
         'OverviewNavButton',
         'ModulesNavButton',
+        'LocalizationNavButton',
         'InstallUpdateButton',
         'ScreenTitleText',
         'LogBox'
@@ -149,9 +150,10 @@ try {
         WarmCacheButton = 'Прогреть кэш'
         ApplyLiveButton = 'Применить в LIVE'
         RestoreBackupButton = 'Backup'
-        SignatureButton = 'Johnnie на связи'
+        SignatureButton = 'Johnnie на связи / Star Citizen RU'
         OverviewNavButton = 'Обзор'
         ModulesNavButton = 'Модули'
+        LocalizationNavButton = 'Русификатор'
         InstallUpdateButton = 'Обновить'
     }
 
@@ -165,6 +167,7 @@ try {
 
     $navChecks = @(
         @{ Button = 'ModulesNavButton'; Title = 'Модульная сборка' },
+        @{ Button = 'LocalizationNavButton'; Title = 'Русификатор' },
         @{ Button = 'RestoreBackupButton'; Title = 'Backup' },
         @{ Button = 'OverviewNavButton'; Title = 'Панель корабельного техника' }
     )
@@ -207,7 +210,34 @@ try {
                 Assert-True ($button.Current.Name -eq $pair.Value) "Button '$($pair.Key)' should be Russian text '$($pair.Value)'."
             }
         }
+
+        if ($check.Button -eq 'LocalizationNavButton') {
+            $localizationControls = @(
+                'InstallLocalizationButton',
+                'UpdateLocalizationButton',
+                'RemoveLocalizationButton'
+            )
+
+            foreach ($controlId in $localizationControls) {
+                $control = Find-ByAutomationId -Root $window -AutomationId $controlId
+                Assert-True ($null -ne $control) "Control should exist after opening localization tab: $controlId"
+            }
+
+            $localizationButtonNames = @{
+                InstallLocalizationButton = 'Установить'
+                UpdateLocalizationButton = 'Обновить'
+                RemoveLocalizationButton = 'Удалить'
+            }
+
+            foreach ($pair in $localizationButtonNames.GetEnumerator()) {
+                $button = Find-ByAutomationId -Root $window -AutomationId $pair.Key
+                Assert-True ($button.Current.Name -eq $pair.Value) "Button '$($pair.Key)' should be Russian text '$($pair.Value)'."
+            }
+        }
     }
+
+    $overviewLocalizationUpdateButton = Find-ByAutomationId -Root $window -AutomationId 'OverviewUpdateLocalizationButton'
+    Assert-True ($overviewLocalizationUpdateButton.Current.Name -eq 'Обновить') "Overview RuSC update button should be Russian text 'Обновить'."
 
     $livePathBox = Find-ByAutomationId -Root $window -AutomationId 'LivePathBox'
     $valuePattern = $livePathBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)

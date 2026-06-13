@@ -623,7 +623,7 @@ function Invoke-SCModPatchPlan {
     $modules = Import-SCModManifests -ModulesRoot $modulesRoot
     Write-Host 'Progress: apply read'
     $context = Read-SCLocalizationData -LivePath $LivePath -GlobalIniPath $GlobalIniPath
-    $sharedOperations = @(New-SCEmphasisRepairOperations -Context $context)
+    $sharedOperations = @()
 
     $moduleReports = @()
     $moduleOperations = @()

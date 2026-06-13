@@ -115,6 +115,39 @@ $backups = Join-Path $tempRoot 'backups'
 New-Item -ItemType Directory -Force -Path $localizationDir | Out-Null
 
 $encoding = New-Object System.Text.UTF8Encoding($true)
+
+$reputationTitleLive = Join-Path $tempRoot 'RepTitle\LIVE'
+$reputationTitleLoc = Join-Path $reputationTitleLive 'data\Localization\korean_(south_korea)'
+$reputationTitleGlobal = Join-Path $reputationTitleLoc 'global.ini'
+$reputationTitleReport = Join-Path $tempRoot 'rep-title-report.json'
+New-Item -ItemType Directory -Force -Path $reputationTitleLoc | Out-Null
+[System.IO.File]::WriteAllLines($reputationTitleGlobal, @(
+    'northrock_bounty_fps_title_001=ОХОТА ЗА ГОЛОВАМИ: ~mission(TargetName) (ВЫСОКАЯ ОПАСНОСТЬ)',
+    'northrock_bounty_fps_UGF_boss_desc_001=Здравствуйте',
+    'northrock_bounty_fps_UGF_boss_nocivs_desc_001=Здравствуйте'
+), $encoding)
+& (Join-Path $questEngineRoot 'SC_Quest_Recipe_Engine.ps1') -GlobalIniPath $reputationTitleGlobal -NoBackup -NoCraftIntel -ReportPath $reputationTitleReport | Out-Null
+$reputationTitleLine = [System.IO.File]::ReadAllLines($reputationTitleGlobal, $encoding) |
+    Where-Object { $_ -like 'northrock_bounty_fps_title_001=*' } |
+    Select-Object -First 1
+Assert-True ($reputationTitleLine.Contains('[4K/8K]')) 'Shared reputation title should show compact possible amounts instead of generic REP.'
+Assert-True (-not $reputationTitleLine.Contains('[РЕП]')) 'Shared reputation title should not fall back to generic REP when possible amounts fit.'
+
+$reputationRiskLive = Join-Path $tempRoot 'RepRisk\LIVE'
+$reputationRiskLoc = Join-Path $reputationRiskLive 'data\Localization\korean_(south_korea)'
+$reputationRiskGlobal = Join-Path $reputationRiskLoc 'global.ini'
+$reputationRiskReport = Join-Path $tempRoot 'rep-risk-report.json'
+New-Item -ItemType Directory -Force -Path $reputationRiskLoc | Out-Null
+[System.IO.File]::WriteAllLines($reputationRiskGlobal, @(
+    'bhg_bounty_desc_gen_001=Base bounty text'
+), $encoding)
+& (Join-Path $questEngineRoot 'SC_Quest_Recipe_Engine.ps1') -GlobalIniPath $reputationRiskGlobal -NoBackup -NoCraftIntel -ReportPath $reputationRiskReport | Out-Null
+$reputationRiskLine = [System.IO.File]::ReadAllLines($reputationRiskGlobal, $encoding) |
+    Where-Object { $_ -like 'bhg_bounty_desc_gen_001=*' } |
+    Select-Object -First 1
+Assert-True ($reputationRiskLine.Contains('очень низкая 500 / низкая 1K / умеренная 2K / высокая 2K / очень высокая 8K / экстремальная 16K')) 'BHG risk-split reputation block should use Russian risk labels.'
+Assert-True (-not $reputationRiskLine.Contains('Low 1K')) 'BHG risk-split reputation block should not use English Low label.'
+
 $cleanStateIni = Join-Path $tempRoot 'clean-state.ini'
 $patchedStateIni = Join-Path $tempRoot 'patched-state.ini'
 [System.IO.File]::WriteAllLines($cleanStateIni, @("Mining_Raw_desc=Base text\n\n$rawShipHeader\nIron"), $encoding)
@@ -144,16 +177,16 @@ $shipOnly = @{ mining = @('shipMining') + $standardMiningCraftFilters; quest = $
 $dryRun = Invoke-SCModPatch -LivePath $liveRoot -ScriptRoot $ProjectDir -SelectedOptionsByModule $allMethods -ReportDirectory $reports -BackupDirectory $backups -DryRun
 Assert-True ($dryRun.Report.dryRun -eq $true) 'Dry-run report should be marked dryRun.'
 Assert-True ($dryRun.Report.writeAttempted -eq $false) 'Dry-run must not attempt writes.'
-Assert-True ([int]$dryRun.Report.fixedMalformedEmphasisLines -eq 1) 'Dry-run should detect one malformed EM line.'
-Assert-True ([int]$dryRun.Report.changedLines -eq 3) 'Dry-run should preview EM repair plus two mining fixture changes.'
+Assert-True ([int]$dryRun.Report.fixedMalformedEmphasisLines -eq 0) 'Dry-run should not run RuSC EM repair from module apply.'
+Assert-True ([int]$dryRun.Report.changedLines -eq 2) 'Dry-run should preview only mining fixture changes.'
 Assert-True ((Get-FileHash -LiteralPath $globalIni -Algorithm SHA256).Hash -eq $initialHash) 'Dry-run must not change fixture file.'
 
 $apply = Invoke-SCModPatch -LivePath $liveRoot -ScriptRoot $ProjectDir -SelectedOptionsByModule $allMethods -ReportDirectory $reports -BackupDirectory $backups
 Assert-True ($apply.Report.dryRun -eq $false) 'Apply report should not be marked dryRun.'
 Assert-True ($apply.Report.writeAttempted -eq $true) 'Apply should attempt write when changes exist.'
 Assert-True ($apply.Report.writeSucceeded -eq $true) 'Apply should succeed.'
-Assert-True ([int]$apply.Report.fixedMalformedEmphasisLines -eq 1) 'Apply should report one malformed EM line.'
-Assert-True ([int]$apply.Report.changedLines -eq 3) 'Apply should change EM repair plus two mining fixture lines.'
+Assert-True ([int]$apply.Report.fixedMalformedEmphasisLines -eq 0) 'Apply should not report RuSC EM repair from module apply.'
+Assert-True ([int]$apply.Report.changedLines -eq 2) 'Apply should change only two mining fixture lines.'
 Assert-True (-not [string]::IsNullOrWhiteSpace($apply.Report.backupPath)) 'Apply should create backup path.'
 Assert-True (Test-Path -LiteralPath $apply.Report.backupPath -PathType Leaf) 'Backup file should exist.'
 $applyBackupMetadataPath = "$($apply.Report.backupPath).meta.json"
@@ -162,7 +195,7 @@ $applyBackupMetadata = Get-Content -LiteralPath $applyBackupMetadataPath -Encodi
 Assert-True ([string]$applyBackupMetadata.kind -eq 'patched') 'Backup made from already patched fixture should be marked patched.'
 
 $patched = [System.IO.File]::ReadAllText($globalIni, $encoding)
-Assert-True ($patched.Contains('<EM4>~mission(Destination|Address)</EM4>')) 'Patched file should contain repaired EM tag.'
+Assert-True ($patched.Contains('<EM4>~mission(Destination|Address)<EM4>')) 'Module apply should leave RuSC EM repair to localization install/update.'
 
 $allMethodsDryRun = Invoke-SCModPatch -LivePath $liveRoot -ScriptRoot $ProjectDir -SelectedOptionsByModule $allMethods -ReportDirectory $reports -BackupDirectory $backups -DryRun
 Assert-True ([int]$allMethodsDryRun.Report.changedLines -eq 0) 'All mining methods selected should be a no-op after EM repair.'
@@ -210,13 +243,13 @@ $stageSourceHash = (Get-FileHash -LiteralPath $stageSourceGlobalIni -Algorithm S
 
 $stagingApply = Invoke-SCModStagingApply -LivePath $stageSourceRoot -ScriptRoot $ProjectDir -SelectedOptionsByModule $shipOnly -StagingRoot $stageRoot
 Assert-True ($stagingApply.Report.writeSucceeded -eq $true) 'Staging apply should write staging file.'
-Assert-True ([int]$stagingApply.Report.changedLines -eq 3) 'Staging apply should change EM repair, mining filter, and raw mining fixture lines.'
+Assert-True ([int]$stagingApply.Report.changedLines -eq 2) 'Staging apply should change only mining filter and raw mining fixture lines.'
 Assert-True (Test-Path -LiteralPath $stagingApply.StagingGlobalIniPath -PathType Leaf) 'Staging global.ini should exist.'
 Assert-True (Test-Path -LiteralPath $stagingApply.Report.backupPath -PathType Leaf) 'Staging backup should exist.'
 Assert-True ((Get-FileHash -LiteralPath $stageSourceGlobalIni -Algorithm SHA256).Hash -eq $stageSourceHash) 'Staging apply must not change source file.'
 
 $stagingText = [System.IO.File]::ReadAllText($stagingApply.StagingGlobalIniPath, $encoding)
-Assert-True ($stagingText.Contains('<EM4>~mission(Destination|Address)</EM4>')) 'Staging file should contain repaired EM tag.'
+Assert-True ($stagingText.Contains('<EM4>~mission(Destination|Address)<EM4>')) 'Staging apply should leave RuSC EM repair to localization install/update.'
 Assert-True (-not $stagingText.Contains($legendPrefix)) 'Staging file should use the new legend-free mining format.'
 Assert-True (-not $stagingText.Contains("[$groundCode] Beradon")) 'Staging file should remove ground method fragment.'
 

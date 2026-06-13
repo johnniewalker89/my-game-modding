@@ -443,6 +443,10 @@ function Format-ReputationTitleMarker {
         return '[' + ($systemParts -join '/') + ']'
     }
 
+    if ($amounts.Count -le 3) {
+        return '[' + (Format-ReputationAmountList -Amounts $amounts) + ']'
+    }
+
     return '[РЕП]'
 }
 
@@ -3307,6 +3311,20 @@ function Get-ReputationRiskRank {
     }
 }
 
+function Format-ReputationRiskLabel {
+    param([string]$Risk)
+
+    switch ($Risk) {
+        'VL' { return 'очень низкая' }
+        'Low' { return 'низкая' }
+        'Medium' { return 'умеренная' }
+        'Hard' { return 'высокая' }
+        'VH' { return 'очень высокая' }
+        'Extreme' { return 'экстремальная' }
+        default { return $Risk }
+    }
+}
+
 function Format-ReputationDescriptionBlock {
     param($Group)
 
@@ -3339,7 +3357,7 @@ function Format-ReputationDescriptionBlock {
         $parts = @()
         foreach ($riskKey in @($Group.RiskReputationAmounts.Keys | Sort-Object { Get-ReputationRiskRank -Risk $_ }, { $_ })) {
             $riskEntries = @(Get-ReputationEntryList -EntryMap $Group.RiskReputationEntries[$riskKey])
-            $parts += ("{0} {1}" -f $riskKey, (Format-ReputationEntryList -Entries $riskEntries -OmitScopeWhenSingle))
+            $parts += ("{0} {1}" -f (Format-ReputationRiskLabel -Risk $riskKey), (Format-ReputationEntryList -Entries $riskEntries -OmitScopeWhenSingle))
         }
         return "<EM4>Репутация$singleScopeSuffix</EM4>: " + ($parts -join ' / ')
     }

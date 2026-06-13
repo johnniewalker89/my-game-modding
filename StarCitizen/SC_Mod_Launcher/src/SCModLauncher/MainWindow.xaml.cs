@@ -38,10 +38,17 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "1.0.8";
+    private const string CurrentLauncherVersion = "2.0.0";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
+    private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
+    private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
+    private const string LocalizationSlot = "korean_(south_korea)";
+    private const string RuScHeadHuntersShipCombatScopeKey = "RepScope_ShipCombat_HeadHunters_Name";
+    private const string RuScHeadHuntersShipCombatScopeValue = "Корабельный бой";
     private const string LauncherAssetPrefix = "SC_Mod_Launcher_";
     private const string LauncherAssetSuffix = ".zip";
+    private const double DefaultWindowWidth = 1280;
+    private const double DefaultWindowHeight = 820;
     private static readonly TimeSpan PreflightProcessTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan WarmCacheProcessTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan LiveApplyProcessTimeout = TimeSpan.FromMinutes(10);
@@ -61,6 +68,7 @@ public partial class MainWindow : Window
     private bool _miningCraftFamilyIndexRepairQueued;
     private bool _miningCraftFamilyIndexRepairFailed;
     private bool _isApplyingLauncherState;
+    private bool _localizationStartupLogWritten;
     private readonly List<DispatcherTimer> _launchButtonGlitchTimers = new();
     private const int WmSysCommand = 0x0112;
     private const int ScSize = 0xF000;
@@ -88,6 +96,7 @@ public partial class MainWindow : Window
         {
             StartLaunchButtonGlitches();
             await CheckUpdatesAsync();
+            await RefreshLocalizationStatusAsync(updateJournal: true, updateStatusLine: false, skipDuplicateLog: false);
         };
         Closed += (_, _) =>
         {
@@ -219,13 +228,18 @@ public partial class MainWindow : Window
         StartLaunchButtonGlitch(ApplyLiveButton, TimeSpan.FromMilliseconds(3150), TimeSpan.FromMilliseconds(6200), -0.6, 1.007);
         StartLaunchButtonGlitch(BrowseButton, TimeSpan.FromMilliseconds(2240), TimeSpan.FromMilliseconds(7300), 0.5, 1.004);
         StartLaunchButtonGlitch(CheckPathButton, TimeSpan.FromMilliseconds(3820), TimeSpan.FromMilliseconds(7900), -0.5, 1.004);
-        StartLaunchButtonGlitch(InstallUpdateButton, TimeSpan.FromMilliseconds(5100), TimeSpan.FromMilliseconds(8800), 0.7, 1.004);
+        StartLaunchButtonGlitch(InstallUpdateButton, TimeSpan.FromMilliseconds(4920), TimeSpan.FromMilliseconds(9100), 0.7, 1.004);
+        StartLaunchButtonGlitch(OverviewUpdateLocalizationButton, TimeSpan.FromMilliseconds(2630), TimeSpan.FromMilliseconds(7350), -0.5, 1.004);
+        StartLaunchButtonGlitch(InstallLocalizationButton, TimeSpan.FromMilliseconds(1180), TimeSpan.FromMilliseconds(7600), 0.5, 1.004);
+        StartLaunchButtonGlitch(UpdateLocalizationButton, TimeSpan.FromMilliseconds(3370), TimeSpan.FromMilliseconds(8450), -0.4, 1.004);
+        StartLaunchButtonGlitch(RemoveLocalizationButton, TimeSpan.FromMilliseconds(5850), TimeSpan.FromMilliseconds(9350), 0.4, 1.004);
         StartLaunchButtonGlitch(RefreshBackupsButton, TimeSpan.FromMilliseconds(1460), TimeSpan.FromMilliseconds(7600), -0.4, 1.004);
         StartLaunchButtonGlitch(RestoreLatestBackupButton, TimeSpan.FromMilliseconds(2680), TimeSpan.FromMilliseconds(8200), 0.4, 1.004);
         StartLaunchButtonGlitch(RestoreSelectedBackupButton, TimeSpan.FromMilliseconds(4020), TimeSpan.FromMilliseconds(8700), -0.5, 1.004);
         StartLaunchButtonGlitch(DeleteSelectedBackupButton, TimeSpan.FromMilliseconds(5480), TimeSpan.FromMilliseconds(9300), 0.5, 1.004);
         StartLaunchButtonGlitch(OverviewNavButton, TimeSpan.FromMilliseconds(960), TimeSpan.FromMilliseconds(7600), 0.8, 1.004);
         StartLaunchButtonGlitch(ModulesNavButton, TimeSpan.FromMilliseconds(2860), TimeSpan.FromMilliseconds(8400), -0.7, 1.005);
+        StartLaunchButtonGlitch(LocalizationNavButton, TimeSpan.FromMilliseconds(3620), TimeSpan.FromMilliseconds(8100), 0.6, 1.004);
         StartLaunchButtonGlitch(RestoreBackupButton, TimeSpan.FromMilliseconds(4380), TimeSpan.FromMilliseconds(7100), 0.6, 1.004);
         for (var i = 0; i < _craftFamilyActionButtons.Count; i++)
         {
@@ -422,6 +436,7 @@ public partial class MainWindow : Window
 
         OverviewNavButton.Content = T("navOverview");
         ModulesNavButton.Content = T("navModules");
+        LocalizationNavButton.Content = T("navLocalization");
         LivePathLabel.Text = T("livePath");
         BrowseButton.Content = T("chooseFolder");
         CheckPathButton.Content = T("checkPath");
@@ -429,8 +444,13 @@ public partial class MainWindow : Window
         WarmCacheButton.Content = T("warmCache");
         ApplyLiveButton.Content = T("applyLive");
         RestoreBackupButton.Content = T("restoreBackup");
+        LocalizationInfoText.Text = T("localizationInfo");
+        InstallLocalizationButton.Content = T("installLocalization");
+        UpdateLocalizationButton.Content = T("updateLocalization");
+        OverviewUpdateLocalizationButton.Content = T("updateLocalization");
+        RemoveLocalizationButton.Content = T("removeLocalization");
         InstallUpdateButton.Content = T("installUpdate");
-        UpdatesScaffoldText.Text = T("updatesScaffold");
+        UpdatesScaffoldText.Text = "";
         BackupInfoText.Text = T("backupInfoEmpty");
         RefreshBackupsButton.Content = T("refreshBackups");
         RestoreLatestBackupButton.Content = T("restoreLatestBackup");
@@ -438,7 +458,12 @@ public partial class MainWindow : Window
         DeleteSelectedBackupButton.Content = T("deleteSelectedBackup");
         LiveStatusText.Text = T("ready");
         ModulesStatusText.Text = string.Join("; ", _modules.Select(module => module.Name));
-        UpdateStatusText.Text = "Канал обновлений проверяется.";
+        UpdateStatusText.Text = $"SCM: {CurrentLauncherVersion}";
+        UpdateStatusText.Foreground = (Brush)FindResource("TextSecondary");
+        OverviewLocalizationVersionText.Text = "RuSC проверяется";
+        OverviewLocalizationStatusText.Text = "";
+        OverviewLocalizationVersionText.Foreground = (Brush)FindResource("TextSecondary");
+        OverviewLocalizationStatusText.Foreground = (Brush)FindResource("TextSecondary");
     }
 
     private void LoadVisualAssets()
@@ -485,6 +510,25 @@ public partial class MainWindow : Window
             CigarSmokeA.Source = smoke;
             CigarSmokeB.Source = smoke;
         }
+
+        var communityLogoPath = Path.Combine(_rootPath, "ui", "assets", "ruscom-community-logo-v6.png");
+        if (File.Exists(communityLogoPath))
+        {
+            var communityLogo = new BitmapImage();
+            communityLogo.BeginInit();
+            communityLogo.CacheOption = BitmapCacheOption.OnLoad;
+            communityLogo.UriSource = new Uri(communityLogoPath, UriKind.Absolute);
+            communityLogo.EndInit();
+            communityLogo.Freeze();
+
+            RusComCommunityLogoImage.Source = communityLogo;
+            RusComLogoGhostCyan.Source = communityLogo;
+            RusComLogoGhostAmber.Source = communityLogo;
+            RusComLogoRippleBandA.Source = communityLogo;
+            RusComLogoRippleBandB.Source = communityLogo;
+            RusComLogoRippleBandC.Source = communityLogo;
+        }
+
     }
 
     private void BuildModuleCards()
@@ -1367,9 +1411,109 @@ Write-Host "FAMILY_INDEX:$indexPath"
         return File.Exists(GetGlobalIniPath());
     }
 
+    private bool HasLocalizationArtifacts()
+    {
+        return FindKnownLocalizationGlobalIniFiles().Count > 0 ||
+            File.Exists(GetLanguagesIniPath()) ||
+            UserCfgHasLocalizationLines();
+    }
+
     private string GetGlobalIniPath()
     {
         return Path.Combine(LivePathBox.Text.Trim(), "data", "Localization", "korean_(south_korea)", "global.ini");
+    }
+
+    private List<string> FindKnownLocalizationGlobalIniFiles()
+    {
+        var livePath = LivePathBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(livePath))
+        {
+            return new List<string>();
+        }
+
+        var localizationRoot = Path.Combine(livePath, "data", "Localization");
+        if (!Directory.Exists(localizationRoot))
+        {
+            return new List<string>();
+        }
+
+        var activeSlot = GetUserCfgLanguageSlot();
+        return Directory.EnumerateFiles(localizationRoot, "global.ini", SearchOption.AllDirectories)
+            .Where(path => IsActiveLocalizationGlobalIni(path, activeSlot) || LooksLikeRussianLocalization(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private bool IsActiveLocalizationGlobalIni(string path, string? activeSlot)
+    {
+        if (string.IsNullOrWhiteSpace(activeSlot))
+        {
+            return false;
+        }
+
+        var directory = Path.GetDirectoryName(path);
+        return !string.IsNullOrWhiteSpace(directory) &&
+            Path.GetFileName(directory).Equals(activeSlot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeRussianLocalization(string path)
+    {
+        try
+        {
+            var text = File.ReadAllText(path, Encoding.UTF8);
+            return text.Contains("Русификатор", StringComparison.OrdinalIgnoreCase) ||
+                text.Contains("Выбор режима", StringComparison.OrdinalIgnoreCase) ||
+                text.Contains("Постоянная вселенная", StringComparison.OrdinalIgnoreCase) ||
+                Regex.Matches(text, @"\p{IsCyrillic}").Count > 500;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string? GetUserCfgLanguageSlot()
+    {
+        var livePath = LivePathBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(livePath))
+        {
+            return null;
+        }
+
+        var userCfgPath = Path.Combine(livePath, "user.cfg");
+        if (!File.Exists(userCfgPath))
+        {
+            return null;
+        }
+
+        foreach (var line in File.ReadLines(userCfgPath, Encoding.UTF8))
+        {
+            var match = Regex.Match(line, @"^\s*g_language\s*=\s*(?<slot>\S+)", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return match.Groups["slot"].Value.Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private static string GetLocalizationSlotName(string globalIniPath)
+    {
+        return Path.GetFileName(Path.GetDirectoryName(globalIniPath) ?? LocalizationSlot);
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            builder.Append(invalid.Contains(ch) ? '_' : ch);
+        }
+
+        return builder.ToString();
     }
 
     private void AddLog(string text) => AddJournalLine(text, JournalLineKind.Normal);
@@ -1685,6 +1829,19 @@ Write-Host "FAMILY_INDEX:$indexPath"
         SetButtonAttention(InstallUpdateButton, enabled);
     }
 
+    private void SetLauncherOverviewAttention(bool enabled)
+    {
+        var brush = (Brush)FindResource(enabled ? "SignalAmber" : "TextSecondary");
+        UpdateStatusText.Foreground = brush;
+        UpdatesScaffoldText.Foreground = brush;
+    }
+
+    private void SetLocalizationUpdateAttention(bool enabled)
+    {
+        SetButtonAttention(UpdateLocalizationButton, enabled);
+        SetButtonAttention(OverviewUpdateLocalizationButton, enabled);
+    }
+
     private void SetButtonAttention(Button button, bool enabled)
     {
         if (!enabled)
@@ -1931,7 +2088,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         ScreenTitleText.Text = T(titleKey);
         ScreenSubtitleText.Text = T(subtitleKey);
 
-        foreach (var panel in new[] { OverviewPanel, ModulesPanel, BackupPanel })
+        foreach (var panel in new[] { OverviewPanel, ModulesPanel, LocalizationPanel, BackupPanel })
         {
             panel.Visibility = panel == visiblePanel ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -1941,7 +2098,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void UpdateNavState(ScrollViewer visiblePanel)
     {
-        var buttons = new[] { OverviewNavButton, ModulesNavButton, RestoreBackupButton };
+        var buttons = new[] { OverviewNavButton, ModulesNavButton, LocalizationNavButton, RestoreBackupButton };
         foreach (var button in buttons)
         {
             button.Tag = null;
@@ -1953,6 +2110,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         var active = OverviewNavButton;
         if (visiblePanel == ModulesPanel) active = ModulesNavButton;
+        else if (visiblePanel == LocalizationPanel) active = LocalizationNavButton;
         else if (visiblePanel == BackupPanel) active = RestoreBackupButton;
 
         active.Tag = "Active";
@@ -2011,6 +2169,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void ShowModules(object sender, RoutedEventArgs e) => SetScreen("modulesTitle", "modulesSubtitle", ModulesPanel);
 
+    private void ShowLocalization(object sender, RoutedEventArgs e)
+    {
+        SetScreen("localizationTitle", "localizationSubtitle", LocalizationPanel);
+        RefreshLocalizationStatusLocal();
+    }
+
     private void ShowBackup(object sender, RoutedEventArgs e)
     {
         RefreshBackupList();
@@ -2046,6 +2210,611 @@ Write-Host "FAMILY_INDEX:$indexPath"
             LiveStatusText.Text = T("liveMissing");
             AddError(T("liveMissing"));
         }
+    }
+
+    private async Task RefreshLocalizationStatusAsync(bool updateJournal = true, bool updateStatusLine = true, bool skipDuplicateLog = false)
+    {
+        var installed = HasLocalizationArtifacts();
+        var state = LoadLocalizationState();
+        SetLocalizationStatusTexts(installed, state.TagName, freshness: null, latestTag: null, extraLine: "Проверяю GitHub RuSC...");
+
+        SetLocalizationControlsEnabled(false);
+        RemoveLocalizationButton.IsEnabled = installed;
+
+        try
+        {
+            var release = await GetLatestRuScReleaseAsync();
+            var latestLine = $"Последний RuSC: {release.TagName}";
+            if (release.PublishedAt is not null)
+            {
+                latestLine += $" от {release.PublishedAt.Value.LocalDateTime:yyyy-MM-dd HH:mm}";
+            }
+
+            var updateAvailable = installed &&
+                (string.IsNullOrWhiteSpace(state.TagName) ||
+                 !state.TagName.Equals(release.TagName, StringComparison.OrdinalIgnoreCase));
+            var freshness = installed
+                ? (string.IsNullOrWhiteSpace(state.TagName) ? "нужно взять под контроль" : updateAvailable ? "доступно обновление" : "актуально")
+                : "можно установить";
+
+            SetLocalizationStatusTexts(installed, state.TagName, freshness, release.TagName, latestLine + ".");
+            ApplyLocalizationButtonState(installed, updateAvailable);
+            SetLocalizationUpdateAttention(UpdateLocalizationButton.IsEnabled);
+            if (updateJournal && !(skipDuplicateLog && _localizationStartupLogWritten))
+            {
+                if (updateStatusLine)
+                {
+                    SetJournalState("Русификатор: источник RuSC доступен.");
+                }
+                AddLocalizationUpdateLog(installed, state.TagName, release.TagName, release.HtmlUrl, freshness);
+                _localizationStartupLogWritten = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            var error = FriendlyNetworkError(ex.Message);
+            SetLocalizationStatusTexts(installed, state.TagName, freshness: null, latestTag: null, extraLine: "Источник RuSC временно недоступен: " + error);
+            if (updateJournal && !(skipDuplicateLog && _localizationStartupLogWritten))
+            {
+                if (IsGitHubRateLimit(ex.Message))
+                {
+                    AddMetricLog("Русификатор: " + error);
+                }
+                else
+                {
+                    AddErrorLog("Русификатор: источник RuSC недоступен: " + error);
+                }
+
+                _localizationStartupLogWritten = true;
+            }
+
+            ApplyLocalizationButtonState(installed, updateAvailable: false);
+            SetLocalizationUpdateAttention(false);
+        }
+        finally
+        {
+        }
+    }
+
+    private void AddLocalizationUpdateLog(bool installed, string installedTag, string latestTag, string releaseUrl, string freshness)
+    {
+        AddHeadingLog("Русификатор: проверка GitHub RuSC.");
+        AddMetricLog(installed
+            ? $"Русификатор: установлен, {freshness}."
+            : "Русификатор: не установлен.");
+
+        if (installed &&
+            !string.IsNullOrWhiteSpace(installedTag) &&
+            installedTag.Equals(latestTag, StringComparison.OrdinalIgnoreCase))
+        {
+            AddUriLog("Релиз RuSC", releaseUrl, latestTag);
+            return;
+        }
+
+        if (installed)
+        {
+            AddMetricLog("RuSC установлен: " + (string.IsNullOrWhiteSpace(installedTag) ? "metadata нет" : installedTag) + ".");
+        }
+
+        AddUriLog("Релиз RuSC", releaseUrl, latestTag);
+    }
+
+    private async void InstallLocalization(object sender, RoutedEventArgs e)
+    {
+        await InstallOrUpdateLocalizationAsync("Установка русификатора");
+    }
+
+    private async void UpdateLocalization(object sender, RoutedEventArgs e)
+    {
+        await InstallOrUpdateLocalizationAsync("Обновление русификатора");
+    }
+
+    private async Task InstallOrUpdateLocalizationAsync(string action)
+    {
+        if (string.IsNullOrWhiteSpace(LivePathBox.Text) || !Directory.Exists(LivePathBox.Text.Trim()))
+        {
+            AddError(T("liveMissing"));
+            return;
+        }
+
+        var completed = false;
+        SetLocalizationControlsEnabled(false);
+        SetJournalState(action + ": скачиваю RuSC.");
+        AddHeadingLog(action + ": скачивание RuSC.");
+
+        try
+        {
+            var release = await GetLatestRuScReleaseAsync();
+            var languagesUri = BuildRuScRawUri(release.TagName, "data/languages.ini");
+            var globalUri = BuildRuScRawUri(release.TagName, $"data/Localization/{LocalizationSlot}/global.ini");
+
+            var languagesBytes = await DownloadBytesAsync(languagesUri);
+            var globalBytes = await DownloadBytesAsync(globalUri);
+            if (globalBytes.Length < 1024 * 1024)
+            {
+                throw new InvalidOperationException("скачанный global.ini подозрительно мал");
+            }
+            var baselinePatch = PatchRuScBaselineBytes(globalBytes, release.TagName);
+            globalBytes = baselinePatch.Bytes;
+
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            var existingGlobalBackup = BackupFileIfExists(GetGlobalIniPath(), $"global.ini.{stamp}.localization-install.bak");
+            var languagesPath = GetLanguagesIniPath();
+            var existingLanguagesBackup = BackupFileIfExists(languagesPath, $"languages.ini.{stamp}.localization-install.bak");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(GetGlobalIniPath())!);
+            Directory.CreateDirectory(Path.GetDirectoryName(languagesPath)!);
+            await File.WriteAllBytesAsync(languagesPath, languagesBytes);
+            await File.WriteAllBytesAsync(GetGlobalIniPath(), globalBytes);
+            var userCfgBackup = EnsureLocalizationUserCfg(stamp);
+
+            var state = new LocalizationState
+            {
+                TagName = release.TagName,
+                ReleaseName = string.IsNullOrWhiteSpace(release.Name) ? release.TagName : release.Name,
+                ReleaseUrl = release.HtmlUrl,
+                PublishedAt = release.PublishedAt,
+                InstalledAtUtc = DateTimeOffset.UtcNow,
+                LanguagesSha256 = Convert.ToHexString(SHA256.HashData(languagesBytes)),
+                GlobalIniSha256 = Convert.ToHexString(SHA256.HashData(globalBytes))
+            };
+            SaveLocalizationState(state);
+
+            ApplyLocalizationButtonState(installed: true, updateAvailable: false);
+            SetLocalizationUpdateAttention(false);
+            SetJournalState($"{action}: RuSC {release.TagName} установлен.");
+            AddHeadingLog($"{action}: RuSC {release.TagName} установлен.");
+            AddUriLog("Релиз RuSC", release.HtmlUrl, release.TagName);
+            AddMetricLog($"RuSC-патчи: EM-разметка {baselinePatch.FixedMalformedEmphasisLines}; ветки репутации {baselinePatch.InsertedReputationScopeLines}.");
+            if (!string.IsNullOrWhiteSpace(existingGlobalBackup)) AddPathLog("Backup global.ini", existingGlobalBackup);
+            if (!string.IsNullOrWhiteSpace(existingLanguagesBackup)) AddPathLog("Backup languages.ini", existingLanguagesBackup);
+            if (!string.IsNullOrWhiteSpace(userCfgBackup)) AddPathLog("Backup user.cfg", userCfgBackup);
+            AddPathLog($"global.ini: {globalBytes.Length / 1024 / 1024.0:0.0} MB; SHA-256 {ShortSha(state.GlobalIniSha256)}", GetGlobalIniPath());
+            await RefreshLocalizationStatusAsync(updateJournal: false, updateStatusLine: false, skipDuplicateLog: true);
+            completed = true;
+        }
+        catch (Exception ex)
+        {
+            AddError(action + " не завершено: " + ShortError(ex.Message));
+        }
+        finally
+        {
+            if (!completed)
+            {
+                RefreshLocalizationStatusLocal();
+            }
+        }
+    }
+
+    private void RemoveLocalization(object sender, RoutedEventArgs e)
+    {
+        var localizationFiles = FindKnownLocalizationGlobalIniFiles();
+        if (localizationFiles.Count == 0 && !File.Exists(GetLanguagesIniPath()) && !UserCfgHasLocalizationLines())
+        {
+            RefreshLocalizationStatusLocal();
+            AddError("Следы русификатора не найдены.");
+            return;
+        }
+
+        try
+        {
+            var backupDir = Path.Combine(_rootPath, "backups");
+            Directory.CreateDirectory(backupDir);
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            var globalBackups = new List<string>();
+            foreach (var globalIniPath in localizationFiles)
+            {
+                var slot = GetLocalizationSlotName(globalIniPath);
+                var backupName = slot.Equals(LocalizationSlot, StringComparison.OrdinalIgnoreCase)
+                    ? $"global.ini.{stamp}.localization-remove.bak"
+                    : $"global.ini.{SanitizeFileName(slot)}.{stamp}.localization-remove.bak";
+                var backupPath = Path.Combine(backupDir, backupName);
+                File.Copy(globalIniPath, backupPath, overwrite: false);
+                WriteBackupMetadata(backupPath);
+                globalBackups.Add(backupPath);
+
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                    globalIniPath,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+            }
+
+            var languagesPath = GetLanguagesIniPath();
+            if (File.Exists(languagesPath))
+            {
+                var languagesBackup = BackupFileIfExists(languagesPath, $"languages.ini.{stamp}.localization-remove.bak");
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                    languagesPath,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                if (!string.IsNullOrWhiteSpace(languagesBackup))
+                {
+                    AddPathLog("Backup languages.ini", languagesBackup);
+                }
+            }
+
+            var userCfgBackup = RemoveLocalizationUserCfgLines(stamp);
+            DeleteLocalizationState();
+
+            RefreshLocalizationStatusLocal();
+            SetJournalState("Русификатор удалён. Backup сохранён.");
+            AddHeadingLog("Русификатор удалён.");
+            foreach (var backupPath in globalBackups)
+            {
+                AddPathLog("Backup global.ini", backupPath);
+            }
+            if (!string.IsNullOrWhiteSpace(userCfgBackup))
+            {
+                AddPathLog("Backup user.cfg", userCfgBackup);
+            }
+        }
+        catch (Exception ex)
+        {
+            AddError("Не удалось удалить русификатор: " + ShortError(ex.Message));
+        }
+    }
+
+    private void RefreshLocalizationStatusLocal()
+    {
+        var installed = HasLocalizationArtifacts();
+        var state = LoadLocalizationState();
+        SetLocalizationStatusTexts(installed, state.TagName);
+        ApplyLocalizationButtonState(installed, updateAvailable: installed && string.IsNullOrWhiteSpace(state.TagName));
+        SetLocalizationUpdateAttention(UpdateLocalizationButton.IsEnabled);
+    }
+
+    private void SetLocalizationStatusTexts(bool installed, string tagName, string? freshness = null, string? latestTag = null, string? extraLine = null)
+    {
+        var version = GetLocalizationVersionLine(installed, tagName);
+        var versionLine = $"Русификатор RuSC: {version}" + (string.IsNullOrWhiteSpace(freshness) ? "." : $" ({freshness}).");
+        LocalizationStatusText.Text =
+            $"SC Mod Launcher: {CurrentLauncherVersion}.\n" +
+            versionLine +
+            (string.IsNullOrWhiteSpace(extraLine) ? "" : "\n" + extraLine);
+
+        var hasUpdate = IsLocalizationUpdateAvailable(installed, tagName, latestTag);
+        var overviewBrush = (Brush)FindResource(hasUpdate ? "SignalAmber" : "TextSecondary");
+        OverviewLocalizationVersionText.Text = $"RuSC: {version}";
+        OverviewLocalizationStatusText.Text = string.IsNullOrWhiteSpace(latestTag)
+            ? ""
+            : GetLocalizationOverviewFreshness(installed, tagName, latestTag);
+        OverviewLocalizationVersionText.Foreground = overviewBrush;
+        OverviewLocalizationStatusText.Foreground = overviewBrush;
+    }
+
+    private static string GetLocalizationOverviewFreshness(bool installed, string tagName, string latestTag)
+    {
+        if (!installed)
+        {
+            return $"Доступно: {latestTag}";
+        }
+
+        if (string.IsNullOrWhiteSpace(tagName) || !tagName.Equals(latestTag, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Доступно: {latestTag}";
+        }
+
+        return "Актуально.";
+    }
+
+    private static bool IsLocalizationUpdateAvailable(bool installed, string tagName, string? latestTag)
+    {
+        return installed &&
+            !string.IsNullOrWhiteSpace(latestTag) &&
+            (string.IsNullOrWhiteSpace(tagName) || !tagName.Equals(latestTag, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string GetLocalizationVersionLine(bool installed, string tagName)
+    {
+        if (!installed)
+        {
+            return "не установлен";
+        }
+
+        return string.IsNullOrWhiteSpace(tagName)
+            ? "установлен, версия неизвестна"
+            : tagName;
+    }
+
+    private void SetLocalizationControlsEnabled(bool enabled)
+    {
+        InstallLocalizationButton.IsEnabled = enabled;
+        UpdateLocalizationButton.IsEnabled = enabled;
+        OverviewUpdateLocalizationButton.IsEnabled = enabled;
+        RemoveLocalizationButton.IsEnabled = enabled && HasLocalizationArtifacts();
+    }
+
+    private void ApplyLocalizationButtonState(bool installed, bool updateAvailable)
+    {
+        InstallLocalizationButton.IsEnabled = !installed;
+        UpdateLocalizationButton.IsEnabled = installed && updateAvailable;
+        OverviewUpdateLocalizationButton.IsEnabled = UpdateLocalizationButton.IsEnabled;
+        RemoveLocalizationButton.IsEnabled = installed;
+    }
+
+    private async Task<GitHubRelease> GetLatestRuScReleaseAsync()
+    {
+        using var response = await UpdateHttpClient.GetAsync(RuScLatestReleaseApiUrl);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        return await JsonSerializer.DeserializeAsync<GitHubRelease>(stream) ??
+            throw new InvalidOperationException("RuSC release response is empty.");
+    }
+
+    private static string BuildRuScRawUri(string tagName, string relativePath)
+    {
+        return $"{RuScRawBaseUrl}/{Uri.EscapeDataString(tagName)}/{relativePath}";
+    }
+
+    private static async Task<byte[]> DownloadBytesAsync(string uri)
+    {
+        using var response = await UpdateHttpClient.GetAsync(uri);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsByteArrayAsync();
+    }
+
+    private static byte[] PatchGameMenuVersionBytes(byte[] globalBytes, string ruScVersion)
+    {
+        var text = Encoding.UTF8.GetString(globalBytes);
+        var line = $"Frontend_PU_Version,P=SC Mod Launcher: {CurrentLauncherVersion} \\nРусификатор RuSC: {ruScVersion}";
+        var pattern = @"(?m)^Frontend_PU_Version(?:,P)?=.*$";
+        var regex = new Regex(pattern);
+        text = regex.IsMatch(text)
+            ? regex.Replace(text, line, 1)
+            : text.TrimEnd('\r', '\n') + Environment.NewLine + line + Environment.NewLine;
+
+        return Encoding.UTF8.GetBytes(text);
+    }
+
+    private static (byte[] Bytes, int FixedMalformedEmphasisLines, int InsertedReputationScopeLines) PatchRuScBaselineBytes(byte[] globalBytes, string ruScVersion)
+    {
+        var text = Encoding.UTF8.GetString(PatchGameMenuVersionBytes(globalBytes, ruScVersion));
+        var fixedMalformedEmphasisLines = 0;
+        text = Regex.Replace(
+            text,
+            @"<EM([1-5])>(~mission\([^)]+\))<EM\1>",
+            match =>
+            {
+                fixedMalformedEmphasisLines++;
+                var tag = match.Groups[1].Value;
+                return $"<EM{tag}>{match.Groups[2].Value}</EM{tag}>";
+            });
+        text = Regex.Replace(
+            text,
+            @"</EM([1-5])(?=[\s\.,;:!?\)]|\\n|$)",
+            match =>
+            {
+                fixedMalformedEmphasisLines++;
+                return $"</EM{match.Groups[1].Value}>";
+            });
+
+        var insertedReputationScopeLines = 0;
+        text = EnsureRuScBaselineLine(
+            text,
+            RuScHeadHuntersShipCombatScopeKey,
+            RuScHeadHuntersShipCombatScopeValue,
+            ref insertedReputationScopeLines);
+
+        return (Encoding.UTF8.GetBytes(text), fixedMalformedEmphasisLines, insertedReputationScopeLines);
+    }
+
+    private static string EnsureRuScBaselineLine(string text, string key, string value, ref int insertedLines)
+    {
+        var keyPattern = @"(?m)^\s*" + Regex.Escape(key) + @"\s*=";
+        if (Regex.IsMatch(text, keyPattern))
+        {
+            return text;
+        }
+
+        var lineEnding = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n').ToList();
+        while (lines.Count > 0 && lines[^1].Length == 0)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        var insertIndex = lines.Count;
+        for (var i = lines.Count - 1; i >= 0; i--)
+        {
+            var trimmed = lines[i].TrimStart();
+            if (trimmed.StartsWith("RepScope_", StringComparison.Ordinal) ||
+                trimmed.StartsWith("mobiGlas_Reputation_", StringComparison.Ordinal))
+            {
+                insertIndex = i + 1;
+                break;
+            }
+        }
+
+        lines.Insert(insertIndex, $"{key}={value}");
+        insertedLines++;
+        return string.Join(lineEnding, lines) + lineEnding;
+    }
+
+    private string? BackupFileIfExists(string sourcePath, string backupName)
+    {
+        if (!File.Exists(sourcePath))
+        {
+            return null;
+        }
+
+        var backupDir = Path.Combine(_rootPath, "backups");
+        Directory.CreateDirectory(backupDir);
+        var backupPath = Path.Combine(backupDir, backupName);
+        File.Copy(sourcePath, backupPath, overwrite: false);
+        if (Path.GetFileName(sourcePath).Equals("global.ini", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteBackupMetadata(backupPath);
+        }
+
+        return backupPath;
+    }
+
+    private string? EnsureLocalizationUserCfg(string stamp)
+    {
+        var livePath = LivePathBox.Text.Trim();
+        var userCfgPath = Path.Combine(livePath, "user.cfg");
+        var existing = File.Exists(userCfgPath) ? File.ReadAllLines(userCfgPath, Encoding.UTF8).ToList() : new List<string>();
+        var original = existing.ToArray();
+
+        SetOrAddConfigLine(existing, "g_language", LocalizationSlot);
+        SetOrAddConfigLine(existing, "g_languageAudio", "english");
+
+        if (original.SequenceEqual(existing, StringComparer.Ordinal))
+        {
+            return null;
+        }
+
+        string? backupPath = null;
+        if (File.Exists(userCfgPath))
+        {
+            backupPath = BackupFileIfExists(userCfgPath, $"user.cfg.{stamp}.localization-install.bak");
+        }
+
+        File.WriteAllLines(userCfgPath, existing, new UTF8Encoding(false));
+        return backupPath;
+    }
+
+    private static void SetOrAddConfigLine(List<string> lines, string key, string value)
+    {
+        var pattern = @"^\s*" + Regex.Escape(key) + @"\s*=";
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (Regex.IsMatch(lines[i], pattern, RegexOptions.IgnoreCase))
+            {
+                lines[i] = $"{key} = {value}";
+                return;
+            }
+        }
+
+        lines.Add($"{key} = {value}");
+    }
+
+    private string GetLanguagesIniPath()
+    {
+        return Path.Combine(LivePathBox.Text.Trim(), "data", "languages.ini");
+    }
+
+    private string GetLocalizationStatePath()
+    {
+        return Path.Combine(_rootPath, "config", "localization-state.json");
+    }
+
+    private LocalizationState LoadLocalizationState()
+    {
+        try
+        {
+            var path = File.Exists(GetLiveLocalizationStatePath())
+                ? GetLiveLocalizationStatePath()
+                : GetLocalizationStatePath();
+            if (!File.Exists(path))
+            {
+                return new LocalizationState();
+            }
+
+            var json = File.ReadAllText(path, Encoding.UTF8);
+            return JsonSerializer.Deserialize<LocalizationState>(json) ?? new LocalizationState();
+        }
+        catch
+        {
+            return new LocalizationState();
+        }
+    }
+
+    private void SaveLocalizationState(LocalizationState state)
+    {
+        var path = GetLocalizationStatePath();
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(path, json, new UTF8Encoding(false));
+
+        var livePath = GetLiveLocalizationStatePath();
+        Directory.CreateDirectory(Path.GetDirectoryName(livePath)!);
+        File.WriteAllText(livePath, json, new UTF8Encoding(false));
+    }
+
+    private void DeleteLocalizationState()
+    {
+        var path = GetLocalizationStatePath();
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+
+        var livePath = GetLiveLocalizationStatePath();
+        if (File.Exists(livePath))
+        {
+            File.Delete(livePath);
+        }
+    }
+
+    private string GetLiveLocalizationStatePath()
+    {
+        return Path.Combine(LivePathBox.Text.Trim(), "data", "Localization", LocalizationSlot, "sc-mod-launcher-rusc.json");
+    }
+
+    private string? RemoveLocalizationUserCfgLines(string stamp)
+    {
+        var livePath = LivePathBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(livePath))
+        {
+            return null;
+        }
+
+        var userCfgPath = Path.Combine(livePath, "user.cfg");
+        if (!File.Exists(userCfgPath))
+        {
+            return null;
+        }
+
+        var lines = File.ReadAllLines(userCfgPath, Encoding.UTF8);
+        var filtered = lines
+            .Where(line => !Regex.IsMatch(line, @"^\s*g_language(?:Audio)?\s*=", RegexOptions.IgnoreCase))
+            .ToArray();
+
+        if (filtered.Length == lines.Length)
+        {
+            return null;
+        }
+
+        var backupDir = Path.Combine(_rootPath, "backups");
+        Directory.CreateDirectory(backupDir);
+        var backupPath = Path.Combine(backupDir, $"user.cfg.{stamp}.localization-remove.bak");
+        File.Copy(userCfgPath, backupPath, overwrite: false);
+        File.WriteAllLines(userCfgPath, filtered, new UTF8Encoding(false));
+        return backupPath;
+    }
+
+    private bool UserCfgHasLocalizationLines()
+    {
+        var livePath = LivePathBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(livePath))
+        {
+            return false;
+        }
+
+        var userCfgPath = Path.Combine(livePath, "user.cfg");
+        return File.Exists(userCfgPath) &&
+            File.ReadLines(userCfgPath, Encoding.UTF8)
+                .Any(line => Regex.IsMatch(line, @"^\s*g_language(?:Audio)?\s*=", RegexOptions.IgnoreCase));
+    }
+
+    private string? GetStarCitizenRootPath()
+    {
+        var livePath = LivePathBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(livePath))
+        {
+            return null;
+        }
+
+        var directory = new DirectoryInfo(livePath);
+        if (!directory.Exists)
+        {
+            return null;
+        }
+
+        return directory.Name.Equals("LIVE", StringComparison.OrdinalIgnoreCase)
+            ? directory.Parent?.FullName
+            : directory.FullName;
     }
 
     private Dictionary<string, string[]> GetSelectedOptions()
@@ -2089,6 +2858,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
             return;
         }
 
+        await CheckUpdatesAsync();
+        await RefreshLocalizationStatusAsync(updateJournal: true, updateStatusLine: false, skipDuplicateLog: false);
         await RunBackendAsync(BackendRunMode.Preflight);
     }
 
@@ -2127,7 +2898,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void RestoreLatestBackup(object sender, RoutedEventArgs e)
     {
-        if (!HasGlobalIni())
+        if (!Directory.Exists(LivePathBox.Text.Trim()))
         {
             AddError(T("liveMissing"));
             return;
@@ -2145,7 +2916,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void RestoreSelectedBackup(object sender, RoutedEventArgs e)
     {
-        if (!HasGlobalIni())
+        if (!Directory.Exists(LivePathBox.Text.Trim()))
         {
             AddError(T("liveMissing"));
             return;
@@ -2168,15 +2939,26 @@ Write-Host "FAMILY_INDEX:$indexPath"
             var backupDir = Path.Combine(_rootPath, "backups");
             Directory.CreateDirectory(backupDir);
 
-            var safetyBackupPath = Path.Combine(backupDir, $"global.ini.{DateTime.Now:yyyyMMdd-HHmmss}.before-restore.bak");
-            File.Copy(globalIniPath, safetyBackupPath, overwrite: false);
-            WriteBackupMetadata(safetyBackupPath);
+            string? safetyBackupPath = null;
+            if (File.Exists(globalIniPath))
+            {
+                safetyBackupPath = Path.Combine(backupDir, $"global.ini.{DateTime.Now:yyyyMMdd-HHmmss}.before-restore.bak");
+                File.Copy(globalIniPath, safetyBackupPath, overwrite: false);
+                WriteBackupMetadata(safetyBackupPath);
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(globalIniPath)!);
             File.Copy(backupPath, globalIniPath, overwrite: true);
+            var localizationRestoreMessage = RestoreLocalizationMetadataFromBackup(backupPath);
 
             SetJournalState(T("restoreBackupComplete"));
             AddHeadingLog(T("restoreBackupComplete"));
             AddPathLog("Восстановлено из", backupPath);
-            AddPathLog("Страховка перед восстановлением", safetyBackupPath);
+            AddMetricLog(localizationRestoreMessage);
+            if (!string.IsNullOrWhiteSpace(safetyBackupPath))
+            {
+                AddPathLog("Страховка перед восстановлением", safetyBackupPath);
+            }
             RefreshBackupList();
         }
         catch (Exception ex)
@@ -2277,13 +3059,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
     {
         return Regex.IsMatch(
             fileName,
-            @"^global\.ini\.\d{8}-\d{6}\.(sc-mod-launcher|before-restore|starter-clean)\.bak$",
+            @"^global\.ini\.\d{8}-\d{6}\.(sc-mod-launcher|before-restore|starter-clean|localization-install|localization-remove)\.bak$",
             RegexOptions.IgnoreCase);
     }
 
     private static DateTime GetBackupTime(FileInfo info)
     {
-        var match = Regex.Match(info.Name, @"^global\.ini\.(\d{8}-\d{6})\.(?:sc-mod-launcher|before-restore|starter-clean)\.bak$", RegexOptions.IgnoreCase);
+        var match = Regex.Match(info.Name, @"^global\.ini\.(\d{8}-\d{6})\.(?:sc-mod-launcher|before-restore|starter-clean|localization-install|localization-remove)\.bak$", RegexOptions.IgnoreCase);
         if (match.Success &&
             DateTime.TryParseExact(
                 match.Groups[1].Value,
@@ -2305,9 +3087,22 @@ Write-Host "FAMILY_INDEX:$indexPath"
             return "стартовый чистый";
         }
 
-        return fileName.Contains(".before-restore.", StringComparison.OrdinalIgnoreCase)
-            ? "страховка перед восстановлением"
-            : "backup перед патчем";
+        if (fileName.Contains(".before-restore.", StringComparison.OrdinalIgnoreCase))
+        {
+            return "страховка перед восстановлением";
+        }
+
+        if (fileName.Contains(".localization-remove.", StringComparison.OrdinalIgnoreCase))
+        {
+            return "перед удалением русификатора";
+        }
+
+        if (fileName.Contains(".localization-install.", StringComparison.OrdinalIgnoreCase))
+        {
+            return "перед установкой русификатора";
+        }
+
+        return "backup перед патчем";
     }
 
     private static string GetBackupKindLabel(string kind)
@@ -2361,10 +3156,11 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
     }
 
-    private static void WriteBackupMetadata(string backupPath)
+    private void WriteBackupMetadata(string backupPath)
     {
         try
         {
+            var localizationState = LoadLocalizationState();
             var info = new FileInfo(backupPath);
             var metadata = new BackupMetadata
             {
@@ -2372,7 +3168,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 CreatedAt = DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture),
                 FileName = info.Name,
                 Size = info.Length,
-                Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(backupPath)))
+                Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(backupPath))),
+                Localization = string.IsNullOrWhiteSpace(localizationState.TagName) ? null : localizationState
             };
             var json = JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(GetBackupMetadataPath(backupPath), json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
@@ -2396,6 +3193,38 @@ Write-Host "FAMILY_INDEX:$indexPath"
     }
 
     private static string GetBackupMetadataPath(string backupPath) => backupPath + ".meta.json";
+
+    private string RestoreLocalizationMetadataFromBackup(string backupPath)
+    {
+        try
+        {
+            var metadataPath = GetBackupMetadataPath(backupPath);
+            if (!File.Exists(metadataPath))
+            {
+                DeleteLocalizationState();
+                return "Русификатор: metadata в backup нет, версия неизвестна.";
+            }
+
+            var metadata = JsonSerializer.Deserialize<BackupMetadata>(
+                File.ReadAllText(metadataPath, Encoding.UTF8),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (metadata?.Localization is not null && !string.IsNullOrWhiteSpace(metadata.Localization.TagName))
+            {
+                SaveLocalizationState(metadata.Localization);
+                return $"Русификатор: metadata восстановлены, версия {metadata.Localization.TagName}.";
+            }
+            else
+            {
+                DeleteLocalizationState();
+                return "Русификатор: metadata в backup нет, версия неизвестна.";
+            }
+        }
+        catch
+        {
+            DeleteLocalizationState();
+            return "Русификатор: metadata backup не прочитаны, версия неизвестна.";
+        }
+    }
 
     private async Task RunBackendAsync(BackendRunMode mode)
     {
@@ -2777,6 +3606,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         if (!string.IsNullOrWhiteSpace(backup))
         {
+            WriteBackupMetadata(backup);
             AddPathLog("Backup", backup);
         }
         if (!string.IsNullOrWhiteSpace(report))
@@ -2987,9 +3817,10 @@ Write-Host "FAMILY_INDEX:$indexPath"
         _verifiedUpdatePackagePath = null;
         _verifiedUpdateSha256 = null;
         SetUpdateAttention(false);
+        SetLauncherOverviewAttention(false);
         UpdatesScaffoldText.Foreground = (Brush)FindResource("TextSecondary");
-        UpdatesScaffoldText.Text = "Запрос GitHub...";
-        UpdateStatusText.Text = "Проверяю GitHub Releases...";
+        UpdatesScaffoldText.Text = "Проверка GitHub...";
+        UpdateStatusText.Text = $"SCM: {CurrentLauncherVersion}";
         SetJournalState("Канал обновлений проверяется.");
         AddHeadingLog("Канал обновлений: проверка GitHub.");
 
@@ -3016,10 +3847,14 @@ Write-Host "FAMILY_INDEX:$indexPath"
                     ? "Установлена актуальная версия."
                     : "Локальная версия новее опубликованной.";
 
-            UpdatesScaffoldText.Text = BuildReleaseSummary(release, status);
-            UpdateStatusText.Text = comparison > 0
+            UpdatesScaffoldText.Text = comparison > 0
                 ? $"Доступно: {release.Version}"
-                : $"Актуально: {CurrentLauncherVersion}";
+                : comparison == 0
+                    ? "Актуально."
+                    : "Локальная новее релиза.";
+            UpdateStatusText.Text = comparison > 0
+                ? $"SCM: {CurrentLauncherVersion} -> {release.Version}"
+                : $"SCM: {CurrentLauncherVersion}";
             SetJournalState(comparison > 0
                 ? $"Найдено обновление лаунчера: {release.Version}."
                 : "Канал обновлений чист.");
@@ -3029,6 +3864,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             AddUriLog("Релиз", release.HtmlUrl, release.TagName);
             InstallUpdateButton.IsEnabled = comparison > 0 && !string.IsNullOrWhiteSpace(release.ExpectedSha256);
             SetUpdateAttention(InstallUpdateButton.IsEnabled);
+            SetLauncherOverviewAttention(comparison > 0);
             if (string.IsNullOrWhiteSpace(release.ExpectedSha256))
             {
                 AddErrorLog("Канал обновлений: SHA-256 не найден, установка заблокирована.");
@@ -3036,7 +3872,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
         catch (Exception ex)
         {
-            var message = "GitHub временно недоступен: " + ShortError(ex.Message);
+            var message = "GitHub временно недоступен: " + FriendlyNetworkError(ex.Message);
             UpdatesScaffoldText.Foreground = (Brush)FindResource("SignalAmber");
             UpdatesScaffoldText.Text = message;
             UpdateStatusText.Text = "Канал обновлений недоступен.";
@@ -3200,6 +4036,30 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
 
         return message.Length <= 180 ? message : message[..180] + "...";
+    }
+
+    private static string FriendlyNetworkError(string message)
+    {
+        if (IsGitHubRateLimit(message))
+        {
+            return "GitHub ограничил частые запросы, повтори позже.";
+        }
+
+        return ShortError(message);
+    }
+
+    private static bool IsGitHubRateLimit(string message)
+    {
+        return !string.IsNullOrWhiteSpace(message) &&
+            message.Contains("403", StringComparison.OrdinalIgnoreCase) &&
+            message.Contains("rate limit", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ShortSha(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) || value.Length <= 16
+            ? value
+            : value[..8] + "..." + value[^8..];
     }
 
     private async void UpdateLauncher(object sender, RoutedEventArgs e)
@@ -3374,6 +4234,14 @@ Write-Host "FAMILY_INDEX:$indexPath"
     private void MinimizeWindow(object sender, RoutedEventArgs e)
     {
         WindowState = WindowState.Minimized;
+    }
+
+    private void ResetWindowSize(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Normal;
+        Width = DefaultWindowWidth;
+        Height = DefaultWindowHeight;
+        SaveLauncherState();
     }
 
     private void CloseWindow(object sender, RoutedEventArgs e)
@@ -3581,6 +4449,30 @@ public sealed class LauncherState
     public Dictionary<string, List<string>> SelectedOptions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
+public sealed class LocalizationState
+{
+    [JsonPropertyName("tagName")]
+    public string TagName { get; set; } = "";
+
+    [JsonPropertyName("releaseName")]
+    public string ReleaseName { get; set; } = "";
+
+    [JsonPropertyName("releaseUrl")]
+    public string ReleaseUrl { get; set; } = "";
+
+    [JsonPropertyName("publishedAt")]
+    public DateTimeOffset? PublishedAt { get; set; }
+
+    [JsonPropertyName("installedAtUtc")]
+    public DateTimeOffset? InstalledAtUtc { get; set; }
+
+    [JsonPropertyName("languagesSha256")]
+    public string LanguagesSha256 { get; set; } = "";
+
+    [JsonPropertyName("globalIniSha256")]
+    public string GlobalIniSha256 { get; set; } = "";
+}
+
 public sealed record BackupEntry(
     string FilePath,
     string FileName,
@@ -3608,4 +4500,7 @@ public sealed class BackupMetadata
 
     [JsonPropertyName("sha256")]
     public string Sha256 { get; set; } = "";
+
+    [JsonPropertyName("localization")]
+    public LocalizationState? Localization { get; set; }
 }

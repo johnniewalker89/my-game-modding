@@ -288,7 +288,17 @@
                                    Foreground="{StaticResource SignalCyan}"
                                    FontSize="15"
                                    FontWeight="SemiBold"/>
-                        <Button x:Name="MinimizeButton" Content="—" Width="38" MinHeight="30" Padding="0" Margin="8,0,6,0" Click="MinimizeWindow"/>
+                        <Button x:Name="ResetWindowSizeButton"
+                                AutomationProperties.AutomationId="ResetWindowSizeButton"
+                                AutomationProperties.Name="Вернуть размер окна"
+                                Content="□"
+                                Width="38"
+                                MinHeight="30"
+                                Padding="0"
+                                Margin="8,0,6,0"
+                                ToolTip="Вернуть размер окна"
+                                Click="ResetWindowSize"/>
+                        <Button x:Name="MinimizeButton" Content="—" Width="38" MinHeight="30" Padding="0" Margin="0,0,6,0" Click="MinimizeWindow"/>
                         <Button x:Name="CloseButton" Content="×" Width="38" MinHeight="30" Padding="0" Click="CloseWindow"/>
                     </StackPanel>
                 </Grid>
@@ -362,16 +372,48 @@
                                                     </StackPanel>
                                                 </Border>
 
-                                                 <Border Style="{StaticResource PanelBorder}">
-                                                     <StackPanel>
-                                                         <TextBlock Text="ОБНОВЛЕНИЯ" Foreground="{StaticResource SignalCyan}" FontWeight="Bold"/>
-                                                        <TextBlock x:Name="UpdateStatusText" Margin="0,5,0,0" Foreground="{StaticResource SignalAmber}" FontWeight="Bold" TextWrapping="Wrap"/>
-                                                        <TextBlock x:Name="UpdatesScaffoldText" Margin="0,4,0,0" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap"/>
-                                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0" HorizontalAlignment="Left">
-                                                            <Button x:Name="InstallUpdateButton" AutomationProperties.AutomationId="InstallUpdateButton" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Width="112" IsEnabled="False" Click="UpdateLauncher"/>
-                                                        </StackPanel>
-                                                     </StackPanel>
-                                                 </Border>
+                                                <Border Style="{StaticResource PanelBorder}">
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto"/>
+                                                        </Grid.RowDefinitions>
+
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <Grid MinHeight="110" Margin="0,0,8,0">
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                    <RowDefinition Height="*"/>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                </Grid.RowDefinitions>
+                                                                <TextBlock Text="ЛАУНЧЕР" Foreground="{StaticResource SignalCyan}" FontWeight="Bold"/>
+                                                                <StackPanel Grid.Row="1" Margin="0,5,0,0">
+                                                                    <TextBlock x:Name="UpdateStatusText" Foreground="{StaticResource TextSecondary}" FontWeight="Bold" FontSize="13" LineHeight="17" TextWrapping="Wrap"/>
+                                                                    <TextBlock x:Name="UpdatesScaffoldText" Margin="0,4,0,0" Foreground="{StaticResource TextSecondary}" FontSize="13" LineHeight="17" TextWrapping="Wrap"/>
+                                                                </StackPanel>
+                                                                <Button x:Name="InstallUpdateButton" AutomationProperties.AutomationId="InstallUpdateButton" Grid.Row="2" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Width="112" HorizontalAlignment="Left" IsEnabled="False" Click="UpdateLauncher"/>
+                                                            </Grid>
+
+                                                            <Grid Grid.Column="1" MinHeight="110" Margin="8,0,0,0">
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                    <RowDefinition Height="*"/>
+                                                                    <RowDefinition Height="Auto"/>
+                                                                </Grid.RowDefinitions>
+                                                                <TextBlock Text="РУСИФИКАТОР" Foreground="{StaticResource SignalCyan}" FontWeight="Bold"/>
+                                                                <StackPanel Grid.Row="1" Margin="0,5,0,0">
+                                                                    <TextBlock x:Name="OverviewLocalizationVersionText" Foreground="{StaticResource TextSecondary}" FontWeight="Bold" FontSize="13" LineHeight="17" TextWrapping="Wrap"/>
+                                                                    <TextBlock x:Name="OverviewLocalizationStatusText" Margin="0,4,0,0" Foreground="{StaticResource TextSecondary}" FontSize="13" LineHeight="17" TextWrapping="Wrap"/>
+                                                                </StackPanel>
+                                                                <Button x:Name="OverviewUpdateLocalizationButton" AutomationProperties.AutomationId="OverviewUpdateLocalizationButton" Grid.Row="2" Style="{StaticResource LaunchCommandButton}" MinHeight="42" Width="112" HorizontalAlignment="Left" IsEnabled="False" Click="UpdateLocalization"/>
+                                                            </Grid>
+                                                        </Grid>
+                                                    </Grid>
+                                                </Border>
                                             </StackPanel>
 
                                             <Border Grid.Column="1" BorderBrush="Transparent" BorderThickness="0" Background="Transparent" Padding="0" Margin="9,0,9,0">
@@ -657,32 +699,55 @@
                                                                               Opacity="0.26"
                                                                               Color="#66E8FF"/>
                                                         </Grid.Effect>
-                                                        <TextBlock x:Name="SignatureButton"
-                                                                   AutomationProperties.AutomationId="SignatureButton"
-                                                                   AutomationProperties.Name="Johnnie на связи"
-                                                                   FontSize="20"
-                                                                   FontWeight="Normal"
-                                                                   TextOptions.TextFormattingMode="Display"
-                                                                   TextOptions.TextRenderingMode="ClearType">
-                                                            <InlineUIContainer BaselineAlignment="Center">
-                                                                <Grid Width="26" Height="22" Margin="0,0,3,-3">
-                                                                    <Viewbox Stretch="Uniform">
-                                                                        <Grid Width="24" Height="24">
-                                                                            <Path Fill="#5865F2"
-                                                                                  Data="M20.317,4.37C18.78,3.66 17.14,3.14 15.43,2.86C15.22,3.24 14.98,3.73 14.82,4.11C12.98,3.83 11.15,3.83 9.33,4.11C9.16,3.73 8.92,3.24 8.71,2.86C7,3.14 5.36,3.66 3.82,4.37C0.71,9.02 -0.14,13.55 0.28,18.03C2.32,19.54 4.29,20.45 6.26,21.06C6.74,20.4 7.17,19.71 7.54,18.98C6.84,18.72 6.17,18.4 5.53,18.02C5.7,17.9 5.86,17.77 6.02,17.64C9.95,19.43 14.2,19.43 18.08,17.64C18.24,17.77 18.4,17.9 18.57,18.02C17.93,18.4 17.25,18.72 16.56,18.98C16.93,19.71 17.36,20.4 17.84,21.06C19.82,20.45 21.79,19.54 23.82,18.03C24.32,12.85 22.98,8.36 20.32,4.37ZM8.02,15.32C6.84,15.32 5.86,14.24 5.86,12.91C5.86,11.58 6.82,10.49 8.02,10.49C9.23,10.49 10.19,11.59 10.18,12.91C10.18,14.24 9.23,15.32 8.02,15.32ZM15.99,15.32C14.81,15.32 13.84,14.24 13.84,12.91C13.84,11.58 14.79,10.49 15.99,10.49C17.2,10.49 18.17,11.59 18.15,12.91C18.15,14.24 17.2,15.32 15.99,15.32Z"/>
-                                                                            <Rectangle Width="16" Height="2.2" Fill="{StaticResource HullBlack}" Opacity="0.72" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="3,5,0,0"/>
-                                                                            <Rectangle Width="10" Height="1.5" Fill="{StaticResource HullBlack}" Opacity="0.56" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,6"/>
-                                                                        </Grid>
-                                                                    </Viewbox>
+                                                        <Grid AutomationProperties.Name="Johnnie на связи / Star Citizen RU"
+                                                              TextOptions.TextFormattingMode="Display"
+                                                              TextOptions.TextRenderingMode="ClearType">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="62"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <Viewbox Width="54" Height="64" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="0,6,0,0" Stretch="Uniform">
+                                                                <Grid Width="24" Height="24">
+                                                                    <Path Fill="#5865F2"
+                                                                          Data="M20.317,4.37C18.78,3.66 17.14,3.14 15.43,2.86C15.22,3.24 14.98,3.73 14.82,4.11C12.98,3.83 11.15,3.83 9.33,4.11C9.16,3.73 8.92,3.24 8.71,2.86C7,3.14 5.36,3.66 3.82,4.37C0.71,9.02 -0.14,13.55 0.28,18.03C2.32,19.54 4.29,20.45 6.26,21.06C6.74,20.4 7.17,19.71 7.54,18.98C6.84,18.72 6.17,18.4 5.53,18.02C5.7,17.9 5.86,17.77 6.02,17.64C9.95,19.43 14.2,19.43 18.08,17.64C18.24,17.77 18.4,17.9 18.57,18.02C17.93,18.4 17.25,18.72 16.56,18.98C16.93,19.71 17.36,20.4 17.84,21.06C19.82,20.45 21.79,19.54 23.82,18.03C24.32,12.85 22.98,8.36 20.32,4.37ZM8.02,15.32C6.84,15.32 5.86,14.24 5.86,12.91C5.86,11.58 6.82,10.49 8.02,10.49C9.23,10.49 10.19,11.59 10.18,12.91C10.18,14.24 9.23,15.32 8.02,15.32ZM15.99,15.32C14.81,15.32 13.84,14.24 13.84,12.91C13.84,11.58 14.79,10.49 15.99,10.49C17.2,10.49 18.17,11.59 18.15,12.91C18.15,14.24 17.2,15.32 15.99,15.32Z"/>
+                                                                    <Canvas IsHitTestVisible="False">
+                                                                        <Path Stroke="{StaticResource HullBlack}" StrokeThickness="1.05" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.62" Data="M3.2,5.4 L12.6,5.4"/>
+                                                                        <Path Stroke="{StaticResource HullBlack}" StrokeThickness="0.62" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.42" Data="M4.1,7.0 L9.8,7.0"/>
+                                                                        <Path Stroke="{StaticResource HullBlack}" StrokeThickness="0.78" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.50" Data="M15.0,17.6 L21.6,17.6"/>
+                                                                        <Path Stroke="{StaticResource HullBlack}" StrokeThickness="0.48" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.42" Data="M16.5,19.1 L20.2,19.1"/>
+                                                                        <Path Stroke="#19202A" StrokeThickness="0.55" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.56" Data="M7.3,3.4 L10.0,3.0"/>
+                                                                        <Path Stroke="#19202A" StrokeThickness="0.45" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.45" Data="M2.6,13.6 L6.2,13.2"/>
+                                                                        <Path Stroke="#202837" StrokeThickness="0.42" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.42" Data="M18.1,7.2 L21.4,6.8"/>
+                                                                    </Canvas>
                                                                 </Grid>
-                                                            </InlineUIContainer>
-                                                            <Hyperlink NavigateUri="https://discord.com/users/256047341692387329"
-                                                                       RequestNavigate="OpenSignatureLink"
-                                                                       TextDecorations="{x:Null}">
-                                                                <Run Text="JOHNNIE" Foreground="{StaticResource SignalCyan}" FontWeight="Bold"/>
-                                                            </Hyperlink>
-                                                            <Run Text=" НА СВЯЗИ" Foreground="{StaticResource SignalAmber}" FontWeight="Normal"/>
-                                                        </TextBlock>
+                                                            </Viewbox>
+
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                <TextBlock x:Name="SignatureButton"
+                                                                           AutomationProperties.AutomationId="SignatureButton"
+                                                                           AutomationProperties.Name="Johnnie на связи / Star Citizen RU"
+                                                                           FontSize="20"
+                                                                           FontWeight="Normal">
+                                                                    <Hyperlink NavigateUri="https://discord.com/users/256047341692387329"
+                                                                               RequestNavigate="OpenSignatureLink"
+                                                                               TextDecorations="{x:Null}">
+                                                                        <Run Text="JOHNNIE" Foreground="{StaticResource SignalCyan}" FontWeight="Bold"/>
+                                                                        <Run Text="НА СВЯЗИ" Foreground="{StaticResource SignalAmber}" FontWeight="Normal"/>
+                                                                    </Hyperlink>
+                                                                </TextBlock>
+                                                                <TextBlock Margin="0,-4,0,0"
+                                                                           FontSize="20"
+                                                                           FontWeight="Normal">
+                                                                    <Hyperlink NavigateUri="https://discord.gg/StarCitizenRu"
+                                                                               RequestNavigate="OpenSignatureLink"
+                                                                               TextDecorations="{x:Null}">
+                                                                        <Run Text="STAR CITIZEN" Foreground="{StaticResource TextPrimary}" FontWeight="Bold"/>
+                                                                        <Run Text="RU" Foreground="{StaticResource SignalAmber}" FontWeight="Normal"/>
+                                                                    </Hyperlink>
+                                                                </TextBlock>
+                                                            </StackPanel>
+                                                        </Grid>
                                                         <Canvas IsHitTestVisible="False">
                                                             <Rectangle Width="36" Height="2" Canvas.Left="34" Canvas.Top="6" Fill="{StaticResource HullBlack}" Opacity="0.55"/>
                                                             <Rectangle Width="22" Height="1.2" Canvas.Left="92" Canvas.Top="17" Fill="{StaticResource HullBlack}" Opacity="0.42"/>
@@ -848,6 +913,558 @@
                                     </Border>
                                 </ScrollViewer>
 
+                                <ScrollViewer x:Name="LocalizationPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                                    <Border Style="{StaticResource PanelBorder}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <Grid Margin="0,4,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="600"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel VerticalAlignment="Center">
+                                                <Grid x:Name="RusComLogoHologramFrame"
+                                                      Width="600"
+                                                      Height="250"
+                                                      HorizontalAlignment="Center"
+                                                      ClipToBounds="False"
+                                                      IsHitTestVisible="False"
+                                                      UseLayoutRounding="True"
+                                                      SnapsToDevicePixels="True">
+                                                    <Grid.OpacityMask>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                            <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                            <GradientStop Color="#FFFFFFFF" Offset="0.66"/>
+                                                            <GradientStop Color="#33FFFFFF" Offset="0.90"/>
+                                                            <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                        </LinearGradientBrush>
+                                                    </Grid.OpacityMask>
+
+                                                    <Image x:Name="RusComCommunityLogoImage"
+                                                           AutomationProperties.Name="Star Citizen RU"
+                                                           Stretch="Uniform"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Opacity="0.42"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           SnapsToDevicePixels="True">
+                                                        <Image.Effect>
+                                                            <DropShadowEffect BlurRadius="13" ShadowDepth="0" Opacity="0.52" Color="#66E8FF"/>
+                                                        </Image.Effect>
+                                                    </Image>
+
+                                                    <Image x:Name="RusComLogoGhostCyan"
+                                                           AutomationProperties.Name="Star Citizen RU cyan ghost"
+                                                           Stretch="Uniform"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Opacity="0.06"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           SnapsToDevicePixels="True">
+                                                        <Image.RenderTransform>
+                                                            <TranslateTransform x:Name="RusComLogoGhostCyanShift" X="-3" Y="0"/>
+                                                        </Image.RenderTransform>
+                                                    </Image>
+
+                                                    <Image x:Name="RusComLogoGhostAmber"
+                                                           AutomationProperties.Name="Star Citizen RU right ghost"
+                                                           Stretch="Uniform"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Opacity="0.045"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           SnapsToDevicePixels="True">
+                                                        <Image.RenderTransform>
+                                                            <TranslateTransform x:Name="RusComLogoGhostAmberShift" X="3" Y="0"/>
+                                                        </Image.RenderTransform>
+                                                    </Image>
+
+                                                    <Image x:Name="RusComLogoRippleBandA"
+                                                           AutomationProperties.Name="Star Citizen RU ripple top"
+                                                           Stretch="Uniform"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Opacity="0.36"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           SnapsToDevicePixels="True">
+                                                        <Image.OpacityMask>
+                                                            <DrawingBrush Stretch="Fill" Viewbox="0,0,600,250" ViewboxUnits="Absolute">
+                                                                <DrawingBrush.Drawing>
+                                                                    <DrawingGroup>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.72" RadiusY="0.82">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#D8FFFFFF" Offset="0.54"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="58,42,124,44" RadiusX="18" RadiusY="18"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.78" RadiusY="0.76">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#CCFFFFFF" Offset="0.58"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="250,64,96,38" RadiusX="16" RadiusY="16"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.74" RadiusY="0.78">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#D0FFFFFF" Offset="0.50"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="424,96,112,34" RadiusX="15" RadiusY="15"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.80" RadiusY="0.84">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#CFFFFFFF" Offset="0.56"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="98,166,146,36" RadiusX="18" RadiusY="18"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    </DrawingGroup>
+                                                                </DrawingBrush.Drawing>
+                                                            </DrawingBrush>
+                                                        </Image.OpacityMask>
+                                                    </Image>
+
+                                                    <Image x:Name="RusComLogoRippleBandB"
+                                                           AutomationProperties.Name="Star Citizen RU ripple middle"
+                                                           Stretch="Uniform"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Opacity="0.34"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           SnapsToDevicePixels="True">
+                                                        <Image.OpacityMask>
+                                                            <DrawingBrush Stretch="Fill" Viewbox="0,0,600,250" ViewboxUnits="Absolute">
+                                                                <DrawingBrush.Drawing>
+                                                                    <DrawingGroup>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.70" RadiusY="0.82">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#D8FFFFFF" Offset="0.54"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="178,82,92,42" RadiusX="17" RadiusY="17"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.82" RadiusY="0.76">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#CFFFFFFF" Offset="0.52"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="328,132,156,38" RadiusX="19" RadiusY="19"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.74" RadiusY="0.86">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#D4FFFFFF" Offset="0.58"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="486,48,56,72" RadiusX="18" RadiusY="18"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.84" RadiusY="0.74">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#C8FFFFFF" Offset="0.50"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="58,206,104,28" RadiusX="14" RadiusY="14"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    </DrawingGroup>
+                                                                </DrawingBrush.Drawing>
+                                                            </DrawingBrush>
+                                                        </Image.OpacityMask>
+                                                    </Image>
+
+                                                    <Image x:Name="RusComLogoRippleBandC"
+                                                           AutomationProperties.Name="Star Citizen RU ripple lower"
+                                                           Stretch="Uniform"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Opacity="0.38"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           SnapsToDevicePixels="True">
+                                                        <Image.OpacityMask>
+                                                            <DrawingBrush Stretch="Fill" Viewbox="0,0,600,250" ViewboxUnits="Absolute">
+                                                                <DrawingBrush.Drawing>
+                                                                    <DrawingGroup>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.82" RadiusY="0.78">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#D0FFFFFF" Offset="0.54"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="68,104,172,34" RadiusX="17" RadiusY="17"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.74" RadiusY="0.84">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#D8FFFFFF" Offset="0.58"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="278,174,118,44" RadiusX="18" RadiusY="18"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.76" RadiusY="0.80">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#CCFFFFFF" Offset="0.54"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="452,152,104,54" RadiusX="20" RadiusY="20"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    <GeometryDrawing>
+                                                                        <GeometryDrawing.Brush>
+                                                                            <RadialGradientBrush RadiusX="0.68" RadiusY="0.90">
+                                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                                <GradientStop Color="#D4FFFFFF" Offset="0.56"/>
+                                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                            </RadialGradientBrush>
+                                                                        </GeometryDrawing.Brush>
+                                                                        <GeometryDrawing.Geometry>
+                                                                            <RectangleGeometry Rect="214,40,70,74" RadiusX="20" RadiusY="20"/>
+                                                                        </GeometryDrawing.Geometry>
+                                                                    </GeometryDrawing>
+                                                                    </DrawingGroup>
+                                                                </DrawingBrush.Drawing>
+                                                            </DrawingBrush>
+                                                        </Image.OpacityMask>
+                                                    </Image>
+
+                                                    <Canvas ClipToBounds="False" IsHitTestVisible="False">
+                                                        <Canvas x:Name="RusComLogoGlitchLayerA" Opacity="0.26">
+                                                            <Canvas.RenderTransform>
+                                                                <TranslateTransform x:Name="RusComLogoGlitchLayerAJitter" X="0" Y="0"/>
+                                                            </Canvas.RenderTransform>
+                                                            <Rectangle Width="64" Height="1.4" Canvas.Left="82" Canvas.Top="70" Fill="{StaticResource SignalCyan}" Opacity="0.58"/>
+                                                            <Rectangle Width="36" Height="1" Canvas.Left="214" Canvas.Top="92" Fill="{StaticResource TextPrimary}" Opacity="0.34"/>
+                                                            <Rectangle Width="88" Height="1.2" Canvas.Left="358" Canvas.Top="112" Fill="{StaticResource SignalCyan}" Opacity="0.42"/>
+                                                            <Rectangle Width="48" Height="1" Canvas.Left="130" Canvas.Top="142" Fill="{StaticResource SignalAmber}" Opacity="0.30"/>
+                                                            <Rectangle Width="22" Height="1.5" Canvas.Left="432" Canvas.Top="164" Fill="{StaticResource TextPrimary}" Opacity="0.24"/>
+                                                            <Rectangle Width="18" Height="1.2" Canvas.Left="474" Canvas.Top="171" Fill="{StaticResource TextPrimary}" Opacity="0.22"/>
+                                                            <Rectangle Width="26" Height="1.4" Canvas.Left="516" Canvas.Top="166" Fill="{StaticResource SignalCyan}" Opacity="0.20"/>
+                                                            <Rectangle Width="56" Height="1.1" Canvas.Left="278" Canvas.Top="202" Fill="{StaticResource SignalCyan}" Opacity="0.36"/>
+                                                            <Rectangle Width="104" Height="1.2" Canvas.Left="88" Canvas.Top="228" Fill="{StaticResource SignalAmber}" Opacity="0.22"/>
+                                                        </Canvas>
+                                                        <Canvas x:Name="RusComLogoGlitchLayerB" Opacity="0.18">
+                                                            <Canvas.RenderTransform>
+                                                                <TranslateTransform x:Name="RusComLogoGlitchLayerBJitter" X="0" Y="0"/>
+                                                            </Canvas.RenderTransform>
+                                                            <Rectangle Width="40" Height="1" Canvas.Left="312" Canvas.Top="62" Fill="{StaticResource SignalAmber}" Opacity="0.34"/>
+                                                            <Rectangle Width="76" Height="1.3" Canvas.Left="164" Canvas.Top="118" Fill="{StaticResource SignalCyan}" Opacity="0.38"/>
+                                                            <Rectangle Width="32" Height="1" Canvas.Left="492" Canvas.Top="136" Fill="{StaticResource TextPrimary}" Opacity="0.28"/>
+                                                            <Rectangle Width="60" Height="1.1" Canvas.Left="246" Canvas.Top="178" Fill="{StaticResource SignalAmber}" Opacity="0.26"/>
+                                                            <Rectangle Width="24" Height="1.2" Canvas.Left="386" Canvas.Top="218" Fill="{StaticResource SignalCyan}" Opacity="0.28"/>
+                                                            <Rectangle Width="18" Height="1.1" Canvas.Left="432" Canvas.Top="224" Fill="{StaticResource SignalCyan}" Opacity="0.26"/>
+                                                            <Rectangle Width="30" Height="1.2" Canvas.Left="478" Canvas.Top="216" Fill="{StaticResource SignalCyan}" Opacity="0.24"/>
+                                                            <Rectangle Width="44" Height="1" Canvas.Left="184" Canvas.Top="238" Fill="{StaticResource TextPrimary}" Opacity="0.22"/>
+                                                        </Canvas>
+                                                    </Canvas>
+
+                                                    <Grid.Triggers>
+                                                        <EventTrigger RoutedEvent="Loaded">
+                                                            <BeginStoryboard>
+                                                                <Storyboard RepeatBehavior="Forever" BeginTime="0:0:0.37">
+                                                                    <DoubleAnimation Storyboard.TargetName="RusComCommunityLogoImage"
+                                                                                     Storyboard.TargetProperty="Opacity"
+                                                                                     From="0.34"
+                                                                                     To="0.48"
+                                                                                     Duration="0:0:3.20"
+                                                                                     AutoReverse="True"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="RusComLogoGhostCyanShift"
+                                                                                     Storyboard.TargetProperty="X"
+                                                                                     From="-5"
+                                                                                     To="1"
+                                                                                     Duration="0:0:1.10"
+                                                                                     AutoReverse="True"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="RusComLogoGhostAmberShift"
+                                                                                     Storyboard.TargetProperty="X"
+                                                                                     From="5"
+                                                                                     To="-1"
+                                                                                     Duration="0:0:1.34"
+                                                                                     AutoReverse="True"/>
+                                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="RusComLogoRippleBandA"
+                                                                                                   Storyboard.TargetProperty="Opacity"
+                                                                                                   BeginTime="0:0:0.50"
+                                                                                                   Duration="0:0:6.80">
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0.36"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:1.86" Value="0.42"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:2.34" Value="0.00"/>
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.02" Value="0.00"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:4.28" Value="0.34"/>
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:6.80" Value="0.36"/>
+                                                                    </DoubleAnimationUsingKeyFrames>
+                                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="RusComLogoRippleBandB"
+                                                                                                   Storyboard.TargetProperty="Opacity"
+                                                                                                   BeginTime="0:0:2.35"
+                                                                                                   Duration="0:0:7.40">
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0.34"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:2.10" Value="0.40"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:2.72" Value="0.00"/>
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:3.36" Value="0.00"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:4.78" Value="0.32"/>
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:7.40" Value="0.34"/>
+                                                                    </DoubleAnimationUsingKeyFrames>
+                                                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="RusComLogoRippleBandC"
+                                                                                                   Storyboard.TargetProperty="Opacity"
+                                                                                                   BeginTime="0:0:1.25"
+                                                                                                   Duration="0:0:5.90">
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:0.00" Value="0.38"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:1.54" Value="0.44"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:2.06" Value="0.00"/>
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:2.80" Value="0.00"/>
+                                                                        <SplineDoubleKeyFrame KeyTime="0:0:3.72" Value="0.36"/>
+                                                                        <DiscreteDoubleKeyFrame KeyTime="0:0:5.90" Value="0.38"/>
+                                                                    </DoubleAnimationUsingKeyFrames>
+                                                                    <DoubleAnimation Storyboard.TargetName="RusComLogoGlitchLayerA"
+                                                                                     Storyboard.TargetProperty="Opacity"
+                                                                                     From="0.08"
+                                                                                     To="0.44"
+                                                                                     Duration="0:0:2.18"
+                                                                                     AutoReverse="True"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="RusComLogoGlitchLayerAJitter"
+                                                                                     Storyboard.TargetProperty="X"
+                                                                                     From="-4"
+                                                                                     To="7"
+                                                                                     Duration="0:0:2.18"
+                                                                                     AutoReverse="True"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="RusComLogoGlitchLayerB"
+                                                                                     Storyboard.TargetProperty="Opacity"
+                                                                                     From="0"
+                                                                                     To="0.32"
+                                                                                     BeginTime="0:0:0.80"
+                                                                                     Duration="0:0:2.60"
+                                                                                     AutoReverse="True"/>
+                                                                    <DoubleAnimation Storyboard.TargetName="RusComLogoGlitchLayerBJitter"
+                                                                                     Storyboard.TargetProperty="X"
+                                                                                     From="6"
+                                                                                     To="-5"
+                                                                                     BeginTime="0:0:0.80"
+                                                                                     Duration="0:0:2.60"
+                                                                                     AutoReverse="True"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </EventTrigger>
+                                                    </Grid.Triggers>
+                                                </Grid>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                                                    <Grid x:Name="LocalizationCommunityTitleFrame"
+                                                          HorizontalAlignment="Left"
+                                                          RenderTransformOrigin="0.5,0.5"
+                                                          ClipToBounds="False">
+                                                        <Grid.RenderTransform>
+                                                            <TranslateTransform x:Name="LocalizationCommunityTitleJitter" X="0" Y="0"/>
+                                                        </Grid.RenderTransform>
+                                                        <Grid.Effect>
+                                                            <DropShadowEffect x:Name="LocalizationCommunityTitleGlow"
+                                                                              BlurRadius="6"
+                                                                              ShadowDepth="0"
+                                                                              Opacity="0.26"
+                                                                              Color="#66E8FF"/>
+                                                        </Grid.Effect>
+                                                        <TextBlock x:Name="LocalizationCommunityTitleText"
+                                                                   FontSize="23"
+                                                                   FontWeight="Bold"
+                                                                   FontStretch="Condensed"
+                                                                   TextOptions.TextFormattingMode="Display"
+                                                                   TextOptions.TextRenderingMode="ClearType">
+                                                            <InlineUIContainer BaselineAlignment="Center">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Viewbox Width="36" Height="36" Stretch="Uniform" Margin="0,2,9,0" VerticalAlignment="Center">
+                                                                        <Grid Width="24" Height="24">
+                                                                            <Path Fill="#5865F2"
+                                                                                  Data="M20.317,4.37C18.78,3.66 17.14,3.14 15.43,2.86C15.22,3.24 14.98,3.73 14.82,4.11C12.98,3.83 11.15,3.83 9.33,4.11C9.16,3.73 8.92,3.24 8.71,2.86C7,3.14 5.36,3.66 3.82,4.37C0.71,9.02 -0.14,13.55 0.28,18.03C2.32,19.54 4.29,20.45 6.26,21.06C6.74,20.4 7.17,19.71 7.54,18.98C6.84,18.72 6.17,18.4 5.53,18.02C5.7,17.9 5.86,17.77 6.02,17.64C9.95,19.43 14.2,19.43 18.08,17.64C18.24,17.77 18.4,17.9 18.57,18.02C17.93,18.4 17.25,18.72 16.56,18.98C16.93,19.71 17.36,20.4 17.84,21.06C19.82,20.45 21.79,19.54 23.82,18.03C24.32,12.85 22.98,8.36 20.32,4.37ZM8.02,15.32C6.84,15.32 5.86,14.24 5.86,12.91C5.86,11.58 6.82,10.49 8.02,10.49C9.23,10.49 10.19,11.59 10.18,12.91C10.18,14.24 9.23,15.32 8.02,15.32ZM15.99,15.32C14.81,15.32 13.84,14.24 13.84,12.91C13.84,11.58 14.79,10.49 15.99,10.49C17.2,10.49 18.17,11.59 18.15,12.91C18.15,14.24 17.2,15.32 15.99,15.32Z"/>
+                                                                            <Canvas IsHitTestVisible="False">
+                                                                                <Path Stroke="{StaticResource HullBlack}" StrokeThickness="1.05" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.62" Data="M3.2,5.4 L12.6,5.4"/>
+                                                                                <Path Stroke="{StaticResource HullBlack}" StrokeThickness="0.62" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.42" Data="M4.1,7.0 L9.8,7.0"/>
+                                                                                <Path Stroke="{StaticResource HullBlack}" StrokeThickness="0.78" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.50" Data="M15.0,17.6 L21.6,17.6"/>
+                                                                                <Path Stroke="{StaticResource HullBlack}" StrokeThickness="0.48" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.42" Data="M16.5,19.1 L20.2,19.1"/>
+                                                                            </Canvas>
+                                                                        </Grid>
+                                                                    </Viewbox>
+                                                                    <TextBlock VerticalAlignment="Center">
+                                                                        <Hyperlink NavigateUri="https://discord.gg/StarCitizenRu"
+                                                                                   RequestNavigate="OpenSignatureLink"
+                                                                                   TextDecorations="{x:Null}">
+                                                                            <InlineUIContainer BaselineAlignment="Center">
+                                                                                <StackPanel>
+                                                                                    <TextBlock Text="РУССКОЯЗЫЧНОЕ" Foreground="{StaticResource TextPrimary}" FontWeight="Bold" FontStretch="Condensed" FontSize="15"/>
+                                                                                    <TextBlock Text="СООБЩЕСТВО" Foreground="{StaticResource SignalAmber}" FontWeight="Normal" FontStretch="Condensed" FontSize="15" Margin="0,-4,0,0"/>
+                                                                                </StackPanel>
+                                                                            </InlineUIContainer>
+                                                                        </Hyperlink>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                            </InlineUIContainer>
+                                                        </TextBlock>
+                                                        <Canvas IsHitTestVisible="False">
+                                                            <Rectangle Width="32" Height="2" Canvas.Left="30" Canvas.Top="4" Fill="{StaticResource HullBlack}" Opacity="0.55"/>
+                                                            <Rectangle Width="18" Height="1.2" Canvas.Left="78" Canvas.Top="16" Fill="{StaticResource HullBlack}" Opacity="0.42"/>
+                                                            <Rectangle x:Name="LocalizationCommunityTitleNoiseB" Width="19" Height="1" Canvas.Left="66" Canvas.Top="22" Fill="{StaticResource SignalAmber}" Opacity="0"/>
+                                                            <Rectangle x:Name="LocalizationCommunityTitleNoiseC" Width="31" Height="1" Canvas.Left="122" Canvas.Top="8" Fill="{StaticResource TextPrimary}" Opacity="0"/>
+                                                        </Canvas>
+                                                        <Grid.Triggers>
+                                                            <EventTrigger RoutedEvent="Loaded">
+                                                                <BeginStoryboard>
+                                                                    <Storyboard RepeatBehavior="Forever" BeginTime="0:0:0.73">
+                                                                        <DoubleAnimation Storyboard.TargetName="LocalizationCommunityTitleJitter"
+                                                                                         Storyboard.TargetProperty="X"
+                                                                                         From="-0.35"
+                                                                                         To="0.35"
+                                                                                         Duration="0:0:0.97"
+                                                                                         AutoReverse="True"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="LocalizationCommunityTitleGlow"
+                                                                                         Storyboard.TargetProperty="Opacity"
+                                                                                         From="0.16"
+                                                                                         To="0.42"
+                                                                                         Duration="0:0:2.37"
+                                                                                         AutoReverse="True"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="LocalizationCommunityTitleFrame"
+                                                                                         Storyboard.TargetProperty="Opacity"
+                                                                                         From="0.86"
+                                                                                         To="1"
+                                                                                         Duration="0:0:2.83"
+                                                                                         AutoReverse="True"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="LocalizationCommunityTitleNoiseB"
+                                                                                         Storyboard.TargetProperty="Opacity"
+                                                                                         From="0"
+                                                                                         To="0.34"
+                                                                                         BeginTime="0:0:0.38"
+                                                                                         Duration="0:0:2.48"
+                                                                                         AutoReverse="True"/>
+                                                                        <DoubleAnimation Storyboard.TargetName="LocalizationCommunityTitleNoiseC"
+                                                                                         Storyboard.TargetProperty="Opacity"
+                                                                                         From="0"
+                                                                                         To="0.26"
+                                                                                         BeginTime="0:0:1.37"
+                                                                                         Duration="0:0:2.06"
+                                                                                         AutoReverse="True"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </EventTrigger>
+                                                        </Grid.Triggers>
+                                                    </Grid>
+                                                    <TextBlock x:Name="LocalizationInfoText"
+                                                               Margin="0,10,0,0"
+                                                               Foreground="{StaticResource TextSecondary}"
+                                                               TextWrapping="Wrap"
+                                                               LineHeight="19"/>
+                                                    <TextBlock Margin="0,10,0,0"
+                                                               Foreground="{StaticResource TextSecondary}"
+                                                               TextWrapping="NoWrap"
+                                                               LineHeight="19">
+                                                        <Run Text="Источник перевода: "/>
+                                                        <Hyperlink NavigateUri="https://github.com/n1ghter/StarCitizenRu"
+                                                                   RequestNavigate="OpenSignatureLink"
+                                                                   Foreground="{StaticResource SignalCyan}">
+                                                            <Run Text="GitHub StarCitizenRu"/>
+                                                        </Hyperlink>
+                                                    </TextBlock>
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextSecondary}"
+                                                               TextWrapping="NoWrap"
+                                                               LineHeight="19">
+                                                        <Run Text="Лицензия: "/>
+                                                        <Hyperlink NavigateUri="https://github.com/n1ghter/StarCitizenRu/blob/master/LICENSE"
+                                                                   RequestNavigate="OpenSignatureLink"
+                                                                   Foreground="{StaticResource SignalAmber}">
+                                                            <Run Text="CC BY-NC-SA 4.0"/>
+                                                        </Hyperlink>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <StackPanel Grid.Row="1"
+                                                        Margin="0,30,0,0"
+                                                        HorizontalAlignment="Center">
+                                                <TextBlock x:Name="LocalizationStatusText"
+                                                           MaxWidth="760"
+                                                           HorizontalAlignment="Center"
+                                                           Foreground="{StaticResource TextSecondary}"
+                                                           TextAlignment="Center"
+                                                           TextWrapping="Wrap"/>
+                                                <StackPanel Orientation="Horizontal"
+                                                            Margin="0,14,0,0"
+                                                            HorizontalAlignment="Center">
+                                                    <Button x:Name="InstallLocalizationButton"
+                                                            AutomationProperties.AutomationId="InstallLocalizationButton"
+                                                            Style="{StaticResource LaunchCommandButton}"
+                                                            MinHeight="42"
+                                                            Width="150"
+                                                            Click="InstallLocalization"/>
+                                                    <Button x:Name="UpdateLocalizationButton"
+                                                            AutomationProperties.AutomationId="UpdateLocalizationButton"
+                                                            Style="{StaticResource LaunchCommandButton}"
+                                                            MinHeight="42"
+                                                            Width="150"
+                                                            Margin="12,0,0,0"
+                                                            Click="UpdateLocalization"/>
+                                                    <Button x:Name="RemoveLocalizationButton"
+                                                            AutomationProperties.AutomationId="RemoveLocalizationButton"
+                                                            Style="{StaticResource LaunchCommandButton}"
+                                                            MinHeight="42"
+                                                            Width="150"
+                                                            Margin="12,0,0,0"
+                                                            Click="RemoveLocalization"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </ScrollViewer>
+
                             </Grid>
                         </Grid>
                     </Grid>
@@ -978,6 +1595,7 @@
                     <WrapPanel Grid.Row="1" VerticalAlignment="Center">
                         <Button x:Name="OverviewNavButton" AutomationProperties.AutomationId="OverviewNavButton" Style="{StaticResource NavButton}" Click="ShowOverview"/>
                         <Button x:Name="ModulesNavButton" AutomationProperties.AutomationId="ModulesNavButton" Style="{StaticResource NavButton}" Click="ShowModules"/>
+                        <Button x:Name="LocalizationNavButton" AutomationProperties.AutomationId="LocalizationNavButton" Style="{StaticResource NavButton}" Click="ShowLocalization"/>
                         <Button x:Name="RestoreBackupButton" AutomationProperties.AutomationId="RestoreBackupButton" Style="{StaticResource NavButton}" Click="ShowBackup"/>
                     </WrapPanel>
 

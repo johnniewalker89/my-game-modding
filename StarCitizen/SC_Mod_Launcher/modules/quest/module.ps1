@@ -130,17 +130,6 @@
     Write-Host 'Progress: quest diff start'
     foreach ($key in @($patchedValues.Keys | Sort-Object)) {
         if (-not $originalValues.ContainsKey($key)) {
-            $operations += [pscustomobject]@{
-                ModuleId = 'quest'
-                OptionId = 'questRewards'
-                Key = $key
-                Operation = 'insertLine'
-                OriginalValue = ''
-                NewValue = [string]$patchedValues[$key]
-                InsertAfterPattern = '^(RepScope_|mobiGlas_Reputation_)'
-                OwnedMarkers = @('SCMDB_QUEST_REPUTATION_SCOPE_NAME')
-            }
-            $insertedLocalizationLines++
             continue
         }
 
