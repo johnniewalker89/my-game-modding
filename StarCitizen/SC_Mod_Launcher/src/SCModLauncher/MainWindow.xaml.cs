@@ -38,7 +38,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.0.0";
+    private const string CurrentLauncherVersion = "2.0.1";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -1403,7 +1403,74 @@ Write-Host "FAMILY_INDEX:$indexPath"
     private static string FindDefaultLivePath()
     {
         var defaultPath = @"C:\Games\StarCitizen\LIVE";
-        return Directory.Exists(defaultPath) ? defaultPath : string.Empty;
+        return TryResolveLivePath(defaultPath, out var resolvedLivePath) ? resolvedLivePath : string.Empty;
+    }
+
+    private bool EnsureLivePathSelected()
+    {
+        if (TryResolveLivePath(LivePathBox.Text, out var resolvedLivePath))
+        {
+            NormalizeLivePathBox(resolvedLivePath);
+            return true;
+        }
+
+        AddError(T("liveMissing"));
+        return false;
+    }
+
+    private bool EnsureGlobalIniSelected()
+    {
+        if (!EnsureLivePathSelected())
+        {
+            return false;
+        }
+
+        if (HasGlobalIni())
+        {
+            return true;
+        }
+
+        AddError(T("localizationMissing"));
+        return false;
+    }
+
+    private static bool TryResolveLivePath(string? input, out string resolvedLivePath)
+    {
+        resolvedLivePath = string.Empty;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return false;
+        }
+
+        var candidate = input.Trim();
+        if (!Directory.Exists(candidate))
+        {
+            return false;
+        }
+
+        var fullCandidate = Path.GetFullPath(candidate);
+        if (File.Exists(Path.Combine(fullCandidate, "Data.p4k")))
+        {
+            resolvedLivePath = fullCandidate;
+            return true;
+        }
+
+        var childLive = Path.Combine(fullCandidate, "LIVE");
+        if (Directory.Exists(childLive) && File.Exists(Path.Combine(childLive, "Data.p4k")))
+        {
+            resolvedLivePath = Path.GetFullPath(childLive);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void NormalizeLivePathBox(string resolvedLivePath)
+    {
+        if (!LivePathBox.Text.Trim().Equals(resolvedLivePath, StringComparison.OrdinalIgnoreCase))
+        {
+            LivePathBox.Text = resolvedLivePath;
+        }
     }
 
     private bool HasGlobalIni()
@@ -2199,11 +2266,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void CheckPath(object sender, RoutedEventArgs e)
     {
-        if (HasGlobalIni())
+        if (TryResolveLivePath(LivePathBox.Text, out var resolvedLivePath))
         {
-            LiveStatusText.Text = T("liveFound");
+            NormalizeLivePathBox(resolvedLivePath);
+            LiveStatusText.Text = HasGlobalIni() ? T("liveFoundLocalized") : T("liveFound");
             SetJournalState("LIVE найден. Контур готов к проверке.");
-            AddLog(T("liveFound"));
+            AddLog(LiveStatusText.Text);
         }
         else
         {
@@ -2311,9 +2379,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private async Task InstallOrUpdateLocalizationAsync(string action)
     {
-        if (string.IsNullOrWhiteSpace(LivePathBox.Text) || !Directory.Exists(LivePathBox.Text.Trim()))
+        if (!EnsureLivePathSelected())
         {
-            AddError(T("liveMissing"));
             return;
         }
 
@@ -2852,9 +2919,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private async void RunDryRun(object sender, RoutedEventArgs e)
     {
-        if (!HasGlobalIni())
+        if (!EnsureGlobalIniSelected())
         {
-            AddError(T("liveMissing"));
             return;
         }
 
@@ -2865,9 +2931,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private async void WarmCache(object sender, RoutedEventArgs e)
     {
-        if (!HasGlobalIni())
+        if (!EnsureGlobalIniSelected())
         {
-            AddError(T("liveMissing"));
             return;
         }
 
@@ -2876,9 +2941,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private async void RunLiveApply(object sender, RoutedEventArgs e)
     {
-        if (!HasGlobalIni())
+        if (!EnsureGlobalIniSelected())
         {
-            AddError(T("liveMissing"));
             return;
         }
 
@@ -2898,9 +2962,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void RestoreLatestBackup(object sender, RoutedEventArgs e)
     {
-        if (!Directory.Exists(LivePathBox.Text.Trim()))
+        if (!EnsureLivePathSelected())
         {
-            AddError(T("liveMissing"));
             return;
         }
 
@@ -2916,9 +2979,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void RestoreSelectedBackup(object sender, RoutedEventArgs e)
     {
-        if (!Directory.Exists(LivePathBox.Text.Trim()))
+        if (!EnsureLivePathSelected())
         {
-            AddError(T("liveMissing"));
             return;
         }
 

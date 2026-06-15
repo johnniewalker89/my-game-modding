@@ -1,5 +1,20 @@
 # SC Mod Launcher Releases
 
+## 2.0.1
+
+### Что нового
+
+- Исправлена проверка пути к игре: чистый `StarCitizen\LIVE` теперь проверяется по `Data.p4k`, а не по уже установленному `global.ini`.
+- Если выбран родительский каталог `StarCitizen`, лаунчер сам переключится на `StarCitizen\LIVE`, когда там найден `Data.p4k`.
+- Отсутствие `global.ini` теперь считается состоянием русификатора: для модов лаунчер попросит установить RuSC через вкладку `Русификатор`, а не будет ругаться на папку LIVE.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.0.1.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 2.0.1`
+- Проверено: scaffold backend, WPF build/smoke, WPF UI automation, update installer cache replacement, release ZIP audit.
+
 ## 2.0.0
 
 ### Что нового
