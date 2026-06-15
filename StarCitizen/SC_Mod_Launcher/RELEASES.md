@@ -1,5 +1,20 @@
 # SC Mod Launcher Releases
 
+## 2.0.2
+
+### Что нового
+
+- Добавлена установка RuSC из локального ZIP на вкладке `Русификатор`: запасной путь для случаев, когда `api.github.com` недоступен, но архив можно скачать через браузер.
+- ZIP может содержать `data/...` на верхнем уровне или внутри папки-обёртки архива.
+- Установка из ZIP проходит через тот же безопасный путь, что и онлайн-установка: backup `global.ini`, `languages.ini`, `user.cfg`, metadata версии, версионный штамп и baseline-правки RuSC.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.0.2.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 2.0.2`
+- Проверено: scaffold backend, WPF build/smoke, release ZIP audit.
+
 ## 2.0.1
 
 ### Что нового

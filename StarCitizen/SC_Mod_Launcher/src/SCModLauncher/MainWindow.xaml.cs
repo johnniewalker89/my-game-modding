@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -38,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.0.1";
+    private const string CurrentLauncherVersion = "2.0.2";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -231,6 +232,7 @@ public partial class MainWindow : Window
         StartLaunchButtonGlitch(InstallUpdateButton, TimeSpan.FromMilliseconds(4920), TimeSpan.FromMilliseconds(9100), 0.7, 1.004);
         StartLaunchButtonGlitch(OverviewUpdateLocalizationButton, TimeSpan.FromMilliseconds(2630), TimeSpan.FromMilliseconds(7350), -0.5, 1.004);
         StartLaunchButtonGlitch(InstallLocalizationButton, TimeSpan.FromMilliseconds(1180), TimeSpan.FromMilliseconds(7600), 0.5, 1.004);
+        StartLaunchButtonGlitch(InstallLocalizationZipButton, TimeSpan.FromMilliseconds(2240), TimeSpan.FromMilliseconds(8150), -0.45, 1.004);
         StartLaunchButtonGlitch(UpdateLocalizationButton, TimeSpan.FromMilliseconds(3370), TimeSpan.FromMilliseconds(8450), -0.4, 1.004);
         StartLaunchButtonGlitch(RemoveLocalizationButton, TimeSpan.FromMilliseconds(5850), TimeSpan.FromMilliseconds(9350), 0.4, 1.004);
         StartLaunchButtonGlitch(RefreshBackupsButton, TimeSpan.FromMilliseconds(1460), TimeSpan.FromMilliseconds(7600), -0.4, 1.004);
@@ -446,6 +448,7 @@ public partial class MainWindow : Window
         RestoreBackupButton.Content = T("restoreBackup");
         LocalizationInfoText.Text = T("localizationInfo");
         InstallLocalizationButton.Content = T("installLocalization");
+        InstallLocalizationZipButton.Content = T("installLocalizationZip");
         UpdateLocalizationButton.Content = T("updateLocalization");
         OverviewUpdateLocalizationButton.Content = T("updateLocalization");
         RemoveLocalizationButton.Content = T("removeLocalization");
@@ -2377,6 +2380,11 @@ Write-Host "FAMILY_INDEX:$indexPath"
         await InstallOrUpdateLocalizationAsync("Обновление русификатора");
     }
 
+    private async void InstallLocalizationFromZip(object sender, RoutedEventArgs e)
+    {
+        await InstallLocalizationFromZipAsync();
+    }
+
     private async Task InstallOrUpdateLocalizationAsync(string action)
     {
         if (!EnsureLivePathSelected())
@@ -2397,46 +2405,29 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
             var languagesBytes = await DownloadBytesAsync(languagesUri);
             var globalBytes = await DownloadBytesAsync(globalUri);
-            if (globalBytes.Length < 1024 * 1024)
-            {
-                throw new InvalidOperationException("скачанный global.ini подозрительно мал");
-            }
-            var baselinePatch = PatchRuScBaselineBytes(globalBytes, release.TagName);
-            globalBytes = baselinePatch.Bytes;
+            var source = new LocalizationInstallSource(
+                languagesBytes,
+                globalBytes,
+                new LocalizationState
+                {
+                    TagName = release.TagName,
+                    ReleaseName = string.IsNullOrWhiteSpace(release.Name) ? release.TagName : release.Name,
+                    ReleaseUrl = release.HtmlUrl,
+                    PublishedAt = release.PublishedAt
+                });
 
-            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-            var existingGlobalBackup = BackupFileIfExists(GetGlobalIniPath(), $"global.ini.{stamp}.localization-install.bak");
-            var languagesPath = GetLanguagesIniPath();
-            var existingLanguagesBackup = BackupFileIfExists(languagesPath, $"languages.ini.{stamp}.localization-install.bak");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(GetGlobalIniPath())!);
-            Directory.CreateDirectory(Path.GetDirectoryName(languagesPath)!);
-            await File.WriteAllBytesAsync(languagesPath, languagesBytes);
-            await File.WriteAllBytesAsync(GetGlobalIniPath(), globalBytes);
-            var userCfgBackup = EnsureLocalizationUserCfg(stamp);
-
-            var state = new LocalizationState
-            {
-                TagName = release.TagName,
-                ReleaseName = string.IsNullOrWhiteSpace(release.Name) ? release.TagName : release.Name,
-                ReleaseUrl = release.HtmlUrl,
-                PublishedAt = release.PublishedAt,
-                InstalledAtUtc = DateTimeOffset.UtcNow,
-                LanguagesSha256 = Convert.ToHexString(SHA256.HashData(languagesBytes)),
-                GlobalIniSha256 = Convert.ToHexString(SHA256.HashData(globalBytes))
-            };
-            SaveLocalizationState(state);
+            var result = await InstallLocalizationPayloadAsync(source);
 
             ApplyLocalizationButtonState(installed: true, updateAvailable: false);
             SetLocalizationUpdateAttention(false);
             SetJournalState($"{action}: RuSC {release.TagName} установлен.");
             AddHeadingLog($"{action}: RuSC {release.TagName} установлен.");
             AddUriLog("Релиз RuSC", release.HtmlUrl, release.TagName);
-            AddMetricLog($"RuSC-патчи: EM-разметка {baselinePatch.FixedMalformedEmphasisLines}; ветки репутации {baselinePatch.InsertedReputationScopeLines}.");
-            if (!string.IsNullOrWhiteSpace(existingGlobalBackup)) AddPathLog("Backup global.ini", existingGlobalBackup);
-            if (!string.IsNullOrWhiteSpace(existingLanguagesBackup)) AddPathLog("Backup languages.ini", existingLanguagesBackup);
-            if (!string.IsNullOrWhiteSpace(userCfgBackup)) AddPathLog("Backup user.cfg", userCfgBackup);
-            AddPathLog($"global.ini: {globalBytes.Length / 1024 / 1024.0:0.0} MB; SHA-256 {ShortSha(state.GlobalIniSha256)}", GetGlobalIniPath());
+            AddMetricLog($"RuSC-патчи: EM-разметка {result.FixedMalformedEmphasisLines}; ветки репутации {result.InsertedReputationScopeLines}.");
+            if (!string.IsNullOrWhiteSpace(result.GlobalBackupPath)) AddPathLog("Backup global.ini", result.GlobalBackupPath);
+            if (!string.IsNullOrWhiteSpace(result.LanguagesBackupPath)) AddPathLog("Backup languages.ini", result.LanguagesBackupPath);
+            if (!string.IsNullOrWhiteSpace(result.UserCfgBackupPath)) AddPathLog("Backup user.cfg", result.UserCfgBackupPath);
+            AddPathLog($"global.ini: {result.GlobalBytesLength / 1024 / 1024.0:0.0} MB; SHA-256 {ShortSha(result.State.GlobalIniSha256)}", GetGlobalIniPath());
             await RefreshLocalizationStatusAsync(updateJournal: false, updateStatusLine: false, skipDuplicateLog: true);
             completed = true;
         }
@@ -2452,6 +2443,185 @@ Write-Host "FAMILY_INDEX:$indexPath"
             }
         }
     }
+
+    private async Task InstallLocalizationFromZipAsync()
+    {
+        if (!EnsureLivePathSelected())
+        {
+            return;
+        }
+
+        using var dialog = new Forms.OpenFileDialog
+        {
+            Title = "Выбери ZIP-архив StarCitizenRu",
+            Filter = "ZIP archives (*.zip)|*.zip|All files (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() != Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        var action = "Установка русификатора из ZIP";
+        var completed = false;
+        SetLocalizationControlsEnabled(false);
+        SetJournalState(action + ": читаю локальный архив.");
+        AddHeadingLog(action + ".");
+
+        try
+        {
+            var source = ReadLocalizationZipPayload(dialog.FileName);
+            var result = await InstallLocalizationPayloadAsync(source);
+
+            ApplyLocalizationButtonState(installed: true, updateAvailable: false);
+            SetLocalizationUpdateAttention(false);
+            RefreshLocalizationStatusLocal();
+            SetJournalState($"{action}: RuSC {source.State.TagName} установлен.");
+            AddHeadingLog($"{action}: RuSC {source.State.TagName} установлен.");
+            AddPathLog("ZIP RuSC", dialog.FileName);
+            AddMetricLog($"RuSC-патчи: EM-разметка {result.FixedMalformedEmphasisLines}; ветки репутации {result.InsertedReputationScopeLines}.");
+            if (!string.IsNullOrWhiteSpace(result.GlobalBackupPath)) AddPathLog("Backup global.ini", result.GlobalBackupPath);
+            if (!string.IsNullOrWhiteSpace(result.LanguagesBackupPath)) AddPathLog("Backup languages.ini", result.LanguagesBackupPath);
+            if (!string.IsNullOrWhiteSpace(result.UserCfgBackupPath)) AddPathLog("Backup user.cfg", result.UserCfgBackupPath);
+            AddPathLog($"global.ini: {result.GlobalBytesLength / 1024 / 1024.0:0.0} MB; SHA-256 {ShortSha(result.State.GlobalIniSha256)}", GetGlobalIniPath());
+            completed = true;
+        }
+        catch (Exception ex)
+        {
+            AddError(action + " не завершено: " + ShortError(ex.Message));
+        }
+        finally
+        {
+            if (!completed)
+            {
+                RefreshLocalizationStatusLocal();
+            }
+        }
+    }
+
+    private async Task<LocalizationInstallResult> InstallLocalizationPayloadAsync(LocalizationInstallSource source)
+    {
+        if (source.GlobalBytes.Length < 1024 * 1024)
+        {
+            throw new InvalidOperationException("global.ini подозрительно мал");
+        }
+
+        var baselinePatch = PatchRuScBaselineBytes(source.GlobalBytes, source.State.TagName);
+        var globalBytes = baselinePatch.Bytes;
+        var languagesBytes = source.LanguagesBytes;
+
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var globalPath = GetGlobalIniPath();
+        var languagesPath = GetLanguagesIniPath();
+        var existingGlobalBackup = BackupFileIfExists(globalPath, $"global.ini.{stamp}.localization-install.bak");
+        var existingLanguagesBackup = BackupFileIfExists(languagesPath, $"languages.ini.{stamp}.localization-install.bak");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(globalPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(languagesPath)!);
+        await File.WriteAllBytesAsync(languagesPath, languagesBytes);
+        await File.WriteAllBytesAsync(globalPath, globalBytes);
+        var userCfgBackup = EnsureLocalizationUserCfg(stamp);
+
+        source.State.InstalledAtUtc = DateTimeOffset.UtcNow;
+        source.State.LanguagesSha256 = Convert.ToHexString(SHA256.HashData(languagesBytes));
+        source.State.GlobalIniSha256 = Convert.ToHexString(SHA256.HashData(globalBytes));
+        SaveLocalizationState(source.State);
+
+        return new LocalizationInstallResult(
+            source.State,
+            existingGlobalBackup,
+            existingLanguagesBackup,
+            userCfgBackup,
+            globalBytes.Length,
+            baselinePatch.FixedMalformedEmphasisLines,
+            baselinePatch.InsertedReputationScopeLines);
+    }
+
+    private static LocalizationInstallSource ReadLocalizationZipPayload(string zipPath)
+    {
+        using var file = File.OpenRead(zipPath);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: false);
+
+        var languagesEntry = FindLocalizationZipEntry(archive, "data/languages.ini") ??
+            throw new InvalidOperationException("в ZIP не найден data/languages.ini");
+        var globalEntry = FindLocalizationZipEntry(archive, $"data/Localization/{LocalizationSlot}/global.ini") ??
+            throw new InvalidOperationException($"в ZIP не найден data/Localization/{LocalizationSlot}/global.ini");
+
+        var tagName = InferRuScTagFromZipName(zipPath);
+        var fileName = Path.GetFileName(zipPath);
+        var state = new LocalizationState
+        {
+            TagName = tagName,
+            ReleaseName = "Локальный ZIP " + fileName,
+            ReleaseUrl = new Uri(Path.GetFullPath(zipPath)).AbsoluteUri,
+            PublishedAt = null
+        };
+
+        return new LocalizationInstallSource(
+            ReadZipEntryBytes(languagesEntry),
+            ReadZipEntryBytes(globalEntry),
+            state);
+    }
+
+    private static ZipArchiveEntry? FindLocalizationZipEntry(ZipArchive archive, string relativePath)
+    {
+        var target = NormalizeZipPath(relativePath);
+        return archive.Entries.FirstOrDefault(entry =>
+        {
+            if (string.IsNullOrWhiteSpace(entry.Name))
+            {
+                return false;
+            }
+
+            var entryPath = NormalizeZipPath(entry.FullName);
+            return entryPath.Equals(target, StringComparison.OrdinalIgnoreCase) ||
+                entryPath.EndsWith("/" + target, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    private static string NormalizeZipPath(string path)
+    {
+        return path.Replace('\\', '/').TrimStart('/');
+    }
+
+    private static byte[] ReadZipEntryBytes(ZipArchiveEntry entry)
+    {
+        using var entryStream = entry.Open();
+        using var memory = new MemoryStream();
+        entryStream.CopyTo(memory);
+        return memory.ToArray();
+    }
+
+    private static string InferRuScTagFromZipName(string zipPath)
+    {
+        var name = Path.GetFileNameWithoutExtension(zipPath).Trim();
+        foreach (var prefix in new[] { "StarCitizenRu-", "StarCitizenRu_", "StarCitizenRu.", "StarCitizenRu " })
+        {
+            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                name = name[prefix.Length..].Trim();
+                break;
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(name) ? "local-zip" : name;
+    }
+
+    private sealed record LocalizationInstallSource(
+        byte[] LanguagesBytes,
+        byte[] GlobalBytes,
+        LocalizationState State);
+
+    private sealed record LocalizationInstallResult(
+        LocalizationState State,
+        string? GlobalBackupPath,
+        string? LanguagesBackupPath,
+        string? UserCfgBackupPath,
+        int GlobalBytesLength,
+        int FixedMalformedEmphasisLines,
+        int InsertedReputationScopeLines);
 
     private void RemoveLocalization(object sender, RoutedEventArgs e)
     {
@@ -2586,6 +2756,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
     private void SetLocalizationControlsEnabled(bool enabled)
     {
         InstallLocalizationButton.IsEnabled = enabled;
+        InstallLocalizationZipButton.IsEnabled = enabled;
         UpdateLocalizationButton.IsEnabled = enabled;
         OverviewUpdateLocalizationButton.IsEnabled = enabled;
         RemoveLocalizationButton.IsEnabled = enabled && HasLocalizationArtifacts();
@@ -2594,6 +2765,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
     private void ApplyLocalizationButtonState(bool installed, bool updateAvailable)
     {
         InstallLocalizationButton.IsEnabled = !installed;
+        InstallLocalizationZipButton.IsEnabled = true;
         UpdateLocalizationButton.IsEnabled = installed && updateAvailable;
         OverviewUpdateLocalizationButton.IsEnabled = UpdateLocalizationButton.IsEnabled;
         RemoveLocalizationButton.IsEnabled = installed;
