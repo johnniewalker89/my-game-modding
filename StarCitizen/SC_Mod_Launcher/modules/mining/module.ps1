@@ -6,10 +6,12 @@ function Get-SCMiningPatchPlan {
 
     $selectedMethods = Get-SCMiningSelectedMethods -SelectedOptions $SelectedOptions
     $enableItemCraftHints = @($SelectedOptions) -contains 'itemCraftHints'
+    $enableRefineryYieldHints = @($SelectedOptions) -contains 'refineryYieldHints'
     $craftFilter = Get-SCMiningCraftFilter -SelectedOptions $SelectedOptions
     $operations = @()
     $changedPlanetKeys = @()
     $itemCraftWarnings = @()
+    $refineryYieldWarnings = @()
     $itemCraftMetadata = @{
         enabled = $enableItemCraftHints
         safeDescriptionKeys = 0
@@ -17,6 +19,13 @@ function Get-SCMiningPatchPlan {
         skippedUnmapped = 0
         skippedNoWiki = 0
         skippedConflict = 0
+    }
+    $refineryYieldMetadata = @{
+        enabled = $enableRefineryYieldHints
+        source = 'UEX refineries_yields'
+        stationCount = 0
+        matchedStationDescriptions = 0
+        changedStationDescriptions = 0
     }
     $planetBlockCount = 0
     $recipeData = $null
@@ -104,6 +113,18 @@ function Get-SCMiningPatchPlan {
         $itemCraftMetadata = $itemPlan.Metadata
     }
 
+    if ($enableRefineryYieldHints) {
+        $refineryPlan = New-SCMiningRefineryYieldHintOperations -Context $Context
+        $operations += @($refineryPlan.Operations)
+        $refineryYieldWarnings += @($refineryPlan.Warnings)
+        $refineryYieldMetadata = $refineryPlan.Metadata
+    }
+    else {
+        $refineryPlan = Remove-SCMiningRefineryYieldHintOperations -Context $Context
+        $operations += @($refineryPlan.Operations)
+        $refineryYieldMetadata = $refineryPlan.Metadata
+    }
+
     $metadata = @{
         source = 'existing SCMDB planet craft blocks + SCMDB/Wiki item craft hints'
         selectedOptionCount = @($SelectedOptions).Count
@@ -113,12 +134,13 @@ function Get-SCMiningPatchPlan {
         changedPlanetDescriptions = @($changedPlanetKeys).Count
         changedPlanetKeysSample = @($changedPlanetKeys | Select-Object -First 20)
         itemCraftHints = $itemCraftMetadata
+        refineryYieldHints = $refineryYieldMetadata
     }
 
     return [pscustomobject]@{
         ModuleId = 'mining'
         Operations = @($operations)
-        Warnings = @($recipeDataWarnings + $itemCraftWarnings)
+        Warnings = @($recipeDataWarnings + $itemCraftWarnings + $refineryYieldWarnings)
         Metadata = $metadata
     }
 }
@@ -327,6 +349,125 @@ function Remove-SCMiningItemCraftHintOperations {
             skippedUnmapped = 0
             skippedNoWiki = 0
             skippedConflict = 0
+        }
+    }
+}
+
+function New-SCMiningRefineryYieldHintOperations {
+    param([object]$Context)
+
+    $metadata = @{
+        enabled = $true
+        source = ''
+        sourceUrl = ''
+        gameVersion = ''
+        stationCount = 0
+        matchedStationDescriptions = 0
+        changedStationDescriptions = 0
+        changedStationKeysSample = @()
+    }
+
+    try {
+        $data = Get-SCMiningRefineryYieldData
+        $metadata.source = [string]$data.source
+        $metadata.sourceUrl = [string]$data.sourceUrl
+        $metadata.gameVersion = [string]$data.gameVersion
+        $metadata.stationCount = @($data.stations).Count
+
+        $operations = @()
+        $changedKeys = New-Object System.Collections.Generic.List[string]
+        $matchedDescriptions = 0
+        foreach ($key in @($Context.Values.Keys | Sort-Object)) {
+            if ($key -notmatch '(?i)_desc(?:,|$)|_description(?:,|$)' -and [string]::IsNullOrWhiteSpace((Get-SCMiningRefineryYieldKnownLocationTitle -Key $key -Values $Context.Values))) {
+                continue
+            }
+
+            $current = [string]$Context.Values[$key]
+            $clean = Remove-SCMiningRefineryYieldHint -Value $current
+            $station = Find-SCMiningRefineryYieldStation -Key $key -Values $Context.Values -Stations @($data.stations)
+            if ($null -eq $station) {
+                if ($clean -ne $current) {
+                    $operations += [pscustomobject]@{
+                        ModuleId = 'mining'
+                        OptionId = 'refineryYieldHints'
+                        Key = $key
+                        Operation = 'replaceValue'
+                        OriginalValue = $current
+                        NewValue = $clean
+                        OwnedMarkers = @('SC_REFINERY_YIELD_HINT_BLOCK')
+                    }
+                    $changedKeys.Add($key)
+                }
+                continue
+            }
+
+            $matchedDescriptions++
+            $updated = Set-SCMiningRefineryYieldHint -Value $clean -Station $station
+            if ($updated -ne $current) {
+                $operations += [pscustomobject]@{
+                    ModuleId = 'mining'
+                    OptionId = 'refineryYieldHints'
+                    Key = $key
+                    Operation = 'replaceValue'
+                    OriginalValue = $current
+                    NewValue = $updated
+                    OwnedMarkers = @('SC_REFINERY_YIELD_HINT_BLOCK')
+                }
+                $changedKeys.Add($key)
+            }
+        }
+
+        $metadata.matchedStationDescriptions = $matchedDescriptions
+        $metadata.changedStationDescriptions = @($operations).Count
+        $metadata.changedStationKeysSample = @($changedKeys | Select-Object -First 20)
+
+        return [pscustomobject]@{
+            Operations = @($operations)
+            Warnings = @()
+            Metadata = $metadata
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            Operations = @()
+            Warnings = @("Refinery yield hints skipped: $($_.Exception.Message)")
+            Metadata = $metadata
+        }
+    }
+}
+
+function Remove-SCMiningRefineryYieldHintOperations {
+    param([object]$Context)
+
+    $operations = @()
+    foreach ($key in @($Context.Values.Keys | Sort-Object)) {
+        $current = [string]$Context.Values[$key]
+        if ($current.IndexOf((Get-SCMiningRefineryYieldHintLabel), [System.StringComparison]::Ordinal) -lt 0) {
+            continue
+        }
+
+        $updated = Remove-SCMiningRefineryYieldHint -Value $current
+        if ($updated -ne $current) {
+            $operations += [pscustomobject]@{
+                ModuleId = 'mining'
+                OptionId = 'refineryYieldHints'
+                Key = $key
+                Operation = 'replaceValue'
+                OriginalValue = $current
+                NewValue = $updated
+                OwnedMarkers = @('SC_REFINERY_YIELD_HINT_BLOCK')
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Operations = @($operations)
+        Metadata = @{
+            enabled = $false
+            source = 'UEX refineries_yields'
+            stationCount = 0
+            matchedStationDescriptions = 0
+            changedStationDescriptions = @($operations).Count
         }
     }
 }
@@ -2096,6 +2237,433 @@ function Get-SCMiningItemCraftHintLine {
 
 function Get-SCMiningItemCraftHintLabel {
     return (ConvertFrom-SCCodePoints -CodePoints @(0x041A, 0x0440, 0x0430, 0x0444, 0x0442, 0x003A))
+}
+
+function Get-SCMiningRefineryYieldData {
+    $scmdbCache = Read-SCMiningScmdbCache
+    $cached = Get-SCMiningCachedRefineryYields -CacheKey ([string]$scmdbCache.Version)
+    if ($null -eq $cached) {
+        throw "Mining refinery yields cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
+    }
+
+    return $cached
+}
+
+function Get-SCMiningCachedRefineryYields {
+    param([string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        return $null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($CacheKey)) {
+        $path = Get-SCMiningRefineryYieldCachePath -CacheKey $CacheKey
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $cacheFile = Get-Item -LiteralPath $path
+        }
+        else {
+            $cacheFile = $null
+        }
+    }
+    else {
+        $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'refinery-yields-*.json' -File |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
+
+    if ($null -eq $cacheFile) {
+        return $null
+    }
+
+    try {
+        $cache = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
+        if ($cache.PSObject.Properties['stations'] -and @($cache.stations).Count -gt 0) {
+            return $cache
+        }
+    }
+    catch {
+    }
+
+    return $null
+}
+
+function Get-SCMiningRefineryYieldCachePath {
+    param([string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    return (Join-Path $cacheDir ("refinery-yields-{0}.json" -f (Get-SCMiningSafeCacheKey -CacheKey $CacheKey)))
+}
+
+function Get-SCMiningRefineryYields {
+    param(
+        [hashtable]$Headers,
+        [string]$CacheKey,
+        [switch]$ForceRefresh
+    )
+
+    $cachePath = Get-SCMiningRefineryYieldCachePath -CacheKey $CacheKey
+    if (-not $ForceRefresh -and (Test-Path -LiteralPath $cachePath -PathType Leaf)) {
+        $cached = Get-SCMiningCachedRefineryYields -CacheKey $CacheKey
+        if ($null -ne $cached) {
+            return $cached
+        }
+
+        Remove-Item -LiteralPath $cachePath -Force -ErrorAction SilentlyContinue
+    }
+
+    $raw = Invoke-SCMiningScmdbJson -Uri 'https://api.uexcorp.uk/2.0/refineries_yields' -Headers $Headers
+    $records = @($raw.data)
+    if ($records.Count -eq 0) {
+        throw 'UEX refineries_yields returned no data.'
+    }
+
+    $payload = ConvertTo-SCMiningRefineryYieldCachePayload -CacheKey $CacheKey -Records $records
+    Write-SCMiningRefineryYieldCache -CachePath $cachePath -Payload $payload
+    return $payload
+}
+
+function ConvertTo-SCMiningRefineryYieldCachePayload {
+    param(
+        [string]$CacheKey,
+        [object[]]$Records
+    )
+
+    $stations = @()
+    foreach ($group in ($Records | Group-Object {
+        if (-not [string]::IsNullOrWhiteSpace([string]$_.space_station_name)) {
+            [string]$_.space_station_name
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace([string]$_.outpost_name)) {
+            [string]$_.outpost_name
+        }
+        else {
+            [string]$_.terminal_name
+        }
+    })) {
+        if ([string]::IsNullOrWhiteSpace([string]$group.Name)) {
+            continue
+        }
+
+        $entries = @(
+            $group.Group |
+                ForEach-Object {
+                    [pscustomobject]@{
+                        material = ([regex]::Replace([string]$_.commodity_name, '\s+\((Ore|Raw)\)$', ''))
+                        value = [int]$_.value_month
+                    }
+                } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.material) -and [int]$_.value -ne 0 }
+        )
+
+        $best = @($entries | Where-Object { [int]$_.value -gt 0 } | Sort-Object @{ Expression = { [int]$_.value }; Descending = $true }, material | Select-Object -First 4)
+        $penalties = @($entries | Where-Object { [int]$_.value -lt 0 } | Sort-Object @{ Expression = { [int]$_.value }; Ascending = $true }, material | Select-Object -First 3)
+
+        $stations += [pscustomobject]@{
+            name = [string]$group.Name
+            aliases = @(Get-SCMiningRefineryYieldAliases -StationName ([string]$group.Name))
+            best = @($best)
+            penalties = @($penalties)
+        }
+    }
+
+    return [pscustomobject]@{
+        cacheKey = [string]$CacheKey
+        createdAt = (Get-Date).ToString('o')
+        source = 'UEX refineries_yields'
+        sourceUrl = 'https://uexcorp.space/mining/refineries'
+        apiUrl = 'https://api.uexcorp.uk/2.0/refineries_yields'
+        gameVersion = '4.8.1'
+        values = 'value_month'
+        records = @($Records).Count
+        stations = @($stations | Sort-Object name)
+    }
+}
+
+function Get-SCMiningRefineryYieldAliases {
+    param([string]$StationName)
+
+    $aliases = @()
+    if ($StationName -match '^(ARC|CRU|HUR|MIC)-L\d\b') {
+        $aliases += $Matches[0]
+    }
+    if ($StationName -eq 'Checkmate Station') {
+        $aliases += 'Checkmate'
+        $aliases += 'Checkmate Refinery'
+    }
+    if ($StationName -match '^(?<name>.+ Gateway) \([^)]+\)$') {
+        $aliases += $Matches['name']
+    }
+    if ($StationName -eq 'Ruin Station') {
+        $aliases += 'Ruin Station Refinery'
+    }
+    if ($StationName -eq 'Refinement Center - Levski') {
+        $aliases += 'Levski'
+    }
+
+    return @($aliases | Sort-Object -Unique)
+}
+
+function Write-SCMiningRefineryYieldCache {
+    param(
+        [string]$CachePath,
+        [object]$Payload
+    )
+
+    $cacheDir = Split-Path -Parent $CachePath
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+    }
+
+    $json = $Payload | ConvertTo-Json -Depth 10
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($CachePath, $json, $encoding)
+}
+
+function Find-SCMiningRefineryYieldStation {
+    param(
+        [string]$Key,
+        [hashtable]$Values,
+        [object[]]$Stations
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Key)) {
+        return $null
+    }
+
+    $relatedValues = @(Get-SCMiningRefineryYieldRelatedTitleValues -Key $Key -Values $Values)
+    if ($relatedValues.Count -eq 0) {
+        return $null
+    }
+
+    foreach ($station in @($Stations)) {
+        if (-not (Test-SCMiningRefineryYieldKeyQualifier -Key $Key -StationName ([string]$station.name))) {
+            continue
+        }
+
+        foreach ($candidate in @(Get-SCMiningRefineryYieldStationCandidates -Station $station | Sort-Object { $_.Length } -Descending)) {
+            if ([string]::IsNullOrWhiteSpace($candidate) -or $candidate.Length -lt 5) {
+                continue
+            }
+            if (-not (Test-SCMiningRefineryYieldCandidateKeyScope -Key $Key -Candidate $candidate)) {
+                continue
+            }
+
+            foreach ($value in $relatedValues) {
+                if ($value.IndexOf($candidate, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    return $station
+                }
+            }
+        }
+    }
+
+    return $null
+}
+
+function Get-SCMiningRefineryYieldStationCandidates {
+    param([object]$Station)
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    $stationName = [string]$Station.name
+    if (-not [string]::IsNullOrWhiteSpace($stationName)) {
+        $candidates.Add($stationName)
+        if ($stationName -eq 'Checkmate Station') {
+            $candidates.Add('Checkmate')
+        }
+        if ($stationName -match '^(?<name>.+ Gateway) \([^)]+\)$') {
+            $candidates.Add($Matches['name'])
+        }
+    }
+    foreach ($alias in @($Station.aliases)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$alias)) {
+            $candidates.Add([string]$alias)
+        }
+    }
+
+    return @($candidates.ToArray() | Sort-Object -Unique)
+}
+
+function Get-SCMiningRefineryYieldRelatedTitleValues {
+    param(
+        [string]$Key,
+        [hashtable]$Values
+    )
+
+    $knownLocationTitle = Get-SCMiningRefineryYieldKnownLocationTitle -Key $Key -Values $Values
+    if (-not [string]::IsNullOrWhiteSpace($knownLocationTitle)) {
+        return @($knownLocationTitle)
+    }
+
+    $baseKey = Get-SCMiningRefineryYieldBaseKey -Key $Key
+    if ([string]::IsNullOrWhiteSpace($baseKey)) {
+        return @()
+    }
+
+    $candidateKeys = @(
+        $baseKey,
+        "$baseKey,P",
+        "$baseKey,PU"
+    )
+    $result = New-Object System.Collections.Generic.List[string]
+    foreach ($candidateKey in $candidateKeys) {
+        if ($Values.ContainsKey($candidateKey)) {
+            $value = [string]$Values[$candidateKey]
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                $result.Add($value)
+            }
+        }
+    }
+
+    return @($result.ToArray())
+}
+
+function Get-SCMiningRefineryYieldKnownLocationTitle {
+    param(
+        [string]$Key,
+        [hashtable]$Values
+    )
+
+    $cleanKey = ([string]$Key -replace ',.*$', '')
+    if ($cleanKey -eq 'text_level_info_description_Levski') {
+        return 'Levski'
+    }
+    if ($cleanKey -match '^(?<base>ui_pregame_port_.+)_desc$') {
+        $nameKey = $Matches['base'] + '_name'
+        if ($Values.ContainsKey($nameKey)) {
+            return [string]$Values[$nameKey]
+        }
+    }
+
+    return ''
+}
+
+function Get-SCMiningRefineryYieldBaseKey {
+    param([string]$Key)
+
+    $cleanKey = ([string]$Key -replace ',.*$', '')
+    if ($cleanKey -match '(?i)^(?<base>.+?)_(?:desc|description)$') {
+        return $Matches['base']
+    }
+
+    return ''
+}
+
+function Test-SCMiningRefineryYieldKeyQualifier {
+    param(
+        [string]$Key,
+        [string]$StationName
+    )
+
+    if ($StationName -notmatch '\((?<system>[^)]+)\)$') {
+        return $true
+    }
+
+    $system = $Matches['system']
+    return $Key.StartsWith($system + '_', [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-SCMiningRefineryYieldCandidateKeyScope {
+    param(
+        [string]$Key,
+        [string]$Candidate
+    )
+
+    if ($Candidate -match '^(ARC|CRU|HUR|MIC)-L\d$') {
+        return $Key.StartsWith('RR_', [System.StringComparison]::OrdinalIgnoreCase)
+    }
+
+    return $true
+}
+
+function Set-SCMiningRefineryYieldHint {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [object]$Station
+    )
+
+    $clean = Remove-SCMiningRefineryYieldHint -Value $Value
+    $line = Get-SCMiningRefineryYieldHintLine -Station $Station
+    if ([string]::IsNullOrWhiteSpace($line)) {
+        return $clean
+    }
+
+    if ([string]::IsNullOrWhiteSpace($clean)) {
+        return $line
+    }
+
+    return ($clean.TrimEnd() + '\n\n' + $line).TrimEnd()
+}
+
+function Remove-SCMiningRefineryYieldHint {
+    param([AllowEmptyString()][string]$Value)
+
+    $labelPattern = [regex]::Escape((Get-SCMiningRefineryYieldHintLabel)) + ':?'
+    $linePattern = '<EM[1-5]>' + $labelPattern + '</EM[1-5]>\s*[^\\]*(?=$|\\n)'
+    $blockPattern = '(?:\\n){0,2}' + $linePattern + '(?:\\n<EM[1-5]>(?:' + [regex]::Escape((Get-SCMiningRefineryBonusLabel)) + '|' + [regex]::Escape((Get-SCMiningRefineryPenaltyLabel)) + ')</EM[1-5]>\s*[^\\]*(?=$|\\n)){0,2}'
+    $pattern = $blockPattern
+    if (-not [regex]::IsMatch([string]$Value, $pattern)) {
+        return [string]$Value
+    }
+
+    $clean = [regex]::Replace([string]$Value, $pattern, '')
+    return (Trim-SCMiningEncodedTrailingBreaks -Value $clean)
+}
+
+function Get-SCMiningRefineryYieldHintLine {
+    param([object]$Station)
+
+    $best = @(Format-SCMiningRefineryYieldParts -Entries @($Station.best) -Positive)
+    $penalties = @(Format-SCMiningRefineryYieldParts -Entries @($Station.penalties))
+    if ($best.Count -eq 0 -and $penalties.Count -eq 0) {
+        return ''
+    }
+
+    $segments = New-Object System.Collections.Generic.List[string]
+    if ($best.Count -gt 0) {
+        $segments.Add('<EM4>' + (Get-SCMiningRefineryBonusLabel) + '</EM4> ' + ($best -join ', '))
+    }
+    if ($penalties.Count -gt 0) {
+        $segments.Add('<EM4>' + (Get-SCMiningRefineryPenaltyLabel) + '</EM4> ' + ($penalties -join ', '))
+    }
+
+    return '<EM4>' + (Get-SCMiningRefineryYieldHintLabel) + '</EM4>' + '\n' + ($segments.ToArray() -join '\n')
+}
+
+function Format-SCMiningRefineryYieldParts {
+    param(
+        [object[]]$Entries,
+        [switch]$Positive
+    )
+
+    $parts = @()
+    foreach ($entry in @($Entries)) {
+        $material = [string]$entry.material
+        $value = [int]$entry.value
+        if ([string]::IsNullOrWhiteSpace($material) -or $value -eq 0) {
+            continue
+        }
+
+        if ($Positive) {
+            $parts += ('{0} +{1}%' -f $material, [Math]::Abs($value))
+        }
+        else {
+            $parts += ('{0} -{1}%' -f $material, [Math]::Abs($value))
+        }
+    }
+
+    return @($parts)
+}
+
+function Get-SCMiningRefineryYieldHintLabel {
+    return ((ConvertFrom-SCCodePoints -CodePoints @(0x041F, 0x0435, 0x0440, 0x0435, 0x0440, 0x0430, 0x0431, 0x043E, 0x0442, 0x043A, 0x0430)) + ' (UEX)')
+}
+
+function Get-SCMiningRefineryBonusLabel {
+    return ((ConvertFrom-SCCodePoints -CodePoints @(0x0431, 0x043E, 0x043D, 0x0443, 0x0441, 0x044B)) + ':')
+}
+
+function Get-SCMiningRefineryPenaltyLabel {
+    return (ConvertFrom-SCCodePoints -CodePoints @(0x0448, 0x0442, 0x0440, 0x0430, 0x0444, 0x044B, 0x003A))
 }
 
 function Get-SCMiningResourceListLabel {

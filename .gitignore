@@ -4,6 +4,14 @@ reports/
 cache/
 !StarCitizen/SC_Mod_Launcher/modules/scmdb/cache/
 !StarCitizen/SC_Mod_Launcher/modules/scmdb/cache/*.json
+!StarCitizen/SC_Mod_Launcher/modules/mining/cache/
+!StarCitizen/SC_Mod_Launcher/modules/mining/cache/wiki-blueprints-4.8.1-live.11952564.json
+!StarCitizen/SC_Mod_Launcher/modules/mining/cache/craft-family-index-4.8.1-live.11952564.json
+!StarCitizen/SC_Mod_Launcher/modules/mining/cache/refinery-yields-4.8.1-live.11952564.json
+StarCitizen/SC_Mod_Launcher/modules/mining/cache/planet-resource-inventory-cache.json
+!StarCitizen/SC_Mod_Launcher/modules/quest/engine/cache/
+!StarCitizen/SC_Mod_Launcher/modules/quest/engine/cache/wiki-items-cache.json
+!StarCitizen/SC_Mod_Launcher/modules/quest/engine/cache/wiki-items-cache.json.meta.json
 dist/
 updates/
 StarCitizen/SC_Mod_Launcher/app/

@@ -101,13 +101,22 @@ function Get-ModuleSummaryLines {
                 $craft = $module.metadata.itemCraftHints
                 $lines += "  Item craft hints: $($craft.changedItemDescriptions) changed of $($craft.safeDescriptionKeys) safe; skipped unmapped: $($craft.skippedUnmapped), no wiki: $($craft.skippedNoWiki), conflicts: $($craft.skippedConflict)"
             }
+            if ($module.metadata.refineryYieldHints -and $module.metadata.refineryYieldHints.enabled) {
+                $refinery = $module.metadata.refineryYieldHints
+                $lines += "  Refinery yield hints: $($refinery.changedStationDescriptions) changed of $($refinery.matchedStationDescriptions) matched station descriptions; stations: $($refinery.stationCount)"
+            }
         }
         elseif ($module.id -eq 'quest') {
             $lines += "  Quest descriptions: $($module.metadata.changedDescriptionLines) changed; kept blocks: $($module.metadata.keptDescriptionBlocks), filtered blocks: $($module.metadata.filteredDescriptionBlocks)"
             $lines += "  Quest titles: $($module.metadata.changedTitleLines) changed"
             if ($module.metadata.wikeloItemHints -and $module.metadata.wikeloItemHints.enabled) {
                 $wikelo = $module.metadata.wikeloItemHints
-                $lines += "  Wikelo item hints: $($wikelo.changedItemDescriptions) changed of $($wikelo.targetDescriptionKeys) mapped; resources: $($wikelo.mappedResources)/$($wikelo.resourceCount), unmapped: $($wikelo.unmappedResources)"
+                $updatedLabel = -join ([char[]]@(0x043F, 0x043E, 0x0434, 0x0441, 0x043A, 0x0430, 0x0437, 0x043A, 0x0438, 0x0020, 0x0430, 0x043A, 0x0442, 0x0443, 0x0430, 0x043B, 0x0438, 0x0437, 0x0438, 0x0440, 0x043E, 0x0432, 0x0430, 0x043D, 0x044B))
+                $ofLabel = -join ([char[]]@(0x0438, 0x0437))
+                $itemsLabel = -join ([char[]]@(0x043F, 0x0440, 0x0435, 0x0434, 0x043C, 0x0435, 0x0442, 0x043E, 0x0432))
+                $resourcesLabel = -join ([char[]]@(0x0440, 0x0435, 0x0441, 0x0443, 0x0440, 0x0441, 0x044B))
+                $unmappedLabel = -join ([char[]]@(0x0431, 0x0435, 0x0437, 0x0020, 0x0441, 0x0432, 0x044F, 0x0437, 0x0438))
+                $lines += "  Wikelo item hints: ${updatedLabel}: $($wikelo.changedItemDescriptions) ${ofLabel} $($wikelo.targetDescriptionKeys) ${itemsLabel}; ${resourcesLabel}: $($wikelo.mappedResources)/$($wikelo.resourceCount), ${unmappedLabel}: $($wikelo.unmappedResources)"
             }
         }
         else {
@@ -458,6 +467,7 @@ function Assert-SCLocalCachesAvailable {
     $required = @(
         [pscustomobject]@{ Name = 'mining blueprints'; Path = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining recipe families'; Path = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version) },
+        [pscustomobject]@{ Name = 'mining refinery yields'; Path = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'quest items'; Path = (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json') }
     )
 
@@ -519,6 +529,7 @@ function Write-ConsoleRemoteSourceSummary {
 
     [void](Test-SCWikiBlueprintSource -Headers $headers)
     [void](Test-SCWikiItemsSource -Headers $headers)
+    [void](Test-SCRefineryYieldsSource -Headers $headers)
 }
 
 function Test-SCWikiBlueprintSource {
@@ -545,6 +556,24 @@ function Test-SCWikiItemsSource {
     }
     catch {
         Write-Host "Source Wiki items: FAIL; $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Test-SCRefineryYieldsSource {
+    param([hashtable]$Headers)
+
+    try {
+        $result = Invoke-RestMethod -Uri 'https://api.uexcorp.uk/2.0/refineries_yields' -Headers $Headers -TimeoutSec 12
+        if (@($result.data).Count -eq 0) {
+            throw 'empty response'
+        }
+
+        Write-Host 'Source UEX refinery yields: OK'
+        return $true
+    }
+    catch {
+        Write-Host "Source UEX refinery yields: FAIL; $($_.Exception.Message)"
         return $false
     }
 }
@@ -582,6 +611,8 @@ function Write-ConsolePreflightSummary {
             Write-SCCacheStatusLine -Name 'mining blueprints' -Path $miningCachePath
             $familyIndexPath = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining recipe families' -Path $familyIndexPath
+            $refineryYieldPath = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$scmdbCache.Version)
+            Write-SCCacheStatusLine -Name 'mining refinery yields' -Path $refineryYieldPath
         }
     }
     catch {
@@ -650,6 +681,15 @@ function Write-ConsoleWarmCacheSummary {
 
     $familyIndexPath = Write-SCMiningCraftFamilyIndexCache -CacheKey ([string]$version.version) -Blueprints @($blueprints)
     Write-SCRefreshedCacheLine -Name 'mining recipe families' -Path $familyIndexPath
+
+    if (-not (Test-SCRefineryYieldsSource -Headers $headers)) {
+        throw 'UEX refinery yields source is unavailable.'
+    }
+
+    $refineryYields = Get-SCMiningRefineryYields -Headers $headers -CacheKey ([string]$version.version) -ForceRefresh
+    $refineryYieldPath = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$version.version)
+    Write-Host "UEX refinery stations: $(@($refineryYields.stations).Count)"
+    Write-SCRefreshedCacheLine -Name 'mining refinery yields' -Path $refineryYieldPath
 }
 
 function Write-ConsoleUsage {

@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.0.2";
+    private const string CurrentLauncherVersion = "2.0.3";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private static readonly TimeSpan LiveApplyProcessTimeout = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DefaultBackendProcessTimeout = TimeSpan.FromMinutes(3);
     private static readonly HttpClient UpdateHttpClient = CreateUpdateHttpClient();
+    private static readonly HttpClient DownloadHttpClient = CreateDownloadHttpClient();
     private LauncherRelease? _latestLauncherRelease;
     private string? _verifiedUpdatePackagePath;
     private string? _verifiedUpdateSha256;
@@ -70,6 +71,7 @@ public partial class MainWindow : Window
     private bool _miningCraftFamilyIndexRepairFailed;
     private bool _isApplyingLauncherState;
     private bool _localizationStartupLogWritten;
+    private bool? _ruScGitHubAvailable;
     private readonly List<DispatcherTimer> _launchButtonGlitchTimers = new();
     private const int WmSysCommand = 0x0112;
     private const int ScSize = 0xF000;
@@ -362,6 +364,16 @@ public partial class MainWindow : Window
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("SC-Mod-Launcher/1.0");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        return client;
+    }
+
+    private static HttpClient CreateDownloadHttpClient()
+    {
+        var client = new HttpClient
+        {
+            Timeout = TimeSpan.FromMinutes(3)
+        };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("SC-Mod-Launcher/1.0");
         return client;
     }
 
@@ -686,7 +698,7 @@ public partial class MainWindow : Window
         IOrderedEnumerable<IGrouping<string, dynamic>> optionGroups)
     {
         var groups = optionGroups.ToDictionary(group => group.Key, group => group, StringComparer.OrdinalIgnoreCase);
-        var pairedKeys = new[] { "Предметы", "Способы добычи" };
+        var pairedKeys = new[] { "Крафт", "Способы добычи" };
 
         var pairGrid = new Grid
         {
@@ -1775,6 +1787,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
         _backendProgressRun.Text = BuildBackendProgressText(_backendProgressLabel, _backendProgressPercent, _backendProgressWaitFrame);
     }
 
+    private void SetBackendProgressStage(string label, int percent)
+    {
+        _backendProgressLabel = label;
+        SetBackendProgress(percent);
+    }
+
     private void HandleBackendProgressLine(BackendRunMode mode, string line)
     {
         if (_backendProgressRun is null)
@@ -2281,6 +2299,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
             LiveStatusText.Text = T("liveMissing");
             AddError(T("liveMissing"));
         }
+
+        RefreshLocalizationStatusLocal();
     }
 
     private async Task RefreshLocalizationStatusAsync(bool updateJournal = true, bool updateStatusLine = true, bool skipDuplicateLog = false)
@@ -2295,6 +2315,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         try
         {
             var release = await GetLatestRuScReleaseAsync();
+            _ruScGitHubAvailable = true;
             var latestLine = $"Последний RuSC: {release.TagName}";
             if (release.PublishedAt is not null)
             {
@@ -2323,6 +2344,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
         catch (Exception ex)
         {
+            _ruScGitHubAvailable = false;
             var error = FriendlyNetworkError(ex.Message);
             SetLocalizationStatusTexts(installed, state.TagName, freshness: null, latestTag: null, extraLine: "Источник RuSC временно недоступен: " + error);
             if (updateJournal && !(skipDuplicateLog && _localizationStartupLogWritten))
@@ -2393,18 +2415,24 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
 
         var completed = false;
+        var stopwatch = Stopwatch.StartNew();
         SetLocalizationControlsEnabled(false);
-        SetJournalState(action + ": скачиваю RuSC.");
-        AddHeadingLog(action + ": скачивание RuSC.");
+        SetJournalState(action + ": загружаю и устанавливаю RuSC.");
+        AddHeadingLog(action + ": загрузка и установка RuSC.");
+        StartBackendProgress("RuSC: релиз", softCap: 88);
 
         try
         {
+            SetBackendProgressStage("RuSC: релиз", 10);
             var release = await GetLatestRuScReleaseAsync();
+            SetBackendProgressStage("RuSC: languages.ini", 25);
             var languagesUri = BuildRuScRawUri(release.TagName, "data/languages.ini");
             var globalUri = BuildRuScRawUri(release.TagName, $"data/Localization/{LocalizationSlot}/global.ini");
 
             var languagesBytes = await DownloadBytesAsync(languagesUri);
+            SetBackendProgressStage("RuSC: global.ini", 45);
             var globalBytes = await DownloadBytesAsync(globalUri);
+            SetBackendProgressStage("RuSC: подготовка", 75);
             var source = new LocalizationInstallSource(
                 languagesBytes,
                 globalBytes,
@@ -2416,11 +2444,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
                     PublishedAt = release.PublishedAt
                 });
 
-            var result = await InstallLocalizationPayloadAsync(source);
+            var result = await InstallLocalizationPayloadAsync(source, SetBackendProgressStage);
+            SetBackendProgressStage(GetLocalizationProgressLabel(action), 96);
 
             ApplyLocalizationButtonState(installed: true, updateAvailable: false);
             SetLocalizationUpdateAttention(false);
             SetJournalState($"{action}: RuSC {release.TagName} установлен.");
+            StopBackendProgress(success: true);
             AddHeadingLog($"{action}: RuSC {release.TagName} установлен.");
             AddUriLog("Релиз RuSC", release.HtmlUrl, release.TagName);
             AddMetricLog($"RuSC-патчи: EM-разметка {result.FixedMalformedEmphasisLines}; ветки репутации {result.InsertedReputationScopeLines}.");
@@ -2428,11 +2458,14 @@ Write-Host "FAMILY_INDEX:$indexPath"
             if (!string.IsNullOrWhiteSpace(result.LanguagesBackupPath)) AddPathLog("Backup languages.ini", result.LanguagesBackupPath);
             if (!string.IsNullOrWhiteSpace(result.UserCfgBackupPath)) AddPathLog("Backup user.cfg", result.UserCfgBackupPath);
             AddPathLog($"global.ini: {result.GlobalBytesLength / 1024 / 1024.0:0.0} MB; SHA-256 {ShortSha(result.State.GlobalIniSha256)}", GetGlobalIniPath());
+            AddMetricLog($"{GetLocalizationDurationLabel(action)}: {FormatDuration(stopwatch.Elapsed)}.");
             await RefreshLocalizationStatusAsync(updateJournal: false, updateStatusLine: false, skipDuplicateLog: true);
             completed = true;
         }
         catch (Exception ex)
         {
+            StopBackendProgress(success: false);
+            _ruScGitHubAvailable = false;
             AddError(action + " не завершено: " + ShortError(ex.Message));
         }
         finally
@@ -2442,6 +2475,20 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 RefreshLocalizationStatusLocal();
             }
         }
+    }
+
+    private static string GetLocalizationProgressLabel(string action)
+    {
+        return action.Contains("Обновление", StringComparison.OrdinalIgnoreCase)
+            ? "Обновление RuSC"
+            : "Установка RuSC";
+    }
+
+    private static string GetLocalizationDurationLabel(string action)
+    {
+        return action.Contains("Обновление", StringComparison.OrdinalIgnoreCase)
+            ? "Время обновления"
+            : "Время установки";
     }
 
     private async Task InstallLocalizationFromZipAsync()
@@ -2466,19 +2513,25 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         var action = "Установка русификатора из ZIP";
         var completed = false;
+        var stopwatch = Stopwatch.StartNew();
         SetLocalizationControlsEnabled(false);
         SetJournalState(action + ": читаю локальный архив.");
         AddHeadingLog(action + ".");
+        StartBackendProgress("RuSC ZIP: чтение", softCap: 82);
 
         try
         {
+            SetBackendProgressStage("RuSC ZIP: чтение", 15);
             var source = ReadLocalizationZipPayload(dialog.FileName);
-            var result = await InstallLocalizationPayloadAsync(source);
+            SetBackendProgressStage("RuSC ZIP: подготовка", 65);
+            var result = await InstallLocalizationPayloadAsync(source, SetBackendProgressStage);
+            SetBackendProgressStage("Установка RuSC из ZIP", 96);
 
             ApplyLocalizationButtonState(installed: true, updateAvailable: false);
             SetLocalizationUpdateAttention(false);
             RefreshLocalizationStatusLocal();
             SetJournalState($"{action}: RuSC {source.State.TagName} установлен.");
+            StopBackendProgress(success: true);
             AddHeadingLog($"{action}: RuSC {source.State.TagName} установлен.");
             AddPathLog("ZIP RuSC", dialog.FileName);
             AddMetricLog($"RuSC-патчи: EM-разметка {result.FixedMalformedEmphasisLines}; ветки репутации {result.InsertedReputationScopeLines}.");
@@ -2486,10 +2539,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
             if (!string.IsNullOrWhiteSpace(result.LanguagesBackupPath)) AddPathLog("Backup languages.ini", result.LanguagesBackupPath);
             if (!string.IsNullOrWhiteSpace(result.UserCfgBackupPath)) AddPathLog("Backup user.cfg", result.UserCfgBackupPath);
             AddPathLog($"global.ini: {result.GlobalBytesLength / 1024 / 1024.0:0.0} MB; SHA-256 {ShortSha(result.State.GlobalIniSha256)}", GetGlobalIniPath());
+            AddMetricLog($"Время установки: {FormatDuration(stopwatch.Elapsed)}.");
             completed = true;
         }
         catch (Exception ex)
         {
+            StopBackendProgress(success: false);
             AddError(action + " не завершено: " + ShortError(ex.Message));
         }
         finally
@@ -2501,13 +2556,22 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
     }
 
-    private async Task<LocalizationInstallResult> InstallLocalizationPayloadAsync(LocalizationInstallSource source)
+    private async Task<LocalizationInstallResult> InstallLocalizationPayloadAsync(
+        LocalizationInstallSource source,
+        Action<string, int>? progress = null)
     {
         if (source.GlobalBytes.Length < 1024 * 1024)
         {
             throw new InvalidOperationException("global.ini подозрительно мал");
         }
 
+        async Task ReportProgressAsync(string label, int percent)
+        {
+            progress?.Invoke(label, percent);
+            await Dispatcher.Yield(DispatcherPriority.Background);
+        }
+
+        await ReportProgressAsync("RuSC: baseline-патчи", 78);
         var baselinePatch = PatchRuScBaselineBytes(source.GlobalBytes, source.State.TagName);
         var globalBytes = baselinePatch.Bytes;
         var languagesBytes = source.LanguagesBytes;
@@ -2515,15 +2579,19 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         var globalPath = GetGlobalIniPath();
         var languagesPath = GetLanguagesIniPath();
+        await ReportProgressAsync("RuSC: backup", 84);
         var existingGlobalBackup = BackupFileIfExists(globalPath, $"global.ini.{stamp}.localization-install.bak");
         var existingLanguagesBackup = BackupFileIfExists(languagesPath, $"languages.ini.{stamp}.localization-install.bak");
 
+        await ReportProgressAsync("RuSC: запись файлов", 88);
         Directory.CreateDirectory(Path.GetDirectoryName(globalPath)!);
         Directory.CreateDirectory(Path.GetDirectoryName(languagesPath)!);
         await File.WriteAllBytesAsync(languagesPath, languagesBytes);
         await File.WriteAllBytesAsync(globalPath, globalBytes);
+        await ReportProgressAsync("RuSC: user.cfg", 92);
         var userCfgBackup = EnsureLocalizationUserCfg(stamp);
 
+        await ReportProgressAsync("RuSC: metadata", 96);
         source.State.InstalledAtUtc = DateTimeOffset.UtcNow;
         source.State.LanguagesSha256 = Convert.ToHexString(SHA256.HashData(languagesBytes));
         source.State.GlobalIniSha256 = Convert.ToHexString(SHA256.HashData(globalBytes));
@@ -2764,11 +2832,17 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void ApplyLocalizationButtonState(bool installed, bool updateAvailable)
     {
-        InstallLocalizationButton.IsEnabled = !installed;
-        InstallLocalizationZipButton.IsEnabled = true;
-        UpdateLocalizationButton.IsEnabled = installed && updateAvailable;
+        var liveValid = HasValidLivePath();
+        InstallLocalizationButton.IsEnabled = liveValid && !installed;
+        InstallLocalizationZipButton.IsEnabled = liveValid && (!installed || _ruScGitHubAvailable == false);
+        UpdateLocalizationButton.IsEnabled = liveValid && installed && updateAvailable && _ruScGitHubAvailable != false;
         OverviewUpdateLocalizationButton.IsEnabled = UpdateLocalizationButton.IsEnabled;
-        RemoveLocalizationButton.IsEnabled = installed;
+        RemoveLocalizationButton.IsEnabled = liveValid && installed;
+    }
+
+    private bool HasValidLivePath()
+    {
+        return TryResolveLivePath(LivePathBox.Text, out _);
     }
 
     private async Task<GitHubRelease> GetLatestRuScReleaseAsync()
@@ -2787,7 +2861,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private static async Task<byte[]> DownloadBytesAsync(string uri)
     {
-        using var response = await UpdateHttpClient.GetAsync(uri);
+        using var response = await DownloadHttpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsByteArrayAsync();
     }
@@ -3091,7 +3165,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private async void RunDryRun(object sender, RoutedEventArgs e)
     {
-        if (!EnsureGlobalIniSelected())
+        if (!EnsureLivePathSelected())
         {
             return;
         }
@@ -3473,9 +3547,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var optionsPath = WriteSelectedOptionsFile();
         try
         {
-            SetJournalState(mode == BackendRunMode.LiveApply
-                ? "Канал связи проверяется. Ждём ответ SCMDB."
-                : "Проверяю источники и cache.");
+            SetJournalState(mode switch
+            {
+                BackendRunMode.LiveApply => "Собираю патч из локального cache.",
+                BackendRunMode.WarmCache => "Обновляю cache из источников.",
+                BackendRunMode.DryRun => "Собираю проверочный патч из локального cache.",
+                _ => "Проверяю LIVE и локальный cache."
+            });
             AddHeadingLog(mode switch
             {
                 BackendRunMode.Preflight => T("runningPreflight"),
@@ -3509,7 +3587,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 switch (mode)
                 {
                     case BackendRunMode.Preflight:
-                        AddPreflightSummary(result.Output);
+                        AddPreflightSummary(result.Output, requireGlobalIni: false);
                         break;
                     case BackendRunMode.WarmCache:
                         AddWarmCacheSummary(result.Output);
@@ -3604,7 +3682,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         try
         {
-            SetJournalState("Проверяю локальный cache перед LIVE apply.");
+            SetJournalState("Проверяю локальный cache перед применением в LIVE.");
             AddHeadingLog("Предстартовая проверка LIVE...");
             var result = await RunProcessAsync("powershell.exe", BuildBackendArguments(BackendRunMode.CachePreflight, null).ToString(), timeout: PreflightProcessTimeout);
             if (result.ExitCode != 0)
@@ -3619,8 +3697,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
             {
                 AddPreflightSummary(result.Output);
                 AddErrorLog(status.HasCacheMissing
-                    ? "LIVE apply остановлен: cache не найден. Прогрей кэш."
-                    : "LIVE apply остановлен: global.ini или cache недоступен.");
+                    ? "Применение в LIVE остановлено: cache не найден. Прогрей кэш."
+                    : "Применение в LIVE остановлено: global.ini или cache недоступен.");
                 return false;
             }
 
@@ -3653,7 +3731,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private static string Quote(string value) => '"' + value.Replace("\"", "\\\"") + '"';
 
-    private void AddPreflightSummary(string output)
+    private void AddPreflightSummary(string output, bool requireGlobalIni = true)
     {
         var lines = GetBackendLines(output);
         string FindValue(string prefix) => lines.FirstOrDefault(line => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Substring(prefix.Length).Trim() ?? "";
@@ -3677,7 +3755,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 cacheLine.Contains("FAIL", StringComparison.OrdinalIgnoreCase);
         }
 
-        var status = GetPreflightStatus(output);
+        var status = GetPreflightStatus(output, requireGlobalIni);
         var wikiFallback = IsWikiBlueprintFailureCoveredByCache(lines);
         var state = status.HasBlockingFailure
             ? status.HasCacheMissing
@@ -3685,6 +3763,8 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 : "ХЬЮСТОН, У НАС ПРОБЛЕМА: global.ini или cache недоступен."
             : status.HasCacheStale
                 ? "Cache доступен, но старше 7 дней."
+                : status.HasGlobalMissing
+                    ? "Источники и cache проверены. Русификатор не установлен."
                 : wikiFallback
                     ? "Wiki временно недоступна. Используем свежий cache."
                     : "Cache свежий. Можно применять в LIVE.";
@@ -3704,7 +3784,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
     }
 
-    private static PreflightStatus GetPreflightStatus(string output)
+    private static PreflightStatus GetPreflightStatus(string output, bool requireGlobalIni = true)
     {
         var lines = GetBackendLines(output);
         var sourceFailure = lines.Any(line =>
@@ -3725,7 +3805,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             line.Contains("STALE", StringComparison.OrdinalIgnoreCase));
         var cacheIssue = cacheFail || cacheMissing || cacheStale;
 
-        return new PreflightStatus(sourceFailure || globalMissing || cacheFail || cacheMissing, cacheIssue, cacheMissing, cacheStale);
+        return new PreflightStatus(sourceFailure || (requireGlobalIni && globalMissing) || cacheFail || cacheMissing, cacheIssue, cacheMissing, cacheStale, globalMissing);
     }
 
     private static bool IsWikiBlueprintFailureCoveredByCache(IEnumerable<string> lines)
@@ -3798,6 +3878,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var miningModule = lines.FirstOrDefault(line => line.StartsWith("Module Майнинг", StringComparison.OrdinalIgnoreCase)) ?? "";
         var planetDescriptions = FindValue("Planet descriptions:");
         var itemCraftHints = FindValue("Item craft hints:");
+        var refineryYieldHints = FindValue("Refinery yield hints:");
         var questModule = lines.FirstOrDefault(line => line.StartsWith("Module Квесты и рецепты:", StringComparison.OrdinalIgnoreCase)) ?? "";
         var questDescriptions = FindValue("Quest descriptions:");
         var questTitles = FindValue("Quest titles:");
@@ -3821,7 +3902,11 @@ Write-Host "FAMILY_INDEX:$indexPath"
             AddMetricLog($"Майнинг: {AfterColon(miningModule)}; планеты {ShortPlanetLine(planetDescriptions)}.");
             if (!string.IsNullOrWhiteSpace(itemCraftHints))
             {
-                AddMetricLog($"Предметы: {itemCraftHints}.");
+                AddMetricLog($"Предметы: {ShortItemCraftHintsLine(itemCraftHints)}.");
+            }
+            if (!string.IsNullOrWhiteSpace(refineryYieldHints))
+            {
+                AddMetricLog($"Переработка: {ShortRefineryYieldLine(refineryYieldHints)}.");
             }
         }
 
@@ -3850,7 +3935,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         var hasConflicts = int.TryParse(conflicts, out var conflictCount) && conflictCount > 0;
         var cleanMessage = mode == BackendRunMode.LiveApply
-            ? "LIVE apply завершён. Backup сохранён."
+            ? "Применение в LIVE завершено. Backup сохранён."
             : "Контур чист. Можно применять в LIVE.";
         SetJournalState(hasConflicts ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: есть конфликт модулей." : cleanMessage, hasConflicts);
     }
@@ -3901,6 +3986,38 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         var match = Regex.Match(value, @"(?<changed>\d+)\s+changed\s+of\s+(?<total>\d+)", RegexOptions.IgnoreCase);
         return match.Success ? $"{match.Groups["changed"].Value}/{match.Groups["total"].Value}" : value;
+    }
+
+    private static string ShortItemCraftHintsLine(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "?";
+        }
+
+        var match = Regex.Match(
+            value,
+            @"(?<changed>\d+)\s+changed\s+of\s+(?<safe>\d+)\s+safe;\s+skipped unmapped:\s+(?<unmapped>\d+),\s+no wiki:\s+(?<nowiki>\d+),\s+conflicts:\s+(?<conflicts>\d+)",
+            RegexOptions.IgnoreCase);
+        return match.Success
+            ? $"{match.Groups["changed"].Value} из {match.Groups["safe"].Value} безопасных; без связи: {match.Groups["unmapped"].Value}, без Wiki: {match.Groups["nowiki"].Value}, конфликтов: {match.Groups["conflicts"].Value}"
+            : value;
+    }
+
+    private static string ShortRefineryYieldLine(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "?";
+        }
+
+        var match = Regex.Match(
+            value,
+            @"(?<changed>\d+)\s+changed\s+of\s+(?<matched>\d+)\s+matched station descriptions;\s+stations:\s+(?<stations>\d+)",
+            RegexOptions.IgnoreCase);
+        return match.Success
+            ? $"{match.Groups["changed"].Value} из {match.Groups["matched"].Value} описаний станций; станций: {match.Groups["stations"].Value}"
+            : value;
     }
 
     private static string ShortQuestLine(string value)
@@ -4327,7 +4444,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             SetJournalState("Скачиваю обновление лаунчера.");
             AddLog("Обновления: скачивание " + _latestLauncherRelease.AssetName);
 
-            using var response = await UpdateHttpClient.GetAsync(_latestLauncherRelease.AssetDownloadUrl);
+            using var response = await DownloadHttpClient.GetAsync(_latestLauncherRelease.AssetDownloadUrl);
             response.EnsureSuccessStatusCode();
 
             await using (var source = await response.Content.ReadAsStreamAsync())
@@ -4509,7 +4626,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private sealed record ProcessResult(string Output, string Error, int ExitCode);
 
-    private sealed record PreflightStatus(bool HasBlockingFailure, bool HasCacheIssue, bool HasCacheMissing, bool HasCacheStale);
+    private sealed record PreflightStatus(bool HasBlockingFailure, bool HasCacheIssue, bool HasCacheMissing, bool HasCacheStale, bool HasGlobalMissing);
 }
 
 public enum BackendRunMode

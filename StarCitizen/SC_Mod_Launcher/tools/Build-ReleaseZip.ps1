@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.2'
+    [string]$Version = '2.0.3'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +16,7 @@ $packageItems = @(
     'SC_Mod_Launcher.exe',
     'README.md',
     'RELEASES.md',
+    'docs',
     'shared',
     'modules',
     'tools\Install-ScModLauncherUpdate.ps1',
@@ -30,6 +31,7 @@ $releaseSeedItems = @(
     'modules\scmdb\cache\scmdb-4.8.1-live.11952564.json.meta.json',
     'modules\mining\cache\wiki-blueprints-4.8.1-live.11952564.json',
     'modules\mining\cache\craft-family-index-4.8.1-live.11952564.json',
+    'modules\mining\cache\refinery-yields-4.8.1-live.11952564.json',
     'modules\quest\engine\cache\wiki-items-cache.json',
     'modules\quest\engine\cache\wiki-items-cache.json.meta.json'
 )

@@ -82,6 +82,9 @@ $rawGroundHeader = 'Потенциально добываемые ресурсы
 $rawHandHeader = 'Потенциально добываемые ресурсы (ручная добыча):'
 $rawCollectableHeader = 'Потенциально собираемые ресурсы:'
 $rawCreatureHeader = 'Потенциальные существа:'
+$refineryYieldLabel = 'Переработка (UEX)'
+$refineryBonusLabel = 'бонусы:'
+$refineryPenaltyLabel = 'штрафы:'
 
 $highlightedScripTitle = Set-SCQuestTitleHighlight -Value '[С] ОТВЕТНЫЙ УДАР' -Enabled $true -Tag 'EM4'
 Assert-True ($highlightedScripTitle -eq '[С] <EM4>ОТВЕТНЫЙ УДАР</EM4>') 'High-value scrip highlight should wrap title text after markers.'
@@ -232,6 +235,72 @@ $allRestored = [System.IO.File]::ReadAllText($globalIni, $encoding)
 Assert-True (-not $allRestored.Contains($legendPrefix)) 'All-method restore should keep the new legend-free mining format.'
 Assert-True ($allRestored.Contains('Наземная техника')) 'All-method restore should keep ground section.'
 Assert-True ($allRestored.Contains('Мультитул')) 'All-method restore should keep hand section.'
+
+$refineryLive = Join-Path $tempRoot 'Refinery\LIVE'
+$refineryLoc = Join-Path $refineryLive 'data\Localization\korean_(south_korea)'
+$refineryGlobalIni = Join-Path $refineryLoc 'global.ini'
+$refineryReports = Join-Path $tempRoot 'refinery-reports'
+$refineryBackups = Join-Path $tempRoot 'refinery-backups'
+New-Item -ItemType Directory -Force -Path $refineryLoc | Out-Null
+[System.IO.File]::WriteAllLines($refineryGlobalIni, @(
+    'ARC_L1_station=ARC-L1 Wide Forest Station',
+    'ARC_L1_station_desc=Located at ArcCorp L1. This description does not repeat the full station name.',
+    'RR_CRU_L1=CRU-L1 Ambitious Dream Station',
+    'RR_CRU_L1_desc=Rest & Relax Ambitious Dream offers many services and has a refinery deck.',
+    'RR_HUR_L1=HUR-L1 Green Glade Station',
+    'RR_HUR_L1_desc=Rest & Relax Green Glade offers many services and has a refinery deck.',
+    'RR_P2_L4=Checkmate',
+    'RR_P2_L4_desc=Checkmate station card.',
+    'Pyro_ruinstation,P=Ruin Station',
+    'Pyro_ruinstation_desc=Gold Horizon platform above Pyro VI.',
+    'text_level_info_description_Levski=Levski in-game location card.',
+    'ui_pregame_port_Levski_name=Levski',
+    'ui_pregame_port_Levski_desc=Levski pregame location card.',
+    'ui_pregame_port_Checkmate_name=Checkmate',
+    'ui_pregame_port_Checkmate_desc=Checkmate pregame location card.',
+    'ui_pregame_port_Orbituary_name=Orbituary',
+    'ui_pregame_port_Orbituary_desc=Orbituary pregame location card.',
+    'CleanAir_Levski_desc=This contract mentions Levski but is not a location card.',
+    'GoblinG_Crusader_ResourceGathering_Desc=This contract recommends station CRU-L1 Ambitious Dream but is not a location card.',
+    'Non_Refinery_desc=Regular station without refinery bonuses.',
+    'Eckhart_ShipAmbush_E_desc=Ship ambush contract text.\n'
+), $encoding)
+$refineryEnabled = @{ mining = @('refineryYieldHints'); quest = @('reputationHints') + $allQuestOptions }
+$refineryDisabled = @{ mining = @(); quest = @('reputationHints') + $allQuestOptions }
+$refineryApply = Invoke-SCModPatch -LivePath $refineryLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $refineryEnabled -ReportDirectory $refineryReports -BackupDirectory $refineryBackups
+Assert-True ($refineryApply.Report.writeSucceeded -eq $true) 'Refinery yield apply should write fixture file.'
+Assert-True ([int]$refineryApply.Report.conflictCount -eq 0) 'Refinery yield apply should not conflict with quest reputation hints on unrelated descriptions.'
+Assert-True ([int]$refineryApply.Report.changedLines -eq 9) 'Refinery yield apply should change only linked station-card descriptions.'
+Assert-True (@($refineryApply.Report.operations | Where-Object { [string]$_.Key -eq 'Eckhart_ShipAmbush_E_desc' }).Count -eq 0) 'Refinery yield apply should not trim or claim unrelated quest descriptions.'
+Assert-True (@($refineryApply.Report.operations | Where-Object { [string]$_.Key -eq 'CleanAir_Levski_desc' }).Count -eq 0) 'Refinery yield apply should not claim quest descriptions that merely mention Levski.'
+Assert-True (@($refineryApply.Report.operations | Where-Object { [string]$_.Key -eq 'GoblinG_Crusader_ResourceGathering_Desc' }).Count -eq 0) 'Refinery yield apply should not claim quest descriptions that recommend a refinery station.'
+$refineryPatched = [System.IO.File]::ReadAllText($refineryGlobalIni, $encoding)
+Assert-True ($refineryPatched.Contains($refineryYieldLabel)) 'Refinery yield apply should add UEX refinery label.'
+Assert-True ($refineryPatched.Contains("<EM4>$refineryBonusLabel</EM4>")) 'Refinery yield apply should highlight bonuses label.'
+Assert-True ($refineryPatched.Contains("<EM4>$refineryPenaltyLabel</EM4>")) 'Refinery yield apply should highlight penalties label.'
+Assert-True ($refineryPatched.Contains('Quartz +11%')) 'Refinery yield apply should add ARC-L1 top bonus.'
+Assert-True ($refineryPatched.Contains('Taranite -6%')) 'Refinery yield apply should add ARC-L1 penalty.'
+Assert-True ($refineryPatched.Contains('Beryl +7%')) 'Refinery yield apply should add CRU-L1 bonus.'
+Assert-True ($refineryPatched.Contains('Tungsten +4%')) 'Refinery yield apply should add HUR-L1 bonus.'
+Assert-True ($refineryPatched.Contains('RR_P2_L4_desc=Checkmate station card.\n\n<EM4>Переработка (UEX)</EM4>\n<EM4>бонусы:</EM4> Tungsten +4%')) 'Refinery yield apply should add Checkmate bonus.'
+Assert-True ($refineryPatched.Contains('Pyro_ruinstation_desc=Gold Horizon platform above Pyro VI.\n\n<EM4>Переработка (UEX)</EM4>\n<EM4>бонусы:</EM4> Tungsten +4%')) 'Refinery yield apply should add Ruin Station bonus.'
+Assert-True ($refineryPatched.Contains('text_level_info_description_Levski=Levski in-game location card.\n\n<EM4>Переработка (UEX)</EM4>\n<EM4>бонусы:</EM4> Ice +10%')) 'Refinery yield apply should add Levski in-game location card bonus.'
+Assert-True ($refineryPatched.Contains('ui_pregame_port_Levski_desc=Levski pregame location card.\n\n<EM4>Переработка (UEX)</EM4>\n<EM4>бонусы:</EM4> Ice +10%')) 'Refinery yield apply should add Levski pregame location card bonus.'
+Assert-True ($refineryPatched.Contains('ui_pregame_port_Checkmate_desc=Checkmate pregame location card.\n\n<EM4>Переработка (UEX)</EM4>\n<EM4>бонусы:</EM4> Tungsten +4%')) 'Refinery yield apply should add Checkmate pregame location card bonus.'
+Assert-True ($refineryPatched.Contains('ui_pregame_port_Orbituary_desc=Orbituary pregame location card.\n\n<EM4>Переработка (UEX)</EM4>\n<EM4>бонусы:</EM4> Tungsten +4%')) 'Refinery yield apply should add Orbituary pregame location card bonus.'
+Assert-True (-not ($refineryPatched -match 'CleanAir_Levski_desc=.*Переработка \(UEX\)')) 'Refinery yield apply should leave Levski quest text clean.'
+Assert-True (-not ($refineryPatched -match 'GoblinG_Crusader_ResourceGathering_Desc=.*Переработка \(UEX\)')) 'Refinery yield apply should leave refinery-recommendation quest text clean.'
+Assert-True (-not $refineryPatched.Contains('Non_Refinery_desc=Regular station without refinery bonuses.\n\n')) 'Refinery yield apply should not touch unrelated station description.'
+
+$refineryRepeat = Invoke-SCModPatch -LivePath $refineryLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $refineryEnabled -ReportDirectory $refineryReports -BackupDirectory $refineryBackups -DryRun
+Assert-True ([int]$refineryRepeat.Report.changedLines -eq 0) 'Refinery yield apply should be idempotent while enabled.'
+
+$refineryRemove = Invoke-SCModPatch -LivePath $refineryLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $refineryDisabled -ReportDirectory $refineryReports -BackupDirectory $refineryBackups
+Assert-True ($refineryRemove.Report.writeSucceeded -eq $true) 'Disabled refinery yield option should write cleanup fixture file.'
+Assert-True ([int]$refineryRemove.Report.changedLines -eq 9) 'Disabled refinery yield option should remove station hints.'
+$refineryCleaned = [System.IO.File]::ReadAllText($refineryGlobalIni, $encoding)
+Assert-True (-not $refineryCleaned.Contains($refineryYieldLabel)) 'Disabled refinery yield option should remove UEX refinery label.'
+Assert-True ($refineryCleaned.Contains('ARC_L1_station_desc=Located at ArcCorp L1. This description does not repeat the full station name.')) 'Disabled refinery yield option should preserve base station description.'
 
 $stageSourceRoot = Join-Path $tempRoot 'StageSource\LIVE'
 $stageSourceLoc = Join-Path $stageSourceRoot 'data\Localization\korean_(south_korea)'

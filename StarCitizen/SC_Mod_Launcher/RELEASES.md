@@ -1,5 +1,23 @@
 # SC Mod Launcher Releases
 
+## 2.0.3
+
+### Что нового
+
+- Добавлена галка `Бонусы переработки` в модуле `Майнинг и крафт`: подсказки UEX по refinery-станциям выводят лучшие бонусы и штрафы прямо в описании станции.
+- Matching refinery-подсказок стал безопаснее: используются связанные ключи названий/описаний станций, Levski map card и pregame port cards, без ложных вставок в квестовые описания.
+- Свежий release cache теперь включает UEX refinery yields вместе с SCMDB, mining blueprints, recipe families и quest wiki items.
+- Кнопка `Проверить` показывает доступность источников/cache даже когда RuSC ещё не установлен.
+- Установка RuSC получила отдельный download timeout, фазовую шкалу, понятные этапы локальной установки и строку времени выполнения.
+- Обновлён раздел `Как выглядит в игре` со скрином refinery-подсказки.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.0.3.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 2.0.3`
+- Проверено: scaffold backend, WPF build/smoke, update installer cache replacement, release ZIP audit.
+
 ## 2.0.2
 
 ### Что нового
