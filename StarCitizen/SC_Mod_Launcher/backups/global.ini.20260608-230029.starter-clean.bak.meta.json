@@ -1,13 +1,16 @@
 {
   "schemaVersion": 1,
-  "createdAt": "2026-06-08T23:00:29.9188443+03:00",
+  "createdAt": "2026-06-17T13:28:50.4054530+03:00",
   "fileName": "global.ini.20260608-230029.starter-clean.bak",
-  "sha256": "87FA8B5839AD062D3A4FD0847552285C244090210F7A363B968BE5BC3CDBD7D6",
+  "sha256": "740A6C76206A42109559C0D4CE51A30D143A283E339C0FE321D4AF8C9584A21D",
   "kind": "clean",
   "rawMiningMarkers": [
     "Потенциально добываемые ресурсы (корабль):",
     "Потенциально добываемые ресурсы (наземная техника):",
     "Потенциально добываемые ресурсы (ручная добыча):"
   ],
-  "launcherMarkers": []
+  "launcherMarkers": [],
+  "source": "C:\\Games\\StarCitizen\\LIVE\\data\\Localization\\korean_(south_korea)\\global.ini",
+  "ruScVersion": "4.8.1-v104",
+  "launcherVersion": "2.0.4"
 }
