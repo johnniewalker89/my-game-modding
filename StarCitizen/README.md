@@ -18,17 +18,17 @@
 
 Как поставить:
 
-1. Скачайте `SC_Mod_Launcher_2.0.3.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-mod-launcher-v2.0.3).
-2. Откройте архив и извлеките из него папку `SC_Mod_Launcher` в удобное место. Не используйте внешнюю папку `SC_Mod_Launcher_2.0.3` как рабочую.
+1. Скачайте `SC_Mod_Launcher_2.0.4.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-mod-launcher-v2.0.4).
+2. Откройте архив и извлеките из него папку `SC_Mod_Launcher` в удобное место. Не используйте внешнюю папку `SC_Mod_Launcher_2.0.4` как рабочую.
 3. Запустите `SC_Mod_Launcher\SC_Mod_Launcher.exe`.
 4. Проверьте путь к `StarCitizen\LIVE`.
 5. На вкладке `Русификатор` установите или обновите RuSC, если он ещё не стоит. Если GitHub API не открывается, скачайте ZIP [StarCitizenRu](https://github.com/n1ghter/StarCitizenRu) вручную и нажмите `Из ZIP`. Если RuSC уже был установлен вручную или старой версией лаунчера, рекомендуем удалить его и поставить заново через лаунчер, чтобы появились metadata версии.
 6. Нажмите `Проверить`, при необходимости `Прогреть кэш`, затем `Применить в LIVE`.
 
-SHA-256 релиза `2.0.3`:
+SHA-256 релиза `2.0.4`:
 
 ```text
-05F85EB26C9FE3E15ED54D0F289DC9BC5071BE2BCAAC1E8F9331B816BA2ACA83
+EC91C8015F7D35305805B9C7E86F0ED7D099788056F94FB713FB405088696987
 ```
 
 Подробности: [SC_Mod_Launcher/README.md](SC_Mod_Launcher/README.md).

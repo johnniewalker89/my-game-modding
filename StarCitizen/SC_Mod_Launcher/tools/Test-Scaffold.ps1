@@ -64,6 +64,36 @@ foreach ($file in $Files) {
     }
 }
 
+function Import-TestQuestEngineFunctions {
+    param(
+        [Parameter(Mandatory = $true)][string]$EngineScript,
+        [Parameter(Mandatory = $true)][string[]]$FunctionNames
+    )
+
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($EngineScript, [ref]$tokens, [ref]$errors)
+    if ($errors.Count -gt 0) {
+        throw "Quest engine parser failed: $EngineScript`n$($errors | Out-String)"
+    }
+
+    $functions = $ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $FunctionNames -contains $node.Name
+    }, $true)
+
+    foreach ($name in $FunctionNames) {
+        $definition = @($functions | Where-Object { $_.Name -eq $name } | Select-Object -First 1)
+        if ($definition.Count -eq 0) {
+            throw "Quest engine test function not found: $name"
+        }
+
+        $body = $definition[0].Body.EndBlock.Extent.Text
+        Set-Item -Path "Function:\global:$name" -Value ([scriptblock]::Create($body))
+    }
+}
+
 Test-WindowsPowerShellParser -Root $ProjectDir
 
 $shipCode = [string][char]0x041A
@@ -92,10 +122,28 @@ Assert-True ((Set-SCQuestTitleHighlight -Value $highlightedScripTitle -Enabled $
 Assert-True ((Set-SCQuestTitleHighlight -Value $highlightedScripTitle -Enabled $false -Tag 'EM4') -eq '[С] ОТВЕТНЫЙ УДАР') 'High-value scrip highlight should be removable.'
 Assert-True ((Set-SCQuestTitleHighlight -Value '[С] <EM2>ОТВЕТНЫЙ УДАР</EM2>' -Enabled $true -Tag 'EM4') -eq '[С] <EM4>ОТВЕТНЫЙ УДАР</EM4>') 'High-value scrip highlight should migrate old title highlight tags.'
 Assert-True ((Set-SCQuestTitleHighlight -Value '<EM4>[А]</EM4> [С] ТАКТИЧЕСКИЙ УДАР' -Enabled $true -Tag 'EM4') -eq '<EM4>[А]</EM4> [С] <EM4>ТАКТИЧЕСКИЙ УДАР</EM4>') 'High-value scrip highlight should preserve styled title markers.'
+Assert-True ((Set-SCQuestTitleHighlight -Value '[С] ТАКТИЧЕСКИЙ УДАР [NY:250/PY:8K/ST:8K]' -Enabled $true -Tag 'EM4') -eq '[С] <EM4>ТАКТИЧЕСКИЙ УДАР</EM4> [NY:250/PY:8K/ST:8K]') 'High-value scrip highlight should leave reputation suffix outside the highlight.'
+Assert-True ((Set-SCQuestTitleHighlight -Value '[С] <EM4><EM4>ТАКТИЧЕСКИЙ УДАР</EM4> [NY:250/PY:8K/ST:8K]</EM4>' -Enabled $true -Tag 'EM4') -eq '[С] <EM4>ТАКТИЧЕСКИЙ УДАР</EM4> [NY:250/PY:8K/ST:8K]') 'High-value scrip highlight should repair nested highlight around reputation suffix.'
+Assert-True ((Set-SCQuestTitleHighlight -Value '[С] <EM4><EM4>ТАКТИЧЕСКИЙ УДАР</EM4> [NY:250/PY:8K/ST:8K]' -Enabled $true -Tag 'EM4') -eq '[С] <EM4>ТАКТИЧЕСКИЙ УДАР</EM4> [NY:250/PY:8K/ST:8K]') 'High-value scrip highlight should repair unbalanced nested highlight left by old title cleanup.'
+Assert-True ((Set-SCQuestTitleHighlight -Value '[С] <EM4>ТАКТИЧЕСКИЙ УДАР</EM4> [NY:250/PY:8K/ST:8K]' -Enabled $false -Tag 'EM4') -eq '[С] ТАКТИЧЕСКИЙ УДАР [NY:250/PY:8K/ST:8K]') 'Disabled high-value scrip highlight should keep reputation suffix while removing title highlight.'
+Assert-True ((Set-SCQuestTitleHighlight -Value 'ОЧИСТИТЬ МАРШРУТ ОТ ВРАЖДЕБНЫХ СИЛ [100]' -Enabled $true -Tag 'EM4') -eq '<EM4>ОЧИСТИТЬ МАРШРУТ ОТ ВРАЖДЕБНЫХ СИЛ</EM4> [100]') 'Title highlight should treat plain reputation suffix as a suffix, not title text.'
 
 $questEngineRoot = Join-Path $ProjectDir 'modules\quest\engine'
+$questEngineScript = Join-Path $questEngineRoot 'SC_Quest_Recipe_Engine.ps1'
 Assert-True (Test-Path -LiteralPath (Join-Path $questEngineRoot 'SC_Quest_Recipe_Engine.ps1') -PathType Leaf) 'Quest recipe engine should be packaged.'
 Assert-True (Test-Path -LiteralPath (Join-Path $questEngineRoot 'data\blueprint-overrides.ru.json') -PathType Leaf) 'Quest recipe overrides should be packaged.'
+Import-TestQuestEngineFunctions -EngineScript $questEngineScript -FunctionNames @(
+    'Remove-ReputationTitleMarker',
+    'Format-TitleMarkers',
+    'Format-ReputationTitleMarker',
+    'Format-ReputationTitleAmount',
+    'Format-ReputationAmountList',
+    'Format-ReputationRankAmount'
+)
+$NoReputationIntel = $false
+$TitleMarker = '[Ч]'
+$AcePilotTitleMarker = '<EM4>[А]</EM4>'
+$ScripTitleMarker = '[С]'
 Assert-True (Test-SCQuestAllSelectableCategoriesSelected -SelectedCategoryNames (Get-SCQuestSelectableCategoryNames)) 'All quest categories should be detected as full selection.'
 Assert-True (-not (Test-SCQuestAllSelectableCategoriesSelected -SelectedCategoryNames @('Корабельные компоненты', 'Корабельные орудия'))) 'Partial quest category selection should not be treated as full selection.'
 Assert-True (-not ((Get-SCQuestSelectableCategoryNames) -contains 'Материалы/особое')) 'Materials/special should not be a selectable quest category.'
@@ -129,12 +177,45 @@ New-Item -ItemType Directory -Force -Path $reputationTitleLoc | Out-Null
     'northrock_bounty_fps_UGF_boss_desc_001=Здравствуйте',
     'northrock_bounty_fps_UGF_boss_nocivs_desc_001=Здравствуйте'
 ), $encoding)
-& (Join-Path $questEngineRoot 'SC_Quest_Recipe_Engine.ps1') -GlobalIniPath $reputationTitleGlobal -NoBackup -NoCraftIntel -ReportPath $reputationTitleReport | Out-Null
+& $questEngineScript -GlobalIniPath $reputationTitleGlobal -NoBackup -NoCraftIntel -ReportPath $reputationTitleReport | Out-Null
 $reputationTitleLine = [System.IO.File]::ReadAllLines($reputationTitleGlobal, $encoding) |
     Where-Object { $_ -like 'northrock_bounty_fps_title_001=*' } |
     Select-Object -First 1
 Assert-True ($reputationTitleLine.Contains('[4K/8K]')) 'Shared reputation title should show compact possible amounts instead of generic REP.'
 Assert-True (-not $reputationTitleLine.Contains('[РЕП]')) 'Shared reputation title should not fall back to generic REP when possible amounts fit.'
+Assert-True ($reputationTitleLine -match 'ОПАСНОСТЬ\) \[4K/8K\]$') 'Shared reputation title marker should be appended after the mission title.'
+$oldOrderValue = Remove-ReputationTitleMarker -Value '[4K/8K] [Ч] [А] [С] СТАРЫЙ ПОРЯДОК'
+Assert-True ($oldOrderValue -eq '[Ч] [А] [С] СТАРЫЙ ПОРЯДОК') 'Reputation cleanup should remove legacy prefix markers before title markers.'
+$newOrderValue = Remove-ReputationTitleMarker -Value '[Ч] [А] [С] НОВЫЙ ПОРЯДОК [4K/8K]'
+Assert-True ($newOrderValue -eq '[Ч] [А] [С] НОВЫЙ ПОРЯДОК') 'Reputation cleanup should remove new suffix markers while preserving title markers.'
+$styledOldOrderValue = Remove-ReputationTitleMarker -Value '<EM4>[4K/8K]</EM4> <EM4>[Ч]</EM4> [А] [С] СТАРЫЙ ПОРЯДОК'
+Assert-True ($styledOldOrderValue -eq '<EM4>[Ч]</EM4> [А] [С] СТАРЫЙ ПОРЯДОК') 'Reputation cleanup should remove styled legacy prefix markers.'
+$titleInfoWithAllMarkers = @{
+    HasBlueprint = $true
+    HasAcePilot = $true
+    HasScrip = $true
+    ReputationAmounts = @{ '4000' = $true; '8000' = $true }
+}
+$titleMarkersWithFocus = Format-TitleMarkers -TitleInfo $titleInfoWithAllMarkers
+$reputationMarkerWithFocus = Format-ReputationTitleMarker -TitleInfo $titleInfoWithAllMarkers
+$titleWithFocusMarkers = "$titleMarkersWithFocus ОХОТА ЗА ГОЛОВАМИ $reputationMarkerWithFocus"
+Assert-True ($titleWithFocusMarkers -eq '[Ч] <EM4>[А]</EM4> [С] ОХОТА ЗА ГОЛОВАМИ [4K/8K]') 'Title composition should keep [CH][A][S] before the title and reputation after the title.'
+$titleInfoWithBlueprintMarker = @{
+    HasBlueprint = $true
+    HasAcePilot = $false
+    HasScrip = $false
+    ReputationAmounts = @{ '4000' = $true }
+}
+$titleInfoWithoutBlueprintMarker = @{
+    HasBlueprint = $false
+    HasAcePilot = $false
+    HasScrip = $false
+    ReputationAmounts = @{ '4000' = $true }
+}
+$titleWithBlueprintMarker = "$(Format-TitleMarkers -TitleInfo $titleInfoWithBlueprintMarker) ОХОТА ЗА ГОЛОВАМИ $(Format-ReputationTitleMarker -TitleInfo $titleInfoWithBlueprintMarker)"
+$titleWithoutBlueprintMarker = "ОХОТА ЗА ГОЛОВАМИ $(Format-ReputationTitleMarker -TitleInfo $titleInfoWithoutBlueprintMarker)"
+Assert-True ($titleWithBlueprintMarker -eq '[Ч] ОХОТА ЗА ГОЛОВАМИ [4K]') 'Blueprint title marker should stay before the title when reputation is appended.'
+Assert-True ($titleWithoutBlueprintMarker -eq 'ОХОТА ЗА ГОЛОВАМИ [4K]') 'Disabling blueprint title marker should not affect reputation suffix.'
 
 $reputationRiskLive = Join-Path $tempRoot 'RepRisk\LIVE'
 $reputationRiskLoc = Join-Path $reputationRiskLive 'data\Localization\korean_(south_korea)'
@@ -150,6 +231,43 @@ $reputationRiskLine = [System.IO.File]::ReadAllLines($reputationRiskGlobal, $enc
     Select-Object -First 1
 Assert-True ($reputationRiskLine.Contains('очень низкая 500 / низкая 1K / умеренная 2K / высокая 2K / очень высокая 8K / экстремальная 16K')) 'BHG risk-split reputation block should use Russian risk labels.'
 Assert-True (-not $reputationRiskLine.Contains('Low 1K')) 'BHG risk-split reputation block should not use English Low label.'
+
+$reputationToggleLive = Join-Path $tempRoot 'RepToggle\LIVE'
+$reputationToggleLoc = Join-Path $reputationToggleLive 'data\Localization\korean_(south_korea)'
+$reputationToggleGlobal = Join-Path $reputationToggleLoc 'global.ini'
+$reputationToggleReports = Join-Path $tempRoot 'rep-toggle-reports'
+$reputationToggleBackups = Join-Path $tempRoot 'rep-toggle-backups'
+New-Item -ItemType Directory -Force -Path $reputationToggleLoc | Out-Null
+$reputationToggleLines = New-Object System.Collections.Generic.List[string]
+$reputationToggleLines.Add('northrock_bounty_fps_title_001=[4K/8K] [Ч] ОХОТА ЗА ГОЛОВАМИ: ~mission(TargetName) (ВЫСОКАЯ ОПАСНОСТЬ)')
+$reputationToggleLines.Add('northrock_bounty_fps_UGF_boss_desc_001=Здравствуйте')
+$reputationToggleLines.Add('northrock_bounty_fps_UGF_boss_nocivs_desc_001=Здравствуйте')
+for ($dummyIndex = 0; $dummyIndex -lt 1001; $dummyIndex++) {
+    $reputationToggleLines.Add(("dummy_key_{0:0000}=dummy value" -f $dummyIndex))
+}
+[System.IO.File]::WriteAllLines($reputationToggleGlobal, $reputationToggleLines, $encoding)
+$reputationToggleEnabled = @{ mining = @(); quest = @('reputationHints', 'shipComponents') }
+$reputationToggleDisabled = @{ mining = @(); quest = @('shipComponents') }
+$reputationToggleApply = Invoke-SCModPatch -LivePath $reputationToggleLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $reputationToggleEnabled -ReportDirectory $reputationToggleReports -BackupDirectory $reputationToggleBackups
+Assert-True ($reputationToggleApply.Report.writeSucceeded -eq $true) 'Reputation toggle migration should write fixture file.'
+$reputationTogglePatched = [System.IO.File]::ReadAllLines($reputationToggleGlobal, $encoding) |
+    Where-Object { $_ -like 'northrock_bounty_fps_title_001=*' } |
+    Select-Object -First 1
+Assert-True ($reputationTogglePatched -eq 'northrock_bounty_fps_title_001=ОХОТА ЗА ГОЛОВАМИ: ~mission(TargetName) (ВЫСОКАЯ ОПАСНОСТЬ) [4K/8K]') 'Reputation toggle should migrate legacy prefix reputation after the title.'
+$reputationToggleRepeat = Invoke-SCModPatch -LivePath $reputationToggleLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $reputationToggleEnabled -ReportDirectory $reputationToggleReports -BackupDirectory $reputationToggleBackups -DryRun
+Assert-True ([int]$reputationToggleRepeat.Report.changedLines -eq 0) 'Reputation suffix title marker should be idempotent with [CH].'
+$reputationToggleRemove = Invoke-SCModPatch -LivePath $reputationToggleLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $reputationToggleDisabled -ReportDirectory $reputationToggleReports -BackupDirectory $reputationToggleBackups
+Assert-True ($reputationToggleRemove.Report.writeSucceeded -eq $true) 'Disabled reputation option should remove suffix reputation marker.'
+$reputationToggleRemoved = [System.IO.File]::ReadAllLines($reputationToggleGlobal, $encoding) |
+    Where-Object { $_ -like 'northrock_bounty_fps_title_001=*' } |
+    Select-Object -First 1
+Assert-True ($reputationToggleRemoved -eq 'northrock_bounty_fps_title_001=ОХОТА ЗА ГОЛОВАМИ: ~mission(TargetName) (ВЫСОКАЯ ОПАСНОСТЬ)') 'Disabled reputation option should remove reputation suffix.'
+$reputationToggleReapply = Invoke-SCModPatch -LivePath $reputationToggleLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $reputationToggleEnabled -ReportDirectory $reputationToggleReports -BackupDirectory $reputationToggleBackups
+Assert-True ($reputationToggleReapply.Report.writeSucceeded -eq $true) 'Re-enabled reputation option should restore suffix reputation marker.'
+$reputationToggleRestored = [System.IO.File]::ReadAllLines($reputationToggleGlobal, $encoding) |
+    Where-Object { $_ -like 'northrock_bounty_fps_title_001=*' } |
+    Select-Object -First 1
+Assert-True ($reputationToggleRestored -eq $reputationTogglePatched) 'Re-enabled reputation option should restore the same [CH] title plus reputation suffix.'
 
 $cleanStateIni = Join-Path $tempRoot 'clean-state.ini'
 $patchedStateIni = Join-Path $tempRoot 'patched-state.ini'

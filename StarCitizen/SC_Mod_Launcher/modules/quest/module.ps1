@@ -365,15 +365,25 @@ function Set-SCQuestTitleHighlight {
     }
 
     $title = Remove-SCQuestTitleHighlight -Value $title -Tag $Tag
+    $suffix = ''
+    $suffixMatch = [regex]::Match(
+        $title,
+        '\s*(?:<EM[1-5]>)?(?:\[\d+(?:\.\d+)?K?(?:\s*-\s*\d+(?:\.\d+)?K?|\+|(?:/\d+(?:\.\d+)?K?)+)?\]|\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]|\[РЕП\])(?:</EM[1-5]>)?\s*$')
+    if ($suffixMatch.Success) {
+        $suffix = $suffixMatch.Value
+        $title = $title.Substring(0, $suffixMatch.Index)
+    }
+
+    $title = Remove-SCQuestTitleHighlight -Value $title -Tag $Tag
     if ([string]::IsNullOrWhiteSpace($title)) {
-        return $prefix.TrimEnd()
+        return ($prefix + $suffix).TrimEnd()
     }
 
     if ($Enabled) {
-        return $prefix + "<$Tag>$title</$Tag>"
+        return $prefix + "<$Tag>$title</$Tag>" + $suffix
     }
 
-    return $prefix + $title
+    return $prefix + $title + $suffix
 }
 
 function Remove-SCQuestTitleHighlight {
@@ -387,6 +397,8 @@ function Remove-SCQuestTitleHighlight {
     do {
         $before = $clean
         $clean = [regex]::Replace($clean, $pattern, '$1')
+        $clean = [regex]::Replace($clean, '^\s*<EM[1-5]>', '')
+        $clean = [regex]::Replace($clean, '</EM[1-5]>\s*$', '')
     }
     while ($clean -ne $before)
 

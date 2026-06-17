@@ -310,7 +310,7 @@ function Remove-TitleMarker {
 
     $clean = $Value
     $amountPattern = '\d+(?:\.\d+)?K?'
-    $reputationNumberPattern = "\[$amountPattern(?:\s*-\s*$amountPattern|\+)?\]"
+    $reputationNumberPattern = "\[$amountPattern(?:\s*-\s*$amountPattern|\+|(?:/$amountPattern)+)?\]"
     $patterns = @(
         "^\s*<EM\d>$reputationNumberPattern</EM\d>\s*",
         '^\s*<EM\d>\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]</EM\d>\s*',
@@ -351,7 +351,9 @@ function Remove-ReputationTitleMarker {
     param([AllowEmptyString()][string]$Value)
 
     $amountPattern = '\d+(?:\.\d+)?K?'
-    return [regex]::Replace([string]$Value, "^\s*(?:<EM\d>)?(?:\[$amountPattern(?:\s*-\s*$amountPattern|\+)?\]|\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]|\[РЕП\])(?:</EM\d>)?\s*", '')
+    $markerPattern = "(?:<EM\d>)?(?:\[$amountPattern(?:\s*-\s*$amountPattern|\+|(?:/$amountPattern)+)?\]|\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]|\[РЕП\])(?:</EM\d>)?"
+    $clean = [regex]::Replace([string]$Value, "^\s*$markerPattern\s*", '')
+    return [regex]::Replace($clean, "\s*$markerPattern\s*$", '')
 }
 
 function Test-ReputationRankKey {
@@ -370,11 +372,6 @@ function Format-TitleMarkers {
     param($TitleInfo)
 
     $markers = New-Object System.Collections.Generic.List[string]
-
-    $reputationMarker = Format-ReputationTitleMarker -TitleInfo $TitleInfo
-    if (-not [string]::IsNullOrWhiteSpace($reputationMarker)) {
-        $markers.Add($reputationMarker)
-    }
 
     if ($TitleInfo.HasBlueprint -and -not [string]::IsNullOrWhiteSpace($TitleMarker)) {
         $markers.Add($TitleMarker)
@@ -3739,9 +3736,13 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
     if ($titleRewardMap.ContainsKey($key)) {
         $seenTitleKeys[$key] = $true
         $titleInfo = $titleRewardMap[$key]
-        $cleanTitle = Remove-TitleMarker -Value $currentValue
+        $cleanTitle = Remove-ReputationTitleMarker -Value (Remove-TitleMarker -Value $currentValue)
         $titleMarkers = Format-TitleMarkers -TitleInfo $titleInfo
+        $reputationMarker = Format-ReputationTitleMarker -TitleInfo $titleInfo
         $newTitle = if ([string]::IsNullOrWhiteSpace($titleMarkers)) { $cleanTitle } else { "$titleMarkers $cleanTitle" }
+        if (-not [string]::IsNullOrWhiteSpace($reputationMarker)) {
+            $newTitle = "$newTitle $reputationMarker"
+        }
 
         if ($newTitle -ne $currentValue) {
             $lines[$i] = $rawKey + '=' + $newTitle
