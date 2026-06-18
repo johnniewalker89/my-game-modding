@@ -1,5 +1,23 @@
 # SC Mod Launcher Releases
 
+## 2.0.5
+
+### Что нового
+
+- Добавлены базовые ТТХ Erkul для оружия и корабельных компонентов прямо в описания предметов.
+- Уточнены статы и единицы измерения: скорострельность оружия, пробитие и скорость квантовых двигателей.
+- Прогрев кэша стал устойчивее: короткие таймауты подняты до 45 секунд, UEX/Erkul используют fallback на прошлый валидный cache.
+- В релиз входит полный свежий cache `4.8.2-live.12030094`: SCMDB, Wiki blueprints/items, recipe families, UEX refinery yields и Erkul item passports.
+- Starter clean backup обновлён с RuSC `4.8.2-v105`.
+- Обновлён раздел `Как выглядит в игре` со скринами ТТХ предметов.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.0.5.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 2.0.5`
+- Проверено: scaffold backend, WPF build/smoke, warm cache/cache preflight, update installer cache replacement, release ZIP audit.
+
 ## 2.0.4
 
 ### Что нового

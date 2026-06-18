@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.4'
+    [string]$Version = '2.0.5'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,13 +25,14 @@ $packageItems = @(
 )
 
 $releaseSeedItems = @(
-    'backups\global.ini.20260608-230029.starter-clean.bak',
-    'backups\global.ini.20260608-230029.starter-clean.bak.meta.json',
-    'modules\scmdb\cache\scmdb-4.8.1-live.11952564.json',
-    'modules\scmdb\cache\scmdb-4.8.1-live.11952564.json.meta.json',
-    'modules\mining\cache\wiki-blueprints-4.8.1-live.11952564.json',
-    'modules\mining\cache\craft-family-index-4.8.1-live.11952564.json',
-    'modules\mining\cache\refinery-yields-4.8.1-live.11952564.json',
+    'backups\global.ini.20260618-180558.starter-clean.bak',
+    'backups\global.ini.20260618-180558.starter-clean.bak.meta.json',
+    'modules\scmdb\cache\scmdb-4.8.2-live.12030094.json',
+    'modules\scmdb\cache\scmdb-4.8.2-live.12030094.json.meta.json',
+    'modules\mining\cache\wiki-blueprints-4.8.2-live.12030094.json',
+    'modules\mining\cache\craft-family-index-4.8.2-live.12030094.json',
+    'modules\mining\cache\refinery-yields-4.8.2-live.12030094.json',
+    'modules\mining\cache\erkul-item-passports-4.8.2-live.12030094.json',
     'modules\quest\engine\cache\wiki-items-cache.json',
     'modules\quest\engine\cache\wiki-items-cache.json.meta.json'
 )

@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.0.4";
+    private const string CurrentLauncherVersion = "2.0.5";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -72,6 +72,7 @@ public partial class MainWindow : Window
     private bool _isApplyingLauncherState;
     private bool _localizationStartupLogWritten;
     private bool? _ruScGitHubAvailable;
+    private string? _latestRuScReleaseTag;
     private readonly List<DispatcherTimer> _launchButtonGlitchTimers = new();
     private const int WmSysCommand = 0x0112;
     private const int ScSize = 0xF000;
@@ -1855,7 +1856,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private void AddMetricRuns(Paragraph paragraph, string text)
     {
-        var pattern = @"\b(?:OK|FAIL|HIT|STALE|MISSING|REFRESHED)\b|\d+(?:/\d+)?|\d+\s*(?:правок|конфликтов|оставлено|скрыто|changed|safe)";
+        var pattern = @"\b(?:OK|FAIL|HIT|STALE|MISSING|REFRESHED|FALLBACK)\b|\d+(?:/\d+)?|\d+\s*(?:правок|конфликтов|оставлено|скрыто|changed|safe)";
         var cursor = 0;
         foreach (Match match in Regex.Matches(text, pattern, RegexOptions.IgnoreCase))
         {
@@ -2316,6 +2317,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         {
             var release = await GetLatestRuScReleaseAsync();
             _ruScGitHubAvailable = true;
+            _latestRuScReleaseTag = release.TagName;
             var latestLine = $"Последний RuSC: {release.TagName}";
             if (release.PublishedAt is not null)
             {
@@ -2345,6 +2347,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         catch (Exception ex)
         {
             _ruScGitHubAvailable = false;
+            _latestRuScReleaseTag = null;
             var error = FriendlyNetworkError(ex.Message);
             SetLocalizationStatusTexts(installed, state.TagName, freshness: null, latestTag: null, extraLine: "Источник RuSC временно недоступен: " + error);
             if (updateJournal && !(skipDuplicateLog && _localizationStartupLogWritten))
@@ -2763,8 +2766,18 @@ Write-Host "FAMILY_INDEX:$indexPath"
     {
         var installed = HasLocalizationArtifacts();
         var state = LoadLocalizationState();
-        SetLocalizationStatusTexts(installed, state.TagName);
-        ApplyLocalizationButtonState(installed, updateAvailable: installed && string.IsNullOrWhiteSpace(state.TagName));
+        var latestTag = _ruScGitHubAvailable == true ? _latestRuScReleaseTag : null;
+        var updateAvailable = string.IsNullOrWhiteSpace(latestTag)
+            ? installed && string.IsNullOrWhiteSpace(state.TagName)
+            : IsLocalizationUpdateAvailable(installed, state.TagName, latestTag);
+        var freshness = string.IsNullOrWhiteSpace(latestTag)
+            ? null
+            : installed
+                ? (string.IsNullOrWhiteSpace(state.TagName) ? "нужно взять под контроль" : updateAvailable ? "доступно обновление" : "актуально")
+                : "можно установить";
+
+        SetLocalizationStatusTexts(installed, state.TagName, freshness, latestTag);
+        ApplyLocalizationButtonState(installed, updateAvailable: updateAvailable);
         SetLocalizationUpdateAttention(UpdateLocalizationButton.IsEnabled);
     }
 
@@ -3879,6 +3892,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var planetDescriptions = FindValue("Planet descriptions:");
         var itemCraftHints = FindValue("Item craft hints:");
         var refineryYieldHints = FindValue("Refinery yield hints:");
+        var itemPassports = FindValue("Item passports:");
         var questModule = lines.FirstOrDefault(line => line.StartsWith("Module Квесты и рецепты:", StringComparison.OrdinalIgnoreCase)) ?? "";
         var questDescriptions = FindValue("Quest descriptions:");
         var questTitles = FindValue("Quest titles:");
@@ -3908,6 +3922,10 @@ Write-Host "FAMILY_INDEX:$indexPath"
             {
                 AddMetricLog($"Переработка: {ShortRefineryYieldLine(refineryYieldHints)}.");
             }
+            if (!string.IsNullOrWhiteSpace(itemPassports))
+            {
+                AddMetricLog($"ТТХ предметов: {ShortItemPassportLine(itemPassports)}.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(questModule))
@@ -3915,7 +3933,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             AddMetricLog($"Квесты: {AfterColon(questModule)}.");
             if (!string.IsNullOrWhiteSpace(questDescriptions) || !string.IsNullOrWhiteSpace(questTitles))
             {
-                AddMetricLog($"Чертежи: {ShortQuestLine(questDescriptions)}; названия {TextOrUnknown(questTitles)}.");
+                AddMetricLog($"Чертежи: {ShortQuestLine(questDescriptions)}; названия: {ShortChangedLine(questTitles)}.");
             }
             if (!string.IsNullOrWhiteSpace(wikeloHints))
             {
@@ -4016,7 +4034,23 @@ Write-Host "FAMILY_INDEX:$indexPath"
             @"(?<changed>\d+)\s+changed\s+of\s+(?<matched>\d+)\s+matched station descriptions;\s+stations:\s+(?<stations>\d+)",
             RegexOptions.IgnoreCase);
         return match.Success
-            ? $"{match.Groups["changed"].Value} из {match.Groups["matched"].Value} описаний станций; станций: {match.Groups["stations"].Value}"
+            ? $"{PluralRu(match.Groups["stations"].Value, "станция", "станции", "станций")}; {PluralRu(match.Groups["matched"].Value, "строка локализации", "строки локализации", "строк локализации")}; изменений {match.Groups["changed"].Value}"
+            : value;
+    }
+
+    private static string ShortItemPassportLine(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "?";
+        }
+
+        var match = Regex.Match(
+            value,
+            @"(?<matched>\d+)\s+matched descriptions;\s+changed:\s+(?<changed>\d+);\s+cache records:\s+(?<records>\d+)",
+            RegexOptions.IgnoreCase);
+        return match.Success
+            ? $"{PluralRu(match.Groups["matched"].Value, "описание", "описания", "описаний")}; изменений {match.Groups["changed"].Value}; кэш: {match.Groups["records"].Value}"
             : value;
     }
 
@@ -4029,8 +4063,41 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         var match = Regex.Match(value, @"(?<changed>\d+)\s+changed;\s+kept blocks:\s+(?<kept>\d+),\s+filtered blocks:\s+(?<filtered>\d+)", RegexOptions.IgnoreCase);
         return match.Success
-            ? $"{match.Groups["kept"].Value} оставлено, {match.Groups["filtered"].Value} скрыто"
+            ? $"{match.Groups["kept"].Value} показано, {match.Groups["filtered"].Value} не применено вне фильтра; изменений {match.Groups["changed"].Value}"
             : value;
+    }
+
+    private static string ShortChangedLine(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "?";
+        }
+
+        var match = Regex.Match(value, @"(?<changed>\d+)\s+changed", RegexOptions.IgnoreCase);
+        return match.Success ? $"изменений {match.Groups["changed"].Value}" : value;
+    }
+
+    private static string PluralRu(string rawNumber, string one, string few, string many)
+    {
+        if (!int.TryParse(rawNumber, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
+        {
+            return $"{rawNumber} {many}";
+        }
+
+        var abs = Math.Abs(number);
+        var lastTwo = abs % 100;
+        var last = abs % 10;
+        var noun = lastTwo is >= 11 and <= 14
+            ? many
+            : last switch
+            {
+                1 => one,
+                >= 2 and <= 4 => few,
+                _ => many
+            };
+
+        return $"{rawNumber} {noun}";
     }
 
     private static TimeSpan GetBackendTimeout(BackendRunMode mode) => mode switch
@@ -4389,6 +4456,17 @@ Write-Host "FAMILY_INDEX:$indexPath"
         return message.Length <= 180 ? message : message[..180] + "...";
     }
 
+    private static string ShortError(Exception exception)
+    {
+        var message = exception.GetBaseException().Message;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = exception.Message;
+        }
+
+        return ShortError(message);
+    }
+
     private static string FriendlyNetworkError(string message)
     {
         if (IsGitHubRateLimit(message))
@@ -4487,10 +4565,17 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
         catch (Exception ex)
         {
+            var error = ShortError(ex);
             UpdatesScaffoldText.Foreground = (Brush)FindResource("SignalRed");
-            UpdatesScaffoldText.Text = "Не удалось скачать обновление: " + ShortError(ex.Message);
+            UpdatesScaffoldText.Text = BuildLauncherDownloadFailureText(error);
             UpdateStatusText.Text = "Ошибка скачивания.";
-            AddError("Не удалось скачать обновление: " + ShortError(ex.Message));
+            AddError("Не удалось скачать обновление: " + error);
+            if (_latestLauncherRelease is not null)
+            {
+                AddLog("Обновления: GitHub API доступен, но ZIP обновления не скачался.");
+                AddUriLog("Скачать ZIP вручную", _latestLauncherRelease.AssetDownloadUrl, _latestLauncherRelease.AssetName);
+                AddUriLog("Страница релиза", _latestLauncherRelease.HtmlUrl, _latestLauncherRelease.TagName);
+            }
             return false;
         }
         finally
@@ -4498,6 +4583,19 @@ Write-Host "FAMILY_INDEX:$indexPath"
             InstallUpdateButton.IsEnabled = _latestLauncherRelease is not null &&
                 !string.IsNullOrWhiteSpace(_latestLauncherRelease.ExpectedSha256);
         }
+    }
+
+    private string BuildLauncherDownloadFailureText(string error)
+    {
+        if (_latestLauncherRelease is null)
+        {
+            return "Не удалось скачать обновление: " + error;
+        }
+
+        return "GitHub показал доступную версию, но ZIP обновления не скачался.\n\n" +
+            "Проверка версии и загрузка файла идут разными HTTPS-запросами: API может отвечать, а файл релиза может блокироваться сетью или падать на SSL.\n\n" +
+            "Ошибка: " + error + "\n\n" +
+            "Можно скачать архив вручную по ссылке в журнале ниже.";
     }
 
     private void InstallUpdate(object sender, RoutedEventArgs e)

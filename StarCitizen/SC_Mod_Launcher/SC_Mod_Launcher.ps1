@@ -105,6 +105,10 @@ function Get-ModuleSummaryLines {
                 $refinery = $module.metadata.refineryYieldHints
                 $lines += "  Refinery yield hints: $($refinery.changedStationDescriptions) changed of $($refinery.matchedStationDescriptions) matched station descriptions; stations: $($refinery.stationCount)"
             }
+            if ($module.metadata.itemPassports -and $module.metadata.itemPassports.enabled) {
+                $passports = $module.metadata.itemPassports
+                $lines += "  Item passports: $($passports.matchedDescriptionKeys) matched descriptions; changed: $($passports.changedItemDescriptions); cache records: $($passports.cacheRecords)"
+            }
         }
         elseif ($module.id -eq 'quest') {
             $lines += "  Quest descriptions: $($module.metadata.changedDescriptionLines) changed; kept blocks: $($module.metadata.keptDescriptionBlocks), filtered blocks: $($module.metadata.filteredDescriptionBlocks)"
@@ -405,14 +409,14 @@ function Get-SCRemoteJson {
     )
 
     try {
-        $result = Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 12
+        $result = Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 45
         Write-Host "Source ${Name}: OK"
         return $result
     }
     catch {
         if ($Uri -match '^https://scmdb\.net/' -and (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
             try {
-                $json = & curl.exe -L --silent --show-error --fail --max-time 30 `
+                $json = & curl.exe -L --silent --show-error --fail --max-time 45 `
                     -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
                     -H 'Accept: application/json,text/plain,*/*' `
                     -e 'https://scmdb.net/' `
@@ -505,6 +509,93 @@ function Write-SCRefreshedCacheLine {
     }
 }
 
+function Write-SCFallbackCacheLine {
+    param(
+        [string]$Name,
+        [string]$Path,
+        [string]$Reason
+    )
+
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        Write-Host "Cache ${Name}: FALLBACK; reason: $Reason; file: $(Get-SCRelativeOrName -Path $Path); path: $Path"
+    }
+    else {
+        Write-Host "Cache ${Name}: FAIL; fallback cache file was not created; reason: $Reason; path: $Path"
+    }
+}
+
+function Set-SCJsonProperty {
+    param(
+        [Parameter(Mandatory = $true)][object]$Object,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [AllowNull()][object]$Value
+    )
+
+    if ($Object.PSObject.Properties[$Name]) {
+        $Object.$Name = $Value
+        return
+    }
+
+    Add-Member -InputObject $Object -MemberType NoteProperty -Name $Name -Value $Value
+}
+
+function Write-SCJsonCacheFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][object]$Payload,
+        [int]$Depth = 12
+    )
+
+    $directory = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    }
+
+    $json = $Payload | ConvertTo-Json -Depth $Depth
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $json, $encoding)
+}
+
+function Write-SCMiningRefineryYieldFallbackCache {
+    param([string]$CacheKey)
+
+    $targetPath = Get-SCMiningRefineryYieldCachePath -CacheKey $CacheKey
+    $fallback = Get-SCMiningCachedRefineryYields -CacheKey $CacheKey
+    if ($null -eq $fallback) {
+        $fallback = Get-SCMiningCachedRefineryYields
+    }
+    if ($null -eq $fallback) {
+        return $null
+    }
+
+    $sourceKey = [string]$fallback.cacheKey
+    Set-SCJsonProperty -Object $fallback -Name 'fallbackFromCacheKey' -Value $sourceKey
+    Set-SCJsonProperty -Object $fallback -Name 'cacheKey' -Value ([string]$CacheKey)
+    Set-SCJsonProperty -Object $fallback -Name 'createdAt' -Value ((Get-Date).ToString('o'))
+    Write-SCMiningRefineryYieldCache -CachePath $targetPath -Payload $fallback
+    return $targetPath
+}
+
+function Write-SCMiningItemPassportFallbackCache {
+    param([string]$CacheKey)
+
+    $targetPath = Get-SCMiningItemPassportCachePath -CacheKey $CacheKey
+    $fallback = Get-SCMiningCachedItemPassports -CacheKey $CacheKey
+    if ($null -eq $fallback) {
+        $fallback = Get-SCMiningCachedItemPassports
+    }
+    if ($null -eq $fallback) {
+        return $null
+    }
+
+    $sourceKey = [string]$fallback.cacheKey
+    Set-SCJsonProperty -Object $fallback -Name 'fallbackFromCacheKey' -Value $sourceKey
+    Set-SCJsonProperty -Object $fallback -Name 'cacheKey' -Value ([string]$CacheKey)
+    Set-SCJsonProperty -Object $fallback -Name 'createdAt' -Value ((Get-Date).ToString('o'))
+    Write-SCJsonCacheFile -Path $targetPath -Payload $fallback -Depth 12
+    return $targetPath
+}
+
 function Get-SCModuleNamesText {
     return (($script:Modules | ForEach-Object { [string]$_.Manifest.name }) -join '; ')
 }
@@ -530,13 +621,14 @@ function Write-ConsoleRemoteSourceSummary {
     [void](Test-SCWikiBlueprintSource -Headers $headers)
     [void](Test-SCWikiItemsSource -Headers $headers)
     [void](Test-SCRefineryYieldsSource -Headers $headers)
+    [void](Test-SCErkulItemPassportSource -Headers $headers)
 }
 
 function Test-SCWikiBlueprintSource {
     param([hashtable]$Headers)
 
     try {
-        [void](Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec 12)
+        [void](Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec 45)
         Write-Host 'Source Wiki blueprints: OK'
         return $true
     }
@@ -550,7 +642,7 @@ function Test-SCWikiItemsSource {
     param([hashtable]$Headers)
 
     try {
-        [void](Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/items?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec 12)
+        [void](Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/items?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec 45)
         Write-Host 'Source Wiki items: OK'
         return $true
     }
@@ -564,7 +656,7 @@ function Test-SCRefineryYieldsSource {
     param([hashtable]$Headers)
 
     try {
-        $result = Invoke-RestMethod -Uri 'https://api.uexcorp.uk/2.0/refineries_yields' -Headers $Headers -TimeoutSec 12
+        $result = Invoke-RestMethod -Uri 'https://api.uexcorp.uk/2.0/refineries_yields' -Headers $Headers -TimeoutSec 45
         if (@($result.data).Count -eq 0) {
             throw 'empty response'
         }
@@ -574,6 +666,25 @@ function Test-SCRefineryYieldsSource {
     }
     catch {
         Write-Host "Source UEX refinery yields: FAIL; $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Test-SCErkulItemPassportSource {
+    param([hashtable]$Headers)
+
+    try {
+        . (Get-SCMiningModuleScriptPath)
+        $result = Invoke-SCMiningErkulJson -Path 'live/weapons' -Headers $Headers
+        if (@($result).Count -eq 0) {
+            throw 'empty response'
+        }
+
+        Write-Host 'Source Erkul item passports: OK'
+        return $true
+    }
+    catch {
+        Write-Host "Source Erkul item passports: FAIL; $($_.Exception.Message)"
         return $false
     }
 }
@@ -613,6 +724,8 @@ function Write-ConsolePreflightSummary {
             Write-SCCacheStatusLine -Name 'mining recipe families' -Path $familyIndexPath
             $refineryYieldPath = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining refinery yields' -Path $refineryYieldPath
+            $itemPassportPath = Get-SCMiningItemPassportCachePath -CacheKey ([string]$scmdbCache.Version)
+            Write-SCCacheStatusLine -Name 'mining item passports' -Path $itemPassportPath
         }
     }
     catch {
@@ -682,14 +795,42 @@ function Write-ConsoleWarmCacheSummary {
     $familyIndexPath = Write-SCMiningCraftFamilyIndexCache -CacheKey ([string]$version.version) -Blueprints @($blueprints)
     Write-SCRefreshedCacheLine -Name 'mining recipe families' -Path $familyIndexPath
 
-    if (-not (Test-SCRefineryYieldsSource -Headers $headers)) {
-        throw 'UEX refinery yields source is unavailable.'
+    $refineryYieldPath = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$version.version)
+    try {
+        $refineryYields = Get-SCMiningRefineryYields -Headers $headers -CacheKey ([string]$version.version) -ForceRefresh
+        Write-Host 'Source UEX refinery yields: OK'
+        Write-Host "UEX refinery stations: $(@($refineryYields.stations).Count)"
+        Write-SCRefreshedCacheLine -Name 'mining refinery yields' -Path $refineryYieldPath
+    }
+    catch {
+        $reason = $_.Exception.Message
+        Write-Host "Source UEX refinery yields: FALLBACK; $reason"
+        $fallbackPath = Write-SCMiningRefineryYieldFallbackCache -CacheKey ([string]$version.version)
+        if ([string]::IsNullOrWhiteSpace($fallbackPath)) {
+            throw "UEX refinery yields source is unavailable and no fallback cache exists: $reason"
+        }
+
+        Write-SCFallbackCacheLine -Name 'mining refinery yields' -Path $fallbackPath -Reason 'source unavailable'
     }
 
-    $refineryYields = Get-SCMiningRefineryYields -Headers $headers -CacheKey ([string]$version.version) -ForceRefresh
-    $refineryYieldPath = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$version.version)
-    Write-Host "UEX refinery stations: $(@($refineryYields.stations).Count)"
-    Write-SCRefreshedCacheLine -Name 'mining refinery yields' -Path $refineryYieldPath
+    $itemPassportPath = Get-SCMiningItemPassportCachePath -CacheKey ([string]$version.version)
+    try {
+        $itemPassportPath = Write-SCMiningItemPassportCache -CacheKey ([string]$version.version) -Headers $headers
+        Write-Host 'Source Erkul item passports: OK'
+        $itemPassportCache = Get-Content -LiteralPath $itemPassportPath -Encoding UTF8 -Raw | ConvertFrom-Json
+        Write-Host "Erkul item passports: $(@($itemPassportCache.records).Count)"
+        Write-SCRefreshedCacheLine -Name 'mining item passports' -Path $itemPassportPath
+    }
+    catch {
+        $reason = $_.Exception.Message
+        Write-Host "Source Erkul item passports: FALLBACK; $reason"
+        $fallbackPath = Write-SCMiningItemPassportFallbackCache -CacheKey ([string]$version.version)
+        if ([string]::IsNullOrWhiteSpace($fallbackPath)) {
+            throw "Erkul item passport source is unavailable and no fallback cache exists: $reason"
+        }
+
+        Write-SCFallbackCacheLine -Name 'mining item passports' -Path $fallbackPath -Reason 'source unavailable'
+    }
 }
 
 function Write-ConsoleUsage {

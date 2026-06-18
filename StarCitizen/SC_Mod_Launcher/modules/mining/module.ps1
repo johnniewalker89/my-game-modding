@@ -1,4 +1,4 @@
-function Get-SCMiningPatchPlan {
+﻿function Get-SCMiningPatchPlan {
     param(
         [object]$Context,
         [string[]]$SelectedOptions
@@ -12,6 +12,7 @@ function Get-SCMiningPatchPlan {
     $changedPlanetKeys = @()
     $itemCraftWarnings = @()
     $refineryYieldWarnings = @()
+    $itemPassportWarnings = @()
     $itemCraftMetadata = @{
         enabled = $enableItemCraftHints
         safeDescriptionKeys = 0
@@ -26,6 +27,14 @@ function Get-SCMiningPatchPlan {
         stationCount = 0
         matchedStationDescriptions = 0
         changedStationDescriptions = 0
+    }
+    $itemPassportMetadata = @{
+        enabled = $true
+        source = 'Erkul'
+        cacheRecords = 0
+        matchedDescriptionKeys = 0
+        changedItemDescriptions = 0
+        cleanedExistingBlocks = 0
     }
     $planetBlockCount = 0
     $recipeData = $null
@@ -125,8 +134,17 @@ function Get-SCMiningPatchPlan {
         $refineryYieldMetadata = $refineryPlan.Metadata
     }
 
+    $workingValues = Copy-SCMiningValueMap -Values $Context.Values
+    Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations $operations
+    $itemPassportPlan = New-SCMiningItemPassportOperations -Context $Context -Values $workingValues
+    $operations += @($itemPassportPlan.Operations)
+    $itemPassportWarnings += @($itemPassportPlan.Warnings)
+    $itemPassportMetadata = $itemPassportPlan.Metadata
+
+    $operations = Merge-SCMiningReplaceOperations -Operations $operations -BaseValues $Context.Values
+
     $metadata = @{
-        source = 'existing SCMDB planet craft blocks + SCMDB/Wiki item craft hints'
+        source = 'existing SCMDB planet craft blocks + SCMDB/Wiki item craft hints + Erkul item passports'
         selectedOptionCount = @($SelectedOptions).Count
         selectedMethods = @($selectedMethods)
         inspectedKeys = $Context.KeyCount
@@ -135,12 +153,13 @@ function Get-SCMiningPatchPlan {
         changedPlanetKeysSample = @($changedPlanetKeys | Select-Object -First 20)
         itemCraftHints = $itemCraftMetadata
         refineryYieldHints = $refineryYieldMetadata
+        itemPassports = $itemPassportMetadata
     }
 
     return [pscustomobject]@{
         ModuleId = 'mining'
         Operations = @($operations)
-        Warnings = @($recipeDataWarnings + $itemCraftWarnings + $refineryYieldWarnings)
+        Warnings = @($recipeDataWarnings + $itemCraftWarnings + $refineryYieldWarnings + $itemPassportWarnings)
         Metadata = $metadata
     }
 }
@@ -472,6 +491,204 @@ function Remove-SCMiningRefineryYieldHintOperations {
     }
 }
 
+function New-SCMiningItemPassportOperations {
+    param(
+        [object]$Context,
+        [hashtable]$Values
+    )
+
+    $metadata = @{
+        enabled = $true
+        source = 'Erkul'
+        sourceUrl = 'https://www.erkul.games/'
+        gameVersion = ''
+        cacheRecords = 0
+        matchedDescriptionKeys = 0
+        changedItemDescriptions = 0
+        cleanedExistingBlocks = 0
+        skippedNoPassport = 0
+        matchedKeysSample = @()
+    }
+
+    try {
+        $data = Get-SCMiningItemPassportData
+        if ($null -eq $data) {
+            return [pscustomobject]@{
+                Operations = @()
+                Warnings = @('Item passports skipped: Erkul passport cache is missing. Refresh cache before applying.')
+                Metadata = $metadata
+            }
+        }
+
+        $metadata.source = [string]$data.source
+        $metadata.sourceUrl = [string]$data.sourceUrl
+        $metadata.gameVersion = [string]$data.gameVersion
+        $metadata.cacheRecords = @($data.records).Count
+
+        $lookup = New-SCMiningItemPassportLookup -Records @($data.records)
+        $operations = @()
+        $matchedKeys = New-Object System.Collections.Generic.List[string]
+        $cleanedExistingBlocks = 0
+        $skippedNoPassport = 0
+
+        foreach ($key in @($Values.Keys | Sort-Object)) {
+            $token = Get-SCMiningItemDescriptionToken -Key ([string]$key)
+            if ([string]::IsNullOrWhiteSpace($token)) {
+                continue
+            }
+
+            $current = [string]$Values[$key]
+            $clean = Remove-SCMiningItemPassportBlock -Value $current
+            if ($clean -ne $current) {
+                $cleanedExistingBlocks++
+            }
+
+            if (-not $lookup.ContainsKey($token)) {
+                if ($clean -ne $current) {
+                    $original = [string]$Context.Values[$key]
+                    $operations += [pscustomobject]@{
+                        ModuleId = 'mining'
+                        OptionId = 'itemPassports'
+                        Key = $key
+                        Operation = 'replaceValue'
+                        OriginalValue = $original
+                        NewValue = $clean
+                        OwnedMarkers = @('SC_ITEM_PASSPORT_BLOCK')
+                    }
+                }
+                $skippedNoPassport++
+                continue
+            }
+
+            $record = $lookup[$token]
+            $updated = Set-SCMiningItemPassportBlock -Value $clean -Record $record
+            if ($updated -ne $current -or $updated -ne [string]$Context.Values[$key]) {
+                $original = [string]$Context.Values[$key]
+                $operations += [pscustomobject]@{
+                    ModuleId = 'mining'
+                    OptionId = 'itemPassports'
+                    Key = $key
+                    Operation = 'replaceValue'
+                    OriginalValue = $original
+                    NewValue = $updated
+                    OwnedMarkers = @('SC_ITEM_PASSPORT_BLOCK')
+                }
+            }
+
+            $matchedKeys.Add([string]$key)
+        }
+
+        $metadata.matchedDescriptionKeys = $matchedKeys.Count
+        $metadata.changedItemDescriptions = @($operations).Count
+        $metadata.cleanedExistingBlocks = $cleanedExistingBlocks
+        $metadata.skippedNoPassport = $skippedNoPassport
+        $metadata.matchedKeysSample = @($matchedKeys | Select-Object -First 20)
+
+        return [pscustomobject]@{
+            Operations = @($operations)
+            Warnings = @()
+            Metadata = $metadata
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            Operations = @()
+            Warnings = @("Item passports skipped: $($_.Exception.Message)")
+            Metadata = $metadata
+        }
+    }
+}
+
+function Copy-SCMiningValueMap {
+    param([hashtable]$Values)
+
+    $copy = @{}
+    foreach ($entry in $Values.GetEnumerator()) {
+        $copy[[string]$entry.Key] = [string]$entry.Value
+    }
+    return $copy
+}
+
+function Apply-SCMiningOperationsToValueMap {
+    param(
+        [hashtable]$Values,
+        [object[]]$Operations
+    )
+
+    foreach ($operation in @($Operations)) {
+        if ([string]$operation.Operation -ne 'replaceValue') {
+            continue
+        }
+
+        $Values[[string]$operation.Key] = [string]$operation.NewValue
+    }
+}
+
+function Merge-SCMiningReplaceOperations {
+    param(
+        [object[]]$Operations,
+        [hashtable]$BaseValues
+    )
+
+    $merged = [ordered]@{}
+    $passthrough = @()
+
+    foreach ($operation in @($Operations)) {
+        if ([string]$operation.Operation -ne 'replaceValue') {
+            $passthrough += $operation
+            continue
+        }
+
+        $key = [string]$operation.Key
+        if (-not $merged.Contains($key)) {
+            $original = if ($BaseValues.ContainsKey($key)) { [string]$BaseValues[$key] } else { [string]$operation.OriginalValue }
+            $merged[$key] = [pscustomobject]@{
+                ModuleId = [string]$operation.ModuleId
+                OptionIds = New-Object System.Collections.Generic.List[string]
+                Key = $key
+                Operation = 'replaceValue'
+                OriginalValue = $original
+                NewValue = [string]$operation.NewValue
+                OwnedMarkers = New-Object System.Collections.Generic.List[string]
+            }
+        }
+        else {
+            $merged[$key].NewValue = [string]$operation.NewValue
+        }
+
+        $optionId = [string]$operation.OptionId
+        if (-not [string]::IsNullOrWhiteSpace($optionId) -and -not $merged[$key].OptionIds.Contains($optionId)) {
+            $merged[$key].OptionIds.Add($optionId)
+        }
+        foreach ($marker in @($operation.OwnedMarkers)) {
+            $markerText = [string]$marker
+            if (-not [string]::IsNullOrWhiteSpace($markerText) -and -not $merged[$key].OwnedMarkers.Contains($markerText)) {
+                $merged[$key].OwnedMarkers.Add($markerText)
+            }
+        }
+    }
+
+    $result = @()
+    foreach ($entry in $merged.GetEnumerator()) {
+        $record = $entry.Value
+        if ([string]$record.NewValue -eq [string]$record.OriginalValue) {
+            continue
+        }
+
+        $result += [pscustomobject]@{
+            ModuleId = $record.ModuleId
+            OptionId = (($record.OptionIds.ToArray()) -join '+')
+            Key = $record.Key
+            Operation = $record.Operation
+            OriginalValue = $record.OriginalValue
+            NewValue = $record.NewValue
+            OwnedMarkers = @($record.OwnedMarkers.ToArray())
+        }
+    }
+
+    return @($passthrough + $result)
+}
+
 function Get-SCMiningItemCraftRecipeData {
     $scmdbCache = Read-SCMiningScmdbCache
     $scmdb = $scmdbCache.Data
@@ -512,11 +729,11 @@ function Invoke-SCMiningScmdbJson {
     )
 
     try {
-        return (Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 20)
+        return (Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 45)
     }
     catch {
         if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-            $json = & curl.exe -L --silent --show-error --fail --max-time 40 `
+            $json = & curl.exe -L --silent --show-error --fail --max-time 45 `
                 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
                 -H 'Accept: application/json,text/plain,*/*' `
                 -e 'https://scmdb.net/' `
@@ -600,6 +817,661 @@ function Get-SCMiningCachedWikiBlueprints {
 
 function Get-SCMiningCacheDirectory {
     return (Join-Path $PSScriptRoot 'cache')
+}
+
+function Get-SCMiningItemPassportData {
+    $scmdbCache = Read-SCMiningScmdbCache
+    return (Get-SCMiningCachedItemPassports -CacheKey ([string]$scmdbCache.Version))
+}
+
+function Get-SCMiningCachedItemPassports {
+    param([string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        return $null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($CacheKey)) {
+        $path = Get-SCMiningItemPassportCachePath -CacheKey $CacheKey
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $cacheFile = Get-Item -LiteralPath $path
+        }
+        else {
+            $cacheFile = $null
+        }
+    }
+    else {
+        $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'erkul-item-passports-*.json' -File |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
+
+    if ($null -eq $cacheFile) {
+        return $null
+    }
+
+    try {
+        $cache = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
+        if ($cache.PSObject.Properties['records']) {
+            return $cache
+        }
+    }
+    catch {
+    }
+
+    return $null
+}
+
+function Get-SCMiningItemPassportCachePath {
+    param([string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    return (Join-Path $cacheDir ("erkul-item-passports-{0}.json" -f (Get-SCMiningSafeCacheKey -CacheKey $CacheKey)))
+}
+
+function Write-SCMiningItemPassportCache {
+    param(
+        [string]$CacheKey,
+        [hashtable]$Headers
+    )
+
+    $records = New-Object System.Collections.Generic.List[object]
+    foreach ($endpoint in Get-SCMiningErkulPassportEndpoints) {
+        $items = @(Invoke-SCMiningErkulJson -Path $endpoint.Path -Headers $Headers)
+        foreach ($item in $items) {
+            $record = ConvertTo-SCMiningItemPassportRecord -Entry $item -Kind ([string]$endpoint.Kind)
+            if ($null -ne $record) {
+                $records.Add($record)
+            }
+        }
+    }
+
+    $info = $null
+    try {
+        $info = Invoke-SCMiningErkulJson -Path 'informations' -Headers $Headers
+    }
+    catch {
+    }
+
+    $payload = [pscustomobject]@{
+        schemaVersion = 1
+        source = 'Erkul'
+        sourceUrl = 'https://www.erkul.games/'
+        backendUrl = 'https://server.erkul.games/'
+        cacheKey = [string]$CacheKey
+        gameVersion = if ($null -ne $info -and -not [string]::IsNullOrWhiteSpace([string]$info.liveVersion)) { [string]$info.liveVersion } else { [string]$CacheKey }
+        createdAt = (Get-Date).ToString('o')
+        records = @($records.ToArray() | Sort-Object kind, displayName, localName)
+    }
+
+    $cachePath = Get-SCMiningItemPassportCachePath -CacheKey $CacheKey
+    $cacheDir = Split-Path -Parent $cachePath
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+    }
+
+    $json = $payload | ConvertTo-Json -Depth 12
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($cachePath, $json, $encoding)
+    return $cachePath
+}
+
+function Get-SCMiningErkulPassportEndpoints {
+    return @(
+        [pscustomobject]@{ Kind = 'weapon'; Path = 'live/weapons' },
+        [pscustomobject]@{ Kind = 'shield'; Path = 'live/shields' },
+        [pscustomobject]@{ Kind = 'powerPlant'; Path = 'live/power-plants' },
+        [pscustomobject]@{ Kind = 'cooler'; Path = 'live/coolers' },
+        [pscustomobject]@{ Kind = 'qdrive'; Path = 'live/qdrives' },
+        [pscustomobject]@{ Kind = 'emp'; Path = 'live/emps' },
+        [pscustomobject]@{ Kind = 'qed'; Path = 'live/qeds' }
+    )
+}
+
+function Invoke-SCMiningErkulJson {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [hashtable]$Headers
+    )
+
+    $uri = 'https://server.erkul.games/' + $Path.TrimStart('/')
+    $requestHeaders = @{}
+    foreach ($key in @($Headers.Keys)) {
+        $requestHeaders[$key] = $Headers[$key]
+    }
+    $requestHeaders['Accept'] = 'application/json,text/plain,*/*'
+    $requestHeaders['Origin'] = 'https://www.erkul.games'
+    $requestHeaders['Referer'] = 'https://www.erkul.games/'
+    if (-not $requestHeaders.ContainsKey('User-Agent')) {
+        $requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'
+    }
+
+    try {
+        return (Invoke-RestMethod -Uri $uri -Headers $requestHeaders -TimeoutSec 45)
+    }
+    catch {
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            $json = & curl.exe -L --silent --show-error --fail --max-time 60 `
+                -A ([string]$requestHeaders['User-Agent']) `
+                -H 'Accept: application/json,text/plain,*/*' `
+                -H 'Origin: https://www.erkul.games' `
+                -H 'Referer: https://www.erkul.games/' `
+                $uri
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
+                return ($json | ConvertFrom-Json)
+            }
+        }
+
+        throw
+    }
+}
+
+function ConvertTo-SCMiningItemPassportRecord {
+    param(
+        [object]$Entry,
+        [string]$Kind
+    )
+
+    if ($null -eq $Entry -or [string]::IsNullOrWhiteSpace([string]$Entry.localName) -or $null -eq $Entry.data) {
+        return $null
+    }
+
+    $lines = @(Format-SCMiningItemPassportLines -Entry $Entry -Kind $Kind)
+    if ($lines.Count -eq 0) {
+        return $null
+    }
+
+    $tokens = New-Object System.Collections.Generic.List[string]
+    foreach ($candidate in @([string]$Entry.localName, ([string]$Entry.localName -replace '(?i)_scitem$', ''))) {
+        $token = ConvertTo-SCMiningItemPassportToken -Value $candidate
+        if (-not [string]::IsNullOrWhiteSpace($token) -and -not $tokens.Contains($token)) {
+            $tokens.Add($token)
+        }
+    }
+
+    return [pscustomobject]@{
+        kind = [string]$Kind
+        localName = [string]$Entry.localName
+        displayName = [string]$Entry.data.name
+        shortName = [string]$Entry.data.shortName
+        tokens = @($tokens.ToArray())
+        blockLines = @($lines)
+    }
+}
+
+function Format-SCMiningItemPassportLines {
+    param(
+        [object]$Entry,
+        [string]$Kind
+    )
+
+    if ($Kind -eq 'weapon') {
+        return @(Format-SCMiningWeaponPassportLines -Entry $Entry)
+    }
+    if ($Kind -eq 'shield') {
+        return @(Format-SCMiningComponentPassportLines -Entry $Entry -TypeLabel 'щит' -PrimaryLabel 'прочность' -PrimaryValuePath 'shield.maxShieldHealth' -SecondaryLabel 'реген' -SecondaryValuePath 'shield.maxShieldRegen' -SecondarySuffix '/с')
+    }
+    if ($Kind -eq 'powerPlant') {
+        return @(Format-SCMiningComponentPassportLines -Entry $Entry -TypeLabel 'энергоустановка' -PrimaryLabel 'энергия' -PrimaryValuePath 'resource.online.generation.powerSegment' -SecondaryLabel 'HP' -SecondaryValuePath 'health.hp')
+    }
+    if ($Kind -eq 'cooler') {
+        return @(Format-SCMiningComponentPassportLines -Entry $Entry -TypeLabel 'охладитель' -PrimaryLabel 'охлаждение' -PrimaryValuePath 'resource.online.generation.cooling' -SecondaryLabel 'IR' -SecondaryValuePath 'resource.online.signatureParams.ir.nominalSignature')
+    }
+    if ($Kind -eq 'qdrive') {
+        return @(Format-SCMiningQuantumDrivePassportLines -Entry $Entry)
+    }
+    if ($Kind -eq 'emp') {
+        return @(Format-SCMiningEmpPassportLines -Entry $Entry)
+    }
+    if ($Kind -eq 'qed') {
+        return @(Format-SCMiningQedPassportLines -Entry $Entry)
+    }
+
+    return @()
+}
+
+function Format-SCMiningWeaponPassportLines {
+    param([object]$Entry)
+
+    $data = $Entry.data
+    $damage = Get-SCMiningWeaponDamage -Entry $Entry
+    $fireRate = Get-SCMiningWeaponFireRate -Entry $Entry
+    $dps = if ($damage -gt 0 -and $fireRate -gt 0) { $damage * $fireRate / 60.0 } else { 0 }
+    $projectileSpeed = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'ammo.data.speed')
+    $ammo = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'ammoContainer.maxAmmoCount')
+    $capacitor = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'weapon.regen.maxAmmoLoad')
+
+    $line1 = @()
+    if ($dps -gt 0) {
+        $line1 += 'DPS ' + (Format-SCMiningNumber -Value $dps)
+    }
+    if ($damage -gt 0) {
+        $line1 += 'урон ' + (Format-SCMiningNumber -Value $damage)
+    }
+
+    $line2 = @()
+    if ($fireRate -gt 0) {
+        $line2 += 'темп ' + (Format-SCMiningNumber -Value $fireRate) + '/мин'
+    }
+    if ($projectileSpeed -gt 0) {
+        $line2 += 'скорость ' + (Format-SCMiningNumber -Value $projectileSpeed) + ' м/с'
+    }
+    $penetration = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'ammo.data.penetration.basePenetrationDistance')
+    if ($penetration -gt 0) {
+        $line2 += 'пробитие ' + (Format-SCMiningNumber -Value $penetration) + ' м'
+    }
+    if ($ammo -gt 0) {
+        $line2 += 'боекомплект ' + (Format-SCMiningNumber -Value $ammo)
+    }
+    elseif ($capacitor -gt 0) {
+        $line2 += 'конденсатор ' + (Format-SCMiningNumber -Value $capacitor)
+    }
+
+    return @(
+        ($line1 -join ' | '),
+        ($line2 -join ' | ')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+}
+
+function Format-SCMiningComponentPassportLines {
+    param(
+        [object]$Entry,
+        [string]$TypeLabel,
+        [string]$PrimaryLabel,
+        [string]$PrimaryValuePath,
+        [string]$SecondaryLabel,
+        [string]$SecondaryValuePath,
+        [string]$SecondarySuffix = ''
+    )
+
+    $data = $Entry.data
+    $stats = @()
+    $primary = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path $PrimaryValuePath)
+    if ($primary -gt 0) {
+        $stats += $PrimaryLabel + ' ' + (Format-SCMiningCompactNumber -Value $primary)
+    }
+    $secondary = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path $SecondaryValuePath)
+    if ($secondary -gt 0) {
+        $stats += $SecondaryLabel + ' ' + (Format-SCMiningCompactNumber -Value $secondary) + $SecondarySuffix
+    }
+    $em = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'resource.online.signatureParams.em.nominalSignature')
+    if ($em -gt 0) {
+        $stats += 'EM ' + (Format-SCMiningCompactNumber -Value $em)
+    }
+
+    return @($stats -join ' | ') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+}
+
+function Format-SCMiningQuantumDrivePassportLines {
+    param([object]$Entry)
+
+    $data = $Entry.data
+    $stats = @()
+    $driveSpeed = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'qdrive.params.driveSpeed')
+    if ($driveSpeed -gt 0) {
+        $stats += 'скорость ' + (Format-SCMiningCompactNumber -Value ($driveSpeed / 1000.0)) + ' км/с'
+    }
+    $spool = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'qdrive.params.spoolUpTime')
+    if ($spool -gt 0) {
+        $stats += 'разгон ' + (Format-SCMiningNumber -Value $spool) + ' с'
+    }
+    $cooldown = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'qdrive.params.cooldownTime')
+    if ($cooldown -gt 0) {
+        $stats += 'откат ' + (Format-SCMiningNumber -Value $cooldown) + ' с'
+    }
+    $fuel = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'qdrive.quantumFuelRequirement')
+    if ($fuel -gt 0) {
+        $stats += 'топливо ' + (Format-SCMiningNumber -Value $fuel)
+    }
+
+    return @($stats -join ' | ') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+}
+
+function Format-SCMiningEmpPassportLines {
+    param([object]$Entry)
+
+    $data = $Entry.data
+    $stats = @()
+    $damage = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'emp.distortionDamage')
+    if ($damage -gt 0) {
+        $stats += 'дисторшн ' + (Format-SCMiningCompactNumber -Value $damage)
+    }
+    $radius = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'emp.empRadius')
+    if ($radius -gt 0) {
+        $stats += 'радиус ' + (Format-SCMiningCompactNumber -Value $radius) + ' м'
+    }
+    $charge = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'emp.chargeTime')
+    if ($charge -gt 0) {
+        $stats += 'заряд ' + (Format-SCMiningNumber -Value $charge) + ' с'
+    }
+    $cooldown = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'emp.cooldownTime')
+    if ($cooldown -gt 0) {
+        $stats += 'откат ' + (Format-SCMiningNumber -Value $cooldown) + ' с'
+    }
+
+    return @($stats -join ' | ') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+}
+
+function Format-SCMiningQedPassportLines {
+    param([object]$Entry)
+
+    $data = $Entry.data
+    $stats = @()
+    $jammer = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'jammer.jammerRange')
+    if ($jammer -gt 0) {
+        $stats += 'подавление ' + (Format-SCMiningCompactNumber -Value $jammer) + ' м'
+    }
+    $interdiction = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'interdiction.greenZoneCheckRange')
+    if ($interdiction -gt 0) {
+        $stats += 'перехват ' + (Format-SCMiningCompactNumber -Value $interdiction) + ' м'
+    }
+    $charge = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'interdiction.chargeTimeSecs')
+    if ($charge -gt 0) {
+        $stats += 'заряд ' + (Format-SCMiningNumber -Value $charge) + ' с'
+    }
+    $discharge = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $data -Path 'interdiction.dischargeTimeSecs')
+    if ($discharge -gt 0) {
+        $stats += 'разряд ' + (Format-SCMiningNumber -Value $discharge) + ' с'
+    }
+
+    return @($stats -join ' | ') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+}
+
+function New-SCMiningItemPassportLookup {
+    param([object[]]$Records)
+
+    $lookup = @{}
+    foreach ($record in @($Records)) {
+        foreach ($token in @($record.tokens)) {
+            $tokenText = [string]$token
+            if (-not [string]::IsNullOrWhiteSpace($tokenText) -and -not $lookup.ContainsKey($tokenText)) {
+                $lookup[$tokenText] = $record
+            }
+        }
+    }
+    return $lookup
+}
+
+function Get-SCMiningItemDescriptionToken {
+    param([string]$Key)
+
+    $clean = ([string]$Key).Trim()
+    $clean = [regex]::Replace($clean, ',P$', '', 'IgnoreCase')
+    $match = [regex]::Match($clean, '^item_Desc_?(.+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if (-not $match.Success) {
+        return ''
+    }
+
+    return (ConvertTo-SCMiningItemPassportToken -Value ([string]$match.Groups[1].Value))
+}
+
+function ConvertTo-SCMiningItemPassportToken {
+    param([AllowEmptyString()][string]$Value)
+
+    $clean = ([string]$Value).Trim()
+    $clean = [regex]::Replace($clean, '(?i)_scitem$', '')
+    return ([regex]::Replace($clean.ToLowerInvariant(), '[^a-z0-9]', ''))
+}
+
+function Set-SCMiningItemPassportBlock {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [object]$Record
+    )
+
+    $clean = Remove-SCMiningItemPassportBlock -Value $Value
+    $blockLines = @($Record.blockLines | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($blockLines.Count -eq 0) {
+        return $clean
+    }
+
+    $block = (Get-SCMiningItemPassportLabel) + '\n' + (($blockLines | ForEach-Object { [string]$_ }) -join '\n')
+    $craftLine = Get-SCMiningExistingItemCraftHintLine -Value $clean
+    $wikeloBlock = Get-SCMiningWikeloItemHintBlock -Value $clean
+    $base = Trim-SCMiningEncodedTrailingBreaks -Value (Remove-SCMiningWikeloItemHintBlock -Value (Remove-SCMiningItemCraftHint -Value $clean))
+
+    $sections = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($base)) {
+        $sections.Add($base)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($wikeloBlock)) {
+        $sections.Add($wikeloBlock)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($craftLine)) {
+        $sections.Add($craftLine)
+    }
+    $sections.Add($block)
+
+    return (($sections.ToArray()) -join '\n\n').TrimEnd()
+}
+
+function Remove-SCMiningItemPassportBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $labelPattern = '(?:' + [regex]::Escape((Get-SCMiningItemPassportLabel)) + '|' + [regex]::Escape((Get-SCMiningLegacyItemPassportLabel)) + ')'
+    $pattern = '(?:\\n){0,2}(?:<EM[1-5]>)?' + $labelPattern + '(?:</EM[1-5]>)?(?:\\n(?!\\n)[^\\]*){0,4}'
+    $source = [string]$Value
+    $clean = [regex]::Replace($source, $pattern, '')
+    if ($clean -eq $source) {
+        return $source
+    }
+
+    return (Trim-SCMiningEncodedTrailingBreaks -Value $clean)
+}
+
+function Get-SCMiningItemPassportLabel {
+    return 'Базовые ТТХ (Erkul)'
+}
+
+function Get-SCMiningLegacyItemPassportLabel {
+    return 'ТТХ (Erkul)'
+}
+
+function Get-SCMiningExistingItemCraftHintLine {
+    param([AllowEmptyString()][string]$Value)
+
+    $labelPattern = [regex]::Escape((Get-SCMiningItemCraftHintLabel))
+    $pattern = '(?:<EM[1-5]>)?' + $labelPattern + '(?:</EM[1-5]>)?\s*[^\\]*(?=$|\\n)'
+    $match = [regex]::Match([string]$Value, $pattern)
+    if (-not $match.Success) {
+        return ''
+    }
+
+    return ([string]$match.Value).Trim()
+}
+
+function Get-SCMiningPropertyValue {
+    param(
+        [object]$Object,
+        [string]$Path
+    )
+
+    $current = $Object
+    foreach ($part in ([string]$Path -split '\.')) {
+        if ($null -eq $current) {
+            return $null
+        }
+
+        $property = $current.PSObject.Properties[$part]
+        if ($null -eq $property) {
+            return $null
+        }
+
+        $current = $property.Value
+    }
+
+    return $current
+}
+
+function ConvertTo-SCMiningArray {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return @()
+    }
+    if ($Value -is [System.Array]) {
+        return @($Value)
+    }
+    return @($Value)
+}
+
+function Get-SCMiningNumber {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return 0.0
+    }
+
+    $number = 0.0
+    $text = ([string]$Value).Trim()
+    if ([double]::TryParse($text, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$number)) {
+        return $number
+    }
+    if ([double]::TryParse($text, [ref]$number)) {
+        return $number
+    }
+
+    return 0.0
+}
+
+function Format-SCMiningSize {
+    param($Value)
+
+    $number = Get-SCMiningNumber -Value $Value
+    if ($number -lt 0) {
+        return ''
+    }
+
+    return 'S' + (Format-SCMiningNumber -Value $number)
+}
+
+function Format-SCMiningNumber {
+    param([double]$Value)
+
+    $absValue = [Math]::Abs($Value)
+    if ($absValue -gt 0 -and $absValue -lt 1) {
+        return $Value.ToString('0.#####', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    if ([Math]::Abs($Value - [Math]::Round($Value)) -lt 0.05) {
+        return ([Math]::Round($Value)).ToString('0', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    return $Value.ToString('0.##', [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Format-SCMiningCompactNumber {
+    param([double]$Value)
+
+    if ([Math]::Abs($Value) -ge 1000000) {
+        return (Format-SCMiningNumber -Value ($Value / 1000000.0)) + 'M'
+    }
+    if ([Math]::Abs($Value) -ge 1000) {
+        return (Format-SCMiningNumber -Value ($Value / 1000.0)) + 'K'
+    }
+
+    return (Format-SCMiningNumber -Value $Value)
+}
+
+function Get-SCMiningWeaponDamage {
+    param([object]$Entry)
+
+    $damage = Get-SCMiningPropertyValue -Object $Entry.data -Path 'ammo.data.damage'
+    if ($null -eq $damage) {
+        return 0.0
+    }
+
+    $sum = 0.0
+    foreach ($property in @($damage.PSObject.Properties)) {
+        if ([string]$property.Name -match '^damage') {
+            $sum += Get-SCMiningNumber -Value $property.Value
+        }
+    }
+
+    $pelletCount = 1.0
+    $damageMultiplier = 1.0
+    $fireActions = @(ConvertTo-SCMiningArray (Get-SCMiningPropertyValue -Object $Entry.data -Path 'weapon.fireActions'))
+    foreach ($action in $fireActions) {
+        $rate = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $action -Path 'fireRate')
+        if ($rate -le 0) {
+            continue
+        }
+
+        $actionPellets = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $action -Path 'pelletCount')
+        if ($actionPellets -gt 0) {
+            $pelletCount = $actionPellets
+        }
+        $actionMultiplier = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $action -Path 'damageMultiplier')
+        if ($actionMultiplier -gt 0) {
+            $damageMultiplier = $actionMultiplier
+        }
+
+        break
+    }
+
+    return ($sum * $pelletCount * $damageMultiplier)
+}
+
+function Get-SCMiningWeaponFireRate {
+    param([object]$Entry)
+
+    $fireActions = @(ConvertTo-SCMiningArray (Get-SCMiningPropertyValue -Object $Entry.data -Path 'weapon.fireActions'))
+    $maximum = 0.0
+    foreach ($action in $fireActions) {
+        $rate = Get-SCMiningNumber -Value (Get-SCMiningPropertyValue -Object $action -Path 'fireRate')
+        if ($rate -gt $maximum) {
+            $maximum = $rate
+        }
+    }
+
+    return $maximum
+}
+
+function ConvertTo-SCMiningWeaponGroupLabel {
+    param([AllowEmptyString()][string]$Group)
+
+    $key = ([string]$Group).Trim().ToLowerInvariant()
+    $map = @{
+        'laser repeater' = 'лазерный повторитель'
+        'laser cannon' = 'лазерная автопушка'
+        'laser scattergun' = 'лазерный дробовик'
+        'laser beam' = 'лазерный луч'
+        'ballistic repeater' = 'баллистический повторитель'
+        'ballistic cannon' = 'баллистическая автопушка'
+        'ballistic gatling' = 'баллистический гатлинг'
+        'ballistic scattergun' = 'баллистический дробовик'
+        'distortion repeater' = 'дисторшн-повторитель'
+        'distortion cannon' = 'дисторшн-автопушка'
+        'distortion scattergun' = 'дисторшн-дробовик'
+        'mass driver' = 'ускоритель массы'
+        'tachyon cannon' = 'тахионная автопушка'
+    }
+
+    if ($map.ContainsKey($key)) {
+        return $map[$key]
+    }
+
+    return ([string]$Group).Trim()
+}
+
+function ConvertTo-SCMiningComponentClassLabel {
+    param([AllowEmptyString()][string]$Class)
+
+    $key = ([string]$Class).Trim().ToLowerInvariant()
+    $map = @{
+        'civilian' = 'гражданский'
+        'competition' = 'соревновательный'
+        'industrial' = 'промышленный'
+        'military' = 'военный'
+        'stealth' = 'стелс'
+    }
+
+    if ($map.ContainsKey($key)) {
+        return $map[$key]
+    }
+
+    return ([string]$Class).Trim()
 }
 
 function Get-SCMiningSafeCacheKey {
@@ -2208,16 +3080,40 @@ function Set-SCMiningItemCraftHint {
     )
 
     $clean = Remove-SCMiningItemCraftHint -Value $Value
+    $wikeloBlock = Get-SCMiningWikeloItemHintBlock -Value $clean
+    $base = Trim-SCMiningEncodedTrailingBreaks -Value (Remove-SCMiningWikeloItemHintBlock -Value $clean)
     $resourceText = (@($Resources | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ' | ')
     if ([string]::IsNullOrWhiteSpace($resourceText)) {
-        return $clean
+        return $base
     }
 
-    if ([string]::IsNullOrWhiteSpace($clean)) {
-        return (Get-SCMiningItemCraftHintLine -ResourcesText $resourceText)
+    $sections = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($base)) {
+        $sections.Add($base)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($wikeloBlock)) {
+        $sections.Add($wikeloBlock)
+    }
+    $sections.Add((Get-SCMiningItemCraftHintLine -ResourcesText $resourceText))
+
+    return (($sections.ToArray()) -join '\n\n').TrimEnd()
+}
+
+function Get-SCMiningWikeloItemHintBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $match = [regex]::Match([string]$Value, '(?s)(?<block>\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*)$')
+    if (-not $match.Success) {
+        return ''
     }
 
-    return ($clean.TrimEnd() + '\n\n' + (Get-SCMiningItemCraftHintLine -ResourcesText $resourceText)).TrimEnd()
+    return (Trim-SCMiningEncodedLeadingBreaks -Value ([string]$match.Groups['block'].Value))
+}
+
+function Remove-SCMiningWikeloItemHintBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    return [regex]::Replace([string]$Value, '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*$', '', [System.Text.RegularExpressions.RegexOptions]::Singleline)
 }
 
 function Remove-SCMiningItemCraftHint {
@@ -3371,6 +4267,12 @@ function Trim-SCMiningEncodedTrailingBreaks {
     param([AllowEmptyString()][string]$Value)
 
     return [regex]::Replace([string]$Value, '(?:\s|\\n)+$', '')
+}
+
+function Trim-SCMiningEncodedLeadingBreaks {
+    param([AllowEmptyString()][string]$Value)
+
+    return [regex]::Replace([string]$Value, '^(?:\s|\\n)+', '')
 }
 
 function Format-SCMiningOwnedResourceBlock {

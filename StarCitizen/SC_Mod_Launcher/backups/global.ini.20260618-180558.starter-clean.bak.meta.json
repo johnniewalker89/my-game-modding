@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-18T18:11:06.9550671+03:00",
+  "fileName": "global.ini.20260618-180558.starter-clean.bak",
+  "sha256": "40492A31A70E02A42953E4C4372BDDB89B045FD77C6C6E46F2DABBA994EA28F1",
+  "kind": "clean",
+  "rawMiningMarkers": [
+    "Потенциально добываемые ресурсы (корабль):",
+    "Потенциально добываемые ресурсы (наземная техника):",
+    "Потенциально добываемые ресурсы (ручная добыча):"
+  ],
+  "launcherMarkers": [
+    "SC Mod Launcher: 2.0.4",
+    "Русификатор RuSC: 4.8.2-v105"
+  ],
+  "source": "C:\\Games\\StarCitizen\\LIVE\\data\\Localization\\korean_(south_korea)\\global.ini",
+  "ruScVersion": "4.8.2-v105",
+  "launcherVersion": "2.0.5"
+}

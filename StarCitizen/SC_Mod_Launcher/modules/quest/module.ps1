@@ -95,22 +95,20 @@
         }
     }
 
-    if (-not $allSelectableCategoriesSelected) {
-        foreach ($key in @($patchedValues.Keys)) {
-            $value = [string]$patchedValues[$key]
-            if (-not (Test-SCQuestLooksLikeTitleKey -Key $key)) {
-                continue
-            }
+    foreach ($key in @($patchedValues.Keys)) {
+        $value = [string]$patchedValues[$key]
+        if (-not (Test-SCQuestLooksLikeTitleKey -Key $key)) {
+            continue
+        }
 
-            $removeBlueprintMarker = $false
-            $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
-            if ($titleVisibility.ContainsKey($normalizedKey)) {
-                $removeBlueprintMarker = ([int]$titleVisibility[$normalizedKey].Total -gt 0 -and [int]$titleVisibility[$normalizedKey].Visible -eq 0)
-            }
+        $removeBlueprintMarker = $false
+        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+        if ($titleVisibility.ContainsKey($normalizedKey)) {
+            $removeBlueprintMarker = ([int]$titleVisibility[$normalizedKey].Total -gt 0 -and [int]$titleVisibility[$normalizedKey].Visible -eq 0)
+        }
 
-            if ($removeBlueprintMarker) {
-                $patchedValues[$key] = Remove-SCQuestBlueprintTitleMarker -Value $value
-            }
+        if ($removeBlueprintMarker) {
+            $patchedValues[$key] = Remove-SCQuestBlueprintTitleMarker -Value $value
         }
     }
 
@@ -425,9 +423,91 @@ function Remove-SCQuestWikeloItemHintBlock {
 
     return [regex]::Replace(
         [string]$Value,
-        '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*$',
+        '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*?(?=(?:\\n\\n(?:<EM[1-5]>)?(?:Крафт:|Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\)))|$)',
         '',
         [System.Text.RegularExpressions.RegexOptions]::Singleline)
+}
+
+function Trim-SCQuestEncodedTrailingBreaks {
+    param([AllowEmptyString()][string]$Value)
+
+    return [regex]::Replace([string]$Value, '(?:\\n)+$', '')
+}
+
+function Trim-SCQuestEncodedLeadingBreaks {
+    param([AllowEmptyString()][string]$Value)
+
+    return [regex]::Replace([string]$Value, '^(?:\\n)+', '')
+}
+
+function Get-SCQuestItemPassportBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $labelPattern = '(?:Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\))'
+    $pattern = '(?s)(?<block>(?:\\n\\n)?(?:<EM[1-5]>)?' + $labelPattern + '(?:</EM[1-5]>)?(?:\\n(?!\\n)[^\\]*){0,4})$'
+    $match = [regex]::Match([string]$Value, $pattern)
+    if (-not $match.Success) {
+        return ''
+    }
+
+    return (Trim-SCQuestEncodedLeadingBreaks -Value ([string]$match.Groups['block'].Value))
+}
+
+function Remove-SCQuestItemPassportBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $labelPattern = '(?:Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\))'
+    $pattern = '(?s)(?:\\n\\n)?(?:<EM[1-5]>)?' + $labelPattern + '(?:</EM[1-5]>)?(?:\\n(?!\\n)[^\\]*){0,4}$'
+    return (Trim-SCQuestEncodedTrailingBreaks -Value ([regex]::Replace([string]$Value, $pattern, '')))
+}
+
+function Get-SCQuestItemCraftHintBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $pattern = '(?s)(?<block>(?:\\n\\n)?(?:<EM[1-5]>)?Крафт:(?:</EM[1-5]>)?\s*[^\\]*(?=$|\\n\\n))$'
+    $match = [regex]::Match([string]$Value, $pattern)
+    if (-not $match.Success) {
+        return ''
+    }
+
+    return (Trim-SCQuestEncodedLeadingBreaks -Value ([string]$match.Groups['block'].Value))
+}
+
+function Remove-SCQuestItemCraftHintBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $pattern = '(?s)(?:\\n\\n)?(?:<EM[1-5]>)?Крафт:(?:</EM[1-5]>)?\s*[^\\]*(?=$|\\n\\n)$'
+    return (Trim-SCQuestEncodedTrailingBreaks -Value ([regex]::Replace([string]$Value, $pattern, '')))
+}
+
+function Set-SCQuestWikeloItemHintBlock {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [string]$Block
+    )
+
+    $clean = Remove-SCQuestWikeloItemHintBlock -Value $Value
+    $passportBlock = Get-SCQuestItemPassportBlock -Value $clean
+    $withoutPassport = if ([string]::IsNullOrWhiteSpace($passportBlock)) { $clean } else { Remove-SCQuestItemPassportBlock -Value $clean }
+    $craftBlock = Get-SCQuestItemCraftHintBlock -Value $withoutPassport
+    $base = if ([string]::IsNullOrWhiteSpace($craftBlock)) { $withoutPassport } else { Remove-SCQuestItemCraftHintBlock -Value $withoutPassport }
+    $base = Trim-SCQuestEncodedTrailingBreaks -Value $base
+
+    $sections = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($base)) {
+        $sections.Add($base)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Block)) {
+        $sections.Add($Block)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($craftBlock)) {
+        $sections.Add($craftBlock)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($passportBlock)) {
+        $sections.Add($passportBlock)
+    }
+
+    return (($sections.ToArray()) -join '\n\n').TrimEnd()
 }
 
 function ConvertTo-SCQuestArray {
@@ -807,7 +887,7 @@ function Set-SCQuestWikeloItemHints {
         }
 
         $current = ([string]$Values[$key]).TrimEnd()
-        $updated = $current + '\n\n' + $block
+        $updated = Set-SCQuestWikeloItemHintBlock -Value $current -Block $block
         if ($updated -ne [string]$Values[$key]) {
             $Values[$key] = $updated
             $stats.changedItemDescriptions++
@@ -966,8 +1046,7 @@ function Get-SCQuestSelectableCategoryNames {
         'Корабельные орудия',
         'Добывающие лазеры',
         'Броня/одежда',
-        'Оружие',
-        'Снаряжение/расходники'
+        'Оружие'
     )
 }
 

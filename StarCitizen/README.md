@@ -11,24 +11,24 @@
 Что умеет:
 
 - `Русификатор`: установка, обновление, удаление RuSC и fallback через локальный ZIP; используется перевод [StarCitizenRu](https://github.com/n1ghter/StarCitizenRu), лаунчер только дополняет его под свои модули.
-- `Майнинг и крафт`: ресурсы по способам добычи, состав предметов, фильтры семейств рецептов и бонусы/штрафы переработки на refinery-станциях.
+- `Майнинг и крафт`: ресурсы по способам добычи, состав предметов, ТТХ оружия/компонентов Erkul, фильтры семейств рецептов и бонусы/штрафы переработки на refinery-станциях.
 - `Квесты и рецепты`: чертежи в наградах, метки `[Ч]`, `[А]`, `[С]`, репутация, farm-подсветка и Wikelo-подсказки в предметах.
 - `Проверка и cache`: диагностика источников, прогрев свежего cache и применение в LIVE без лишних realtime-запросов.
 - `Backup и обновления`: восстановление `global.ini`, GitHub Releases, SHA-256 проверка и самообновление с сохранением backup/config.
 
 Как поставить:
 
-1. Скачайте `SC_Mod_Launcher_2.0.4.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-mod-launcher-v2.0.4).
-2. Откройте архив и извлеките из него папку `SC_Mod_Launcher` в удобное место. Не используйте внешнюю папку `SC_Mod_Launcher_2.0.4` как рабочую.
+1. Скачайте `SC_Mod_Launcher_2.0.5.zip` на странице [Releases](https://github.com/johnniewalker89/my-game-modding/releases/tag/sc-mod-launcher-v2.0.5).
+2. Откройте архив и извлеките из него папку `SC_Mod_Launcher` в удобное место. Не используйте внешнюю папку `SC_Mod_Launcher_2.0.5` как рабочую.
 3. Запустите `SC_Mod_Launcher\SC_Mod_Launcher.exe`.
 4. Проверьте путь к `StarCitizen\LIVE`.
 5. На вкладке `Русификатор` установите или обновите RuSC, если он ещё не стоит. Если GitHub API не открывается, скачайте ZIP [StarCitizenRu](https://github.com/n1ghter/StarCitizenRu) вручную и нажмите `Из ZIP`. Если RuSC уже был установлен вручную или старой версией лаунчера, рекомендуем удалить его и поставить заново через лаунчер, чтобы появились metadata версии.
 6. Нажмите `Проверить`, при необходимости `Прогреть кэш`, затем `Применить в LIVE`.
 
-SHA-256 релиза `2.0.4`:
+SHA-256 релиза `2.0.5`:
 
 ```text
-3A860DDEEABD8A8827EA1E34FF2AEF7C7675FB1E09D0E717F2D19504C9075D10
+5AE8A12BBC7B9F7E9D91388566CA7CD4840041C4CC83264E3ABFABF2BCAC501D
 ```
 
 Подробности: [SC_Mod_Launcher/README.md](SC_Mod_Launcher/README.md).
@@ -66,6 +66,17 @@ SHA-256 релиза `2.0.4`:
   </tr>
   <tr>
     <td colspan="2"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-mining-refinery-ruin.png" alt="Бонусы переработки на станции Ruin"></td>
+  </tr>
+</table>
+
+### Общие подсказки предметов
+
+ТТХ оружия и корабельных компонентов добавляются прямо в описание предметов.
+
+<table>
+  <tr>
+    <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-erkul-weapon-passport.png" alt="ТТХ оружия Erkul в инвентаре"></td>
+    <td width="50%"><img src="SC_Mod_Launcher/docs/images/sc-mod-launcher-erkul-component-passport.png" alt="ТТХ компонентов Erkul на корабле"></td>
   </tr>
 </table>
 
