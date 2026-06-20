@@ -64,7 +64,15 @@
     $originalValues = ConvertTo-SCQuestLineValueMap -Lines $Context.Lines
     $patchedValues = ConvertTo-SCQuestLineValueMap -Lines $engine.PatchedLines
     $titleVisibility = @{}
-    $descriptionTitleMap = ConvertTo-SCQuestDescriptionTitleMap -TitleDescriptionMap $engine.Report.titleDescriptionMap
+    $titleVisibilityPairs = @{}
+    $titleDescriptionMap = (ConvertTo-SCQuestTitleDescriptionMap -TitleDescriptionMap $engine.Report.titleDescriptionMap).Map
+    $descriptionTitleMap = (ConvertTo-SCQuestDescriptionTitleMap -TitleDescriptionMap $engine.Report.titleDescriptionMap).Map
+    foreach ($descriptionKey in @($descriptionTitleMap.Keys)) {
+        foreach ($titleKey in @($descriptionTitleMap[$descriptionKey].Keys)) {
+            Set-SCQuestTitleVisibilityPair -PairMap $titleVisibilityPairs -DescriptionKey $descriptionKey -TitleKey $titleKey -HasVisibleRewardBlock:$false
+        }
+    }
+
     $descriptionStats = @{
         generated = 0
         kept = 0
@@ -84,7 +92,7 @@
 
         $hasVisibleRewardBlock = Test-SCQuestHasRewardBlock -Value $filteredValue
         foreach ($titleKey in Get-SCQuestLinkedTitleKeys -DescriptionKey $key -DescriptionTitleMap $descriptionTitleMap) {
-            Add-SCQuestTitleVisibility -VisibilityMap $titleVisibility -TitleKey $titleKey -HasVisibleRewardBlock $hasVisibleRewardBlock
+            Set-SCQuestTitleVisibilityPair -PairMap $titleVisibilityPairs -DescriptionKey $key -TitleKey $titleKey -HasVisibleRewardBlock $hasVisibleRewardBlock
         }
 
         if ($hasVisibleRewardBlock) {
@@ -94,6 +102,9 @@
             $descriptionStats.filtered++
         }
     }
+
+    $titleVisibility = (ConvertTo-SCQuestTitleVisibilityMap -PairMap $titleVisibilityPairs).Map
+    $normalizedPatchedValueKeys = (ConvertTo-SCQuestNormalizedValueKeyMap -Values $patchedValues).Map
 
     foreach ($key in @($patchedValues.Keys)) {
         $value = [string]$patchedValues[$key]
@@ -105,6 +116,11 @@
         $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
         if ($titleVisibility.ContainsKey($normalizedKey)) {
             $removeBlueprintMarker = ([int]$titleVisibility[$normalizedKey].Total -gt 0 -and [int]$titleVisibility[$normalizedKey].Visible -eq 0)
+        }
+
+        $linkedDescriptionKeys = @(Get-SCQuestLinkedDescriptionKeys -TitleKey $key -TitleDescriptionMap $titleDescriptionMap)
+        if ($linkedDescriptionKeys.Count -gt 0) {
+            $removeBlueprintMarker = -not (Test-SCQuestAnyLinkedDescriptionHasRewardBlock -DescriptionKeys $linkedDescriptionKeys -Values $patchedValues -NormalizedValueKeys $normalizedPatchedValueKeys)
         }
 
         if ($removeBlueprintMarker) {
@@ -1239,6 +1255,60 @@ function Get-SCQuestNormalizedIniKey {
     return (([string]$Key).Trim() -replace ',.*$', '')
 }
 
+function Get-SCQuestTitleVisibilityPairKey {
+    param(
+        [string]$DescriptionKey,
+        [string]$TitleKey
+    )
+
+    $normalizedDescriptionKey = Get-SCQuestNormalizedIniKey -Key $DescriptionKey
+    $normalizedTitleKey = Get-SCQuestNormalizedIniKey -Key $TitleKey
+    if ([string]::IsNullOrWhiteSpace($normalizedDescriptionKey) -or [string]::IsNullOrWhiteSpace($normalizedTitleKey)) {
+        return ''
+    }
+
+    return "$normalizedTitleKey`n$normalizedDescriptionKey"
+}
+
+function Set-SCQuestTitleVisibilityPair {
+    param(
+        [hashtable]$PairMap,
+        [string]$DescriptionKey,
+        [string]$TitleKey,
+        [bool]$HasVisibleRewardBlock
+    )
+
+    $normalizedDescriptionKey = Get-SCQuestNormalizedIniKey -Key $DescriptionKey
+    $normalizedTitleKey = Get-SCQuestNormalizedIniKey -Key $TitleKey
+    $pairKey = Get-SCQuestTitleVisibilityPairKey -DescriptionKey $normalizedDescriptionKey -TitleKey $normalizedTitleKey
+    if ([string]::IsNullOrWhiteSpace($pairKey)) {
+        return
+    }
+
+    if (-not $PairMap.ContainsKey($pairKey)) {
+        $PairMap[$pairKey] = @{
+            DescriptionKey = $normalizedDescriptionKey
+            TitleKey = $normalizedTitleKey
+            Visible = $false
+        }
+    }
+
+    if ($HasVisibleRewardBlock) {
+        $PairMap[$pairKey].Visible = $true
+    }
+}
+
+function ConvertTo-SCQuestTitleVisibilityMap {
+    param([hashtable]$PairMap)
+
+    $visibilityMap = @{}
+    foreach ($pair in @($PairMap.Values)) {
+        Add-SCQuestTitleVisibility -VisibilityMap $visibilityMap -TitleKey ([string]$pair.TitleKey) -HasVisibleRewardBlock ([bool]$pair.Visible)
+    }
+
+    return [pscustomobject]@{ Map = $visibilityMap }
+}
+
 function Add-SCQuestTitleVisibility {
     param(
         [hashtable]$VisibilityMap,
@@ -1269,7 +1339,7 @@ function ConvertTo-SCQuestDescriptionTitleMap {
 
     $descriptionTitleMap = @{}
     if ($null -eq $TitleDescriptionMap) {
-        return $descriptionTitleMap
+        return [pscustomobject]@{ Map = $descriptionTitleMap }
     }
 
     foreach ($property in @($TitleDescriptionMap.PSObject.Properties)) {
@@ -1287,7 +1357,36 @@ function ConvertTo-SCQuestDescriptionTitleMap {
         }
     }
 
-    return $descriptionTitleMap
+    return [pscustomobject]@{ Map = $descriptionTitleMap }
+}
+
+function ConvertTo-SCQuestTitleDescriptionMap {
+    param($TitleDescriptionMap)
+
+    $resultMap = @{}
+    if ($null -eq $TitleDescriptionMap) {
+        return [pscustomobject]@{ Map = $resultMap }
+    }
+
+    foreach ($property in @($TitleDescriptionMap.PSObject.Properties)) {
+        $titleKey = Get-SCQuestNormalizedIniKey -Key ([string]$property.Name)
+        if ([string]::IsNullOrWhiteSpace($titleKey)) {
+            continue
+        }
+
+        if (-not $resultMap.ContainsKey($titleKey)) {
+            $resultMap[$titleKey] = @{}
+        }
+
+        foreach ($descriptionKey in @($property.Value)) {
+            $normalizedDescriptionKey = Get-SCQuestNormalizedIniKey -Key ([string]$descriptionKey)
+            if (-not [string]::IsNullOrWhiteSpace($normalizedDescriptionKey)) {
+                $resultMap[$titleKey][$normalizedDescriptionKey] = $true
+            }
+        }
+    }
+
+    return [pscustomobject]@{ Map = $resultMap }
 }
 
 function Get-SCQuestLinkedTitleKeys {
@@ -1315,10 +1414,66 @@ function Get-SCQuestLinkedTitleKeys {
     return @($keys.Keys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 }
 
+function Get-SCQuestLinkedDescriptionKeys {
+    param(
+        [string]$TitleKey,
+        [hashtable]$TitleDescriptionMap
+    )
+
+    $normalizedTitleKey = Get-SCQuestNormalizedIniKey -Key $TitleKey
+    if (-not [string]::IsNullOrWhiteSpace($normalizedTitleKey) -and $TitleDescriptionMap.ContainsKey($normalizedTitleKey)) {
+        return @($TitleDescriptionMap[$normalizedTitleKey].Keys | Sort-Object -Unique)
+    }
+
+    return @()
+}
+
+function ConvertTo-SCQuestNormalizedValueKeyMap {
+    param([hashtable]$Values)
+
+    $map = @{}
+    foreach ($key in @($Values.Keys)) {
+        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+        if ([string]::IsNullOrWhiteSpace($normalizedKey)) {
+            continue
+        }
+
+        if (-not $map.ContainsKey($normalizedKey)) {
+            $map[$normalizedKey] = @{}
+        }
+        $map[$normalizedKey][[string]$key] = $true
+    }
+
+    return [pscustomobject]@{ Map = $map }
+}
+
+function Test-SCQuestAnyLinkedDescriptionHasRewardBlock {
+    param(
+        [string[]]$DescriptionKeys,
+        [hashtable]$Values,
+        [hashtable]$NormalizedValueKeys
+    )
+
+    foreach ($descriptionKey in @($DescriptionKeys)) {
+        $normalizedDescriptionKey = Get-SCQuestNormalizedIniKey -Key $descriptionKey
+        if ([string]::IsNullOrWhiteSpace($normalizedDescriptionKey) -or -not $NormalizedValueKeys.ContainsKey($normalizedDescriptionKey)) {
+            continue
+        }
+
+        foreach ($rawKey in @($NormalizedValueKeys[$normalizedDescriptionKey].Keys)) {
+            if ($Values.ContainsKey($rawKey) -and (Test-SCQuestHasRewardBlock -Value ([string]$Values[$rawKey]))) {
+                return $true
+            }
+        }
+    }
+
+    return $false
+}
+
 function Test-SCQuestLooksLikeTitleKey {
     param([string]$Key)
 
-    return ($Key -match '(?i)(^|_)(title|name)(_|$)')
+    return ($Key -match '(?i)(^|_)(title|name)(_|,|$)')
 }
 
 function Format-SCQuestRewardSummaryLine {

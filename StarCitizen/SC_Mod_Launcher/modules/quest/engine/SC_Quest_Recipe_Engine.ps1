@@ -891,8 +891,9 @@ function Add-ReputationRankThresholdsFromScopes {
 function Remove-ReputationRankThreshold {
     param([AllowEmptyString()][string]$Value)
 
-    $amountPattern = '\d+(?:\.\d+)?K?'
-    return [regex]::Replace([string]$Value, "^\s*(?:<EM\d>)?\[$amountPattern(?:\s*-\s*$amountPattern|\+)\](?:</EM\d>)?\s*", '')
+    $amountPattern = '\d+(?:\.\d+)?[KM]?'
+    $rankPattern = "(?:<EM\d>)?\[$amountPattern(?:\s*-\s*$amountPattern|\+)\](?:</EM\d>)?"
+    return [regex]::Replace([string]$Value, "^\s*(?:$rankPattern\s*)+", '')
 }
 
 function Set-ReputationRankThreshold {

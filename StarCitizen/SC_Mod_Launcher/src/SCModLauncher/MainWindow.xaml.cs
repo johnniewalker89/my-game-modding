@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.0.5";
+    private const string CurrentLauncherVersion = "2.0.6";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";

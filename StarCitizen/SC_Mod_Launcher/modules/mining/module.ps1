@@ -3102,7 +3102,13 @@ function Set-SCMiningItemCraftHint {
 function Get-SCMiningWikeloItemHintBlock {
     param([AllowEmptyString()][string]$Value)
 
-    $match = [regex]::Match([string]$Value, '(?s)(?<block>\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*)$')
+    $stopLabels = @(
+        [regex]::Escape((Get-SCMiningItemCraftHintLabel)),
+        [regex]::Escape((Get-SCMiningItemPassportLabel)),
+        [regex]::Escape((Get-SCMiningLegacyItemPassportLabel))
+    ) -join '|'
+    $pattern = '(?s)(?<block>\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*?)(?=\\n\\n(?:<EM[1-5]>)?(?:' + $stopLabels + ')|$)'
+    $match = [regex]::Match([string]$Value, $pattern)
     if (-not $match.Success) {
         return ''
     }
@@ -3113,7 +3119,13 @@ function Get-SCMiningWikeloItemHintBlock {
 function Remove-SCMiningWikeloItemHintBlock {
     param([AllowEmptyString()][string]$Value)
 
-    return [regex]::Replace([string]$Value, '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*$', '', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    $stopLabels = @(
+        [regex]::Escape((Get-SCMiningItemCraftHintLabel)),
+        [regex]::Escape((Get-SCMiningItemPassportLabel)),
+        [regex]::Escape((Get-SCMiningLegacyItemPassportLabel))
+    ) -join '|'
+    $pattern = '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*?(?=\\n\\n(?:<EM[1-5]>)?(?:' + $stopLabels + ')|$)'
+    return [regex]::Replace([string]$Value, $pattern, '', [System.Text.RegularExpressions.RegexOptions]::Singleline)
 }
 
 function Remove-SCMiningItemCraftHint {
