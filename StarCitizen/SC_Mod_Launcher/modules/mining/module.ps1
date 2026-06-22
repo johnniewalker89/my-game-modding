@@ -2243,7 +2243,7 @@ function Get-SCMiningPlanetRecipeFamily {
             return [pscustomobject]@{ Key = "component:$series-series"; Label = "${series}CA/${series}MA/${series}SA"; Family = 'variant'; Token = $null }
         }
         if ($label -match '^JS-\d+$') {
-            return [pscustomobject]@{ Key = 'component:JS-series'; Label = 'JS-300/400'; Family = 'variant'; Token = $null }
+            return [pscustomobject]@{ Key = 'component:JS-series'; Label = 'JS-300/400/500'; Family = 'variant'; Token = $null }
         }
         if ($label -match '^V801-\d+$') {
             return [pscustomobject]@{ Key = 'component:V801-series'; Label = 'V801-11/12'; Family = 'variant'; Token = $null }
@@ -2882,6 +2882,11 @@ function Get-SCMiningBlueprintOutputClass {
         [object]$Reward
     )
 
+    $override = Get-SCMiningBlueprintOutputOverride -Blueprint $Blueprint
+    if ($null -ne $override -and -not [string]::IsNullOrWhiteSpace([string]$override.Class)) {
+        return [string]$override.Class
+    }
+
     if (-not [string]::IsNullOrWhiteSpace([string]$Blueprint.output_class)) {
         return [string]$Blueprint.output_class
     }
@@ -2917,6 +2922,11 @@ function Get-SCMiningBlueprintOutputName {
         [object]$Reward
     )
 
+    $override = Get-SCMiningBlueprintOutputOverride -Blueprint $Blueprint
+    if ($null -ne $override -and -not [string]::IsNullOrWhiteSpace([string]$override.Name)) {
+        return Repair-SCMiningBlueprintText -Value ([string]$override.Name)
+    }
+
     if (-not [string]::IsNullOrWhiteSpace([string]$Blueprint.output_name)) {
         return Repair-SCMiningBlueprintText -Value ([string]$Blueprint.output_name)
     }
@@ -2929,6 +2939,11 @@ function Get-SCMiningBlueprintOutputName {
 
 function Get-SCMiningBlueprintOutputType {
     param([object]$Blueprint)
+
+    $override = Get-SCMiningBlueprintOutputOverride -Blueprint $Blueprint
+    if ($null -ne $override -and -not [string]::IsNullOrWhiteSpace([string]$override.Type)) {
+        return [string]$override.Type
+    }
 
     if ($null -ne $Blueprint.output -and -not [string]::IsNullOrWhiteSpace([string]$Blueprint.output.type_label)) {
         return [string]$Blueprint.output.type_label
@@ -3013,6 +3028,11 @@ function Get-SCMiningBlueprintOutputGrade {
         [hashtable]$ItemLookup
     )
 
+    $override = Get-SCMiningBlueprintOutputOverride -Blueprint $Blueprint
+    if ($null -ne $override -and -not [string]::IsNullOrWhiteSpace([string]$override.Grade)) {
+        return (Normalize-SCMiningComponentGrade -Grade ([string]$override.Grade))
+    }
+
     $item = Get-SCMiningCachedItemInfo -Blueprint $Blueprint -ItemLookup $ItemLookup
     if ($null -ne $item -and -not [string]::IsNullOrWhiteSpace([string]$item.grade)) {
         return (Normalize-SCMiningComponentGrade -Grade ([string]$item.grade))
@@ -3030,6 +3050,11 @@ function Get-SCMiningBlueprintOutputComponentClass {
         [object]$Blueprint,
         [hashtable]$ItemLookup
     )
+
+    $override = Get-SCMiningBlueprintOutputOverride -Blueprint $Blueprint
+    if ($null -ne $override -and -not [string]::IsNullOrWhiteSpace([string]$override.ComponentClass)) {
+        return ([string]$override.ComponentClass).Trim()
+    }
 
     $item = Get-SCMiningCachedItemInfo -Blueprint $Blueprint -ItemLookup $ItemLookup
     if ($null -ne $item -and -not [string]::IsNullOrWhiteSpace([string]$item.class)) {
@@ -3054,6 +3079,139 @@ function Get-SCMiningBlueprintOutputComponentClass {
     }
 
     return ''
+}
+
+function Get-SCMiningBlueprintOutputOverride {
+    param([object]$Blueprint)
+
+    $key = [string]$Blueprint.key
+    if ([string]::IsNullOrWhiteSpace($key)) {
+        return $null
+    }
+
+    # Star Citizen Wiki occasionally links a blueprint key to the wrong output item.
+    # Keep these corrections narrow and verified against live localization/Erkul cache.
+    switch -Regex ($key) {
+        '^BP_CRAFT_COOL_TYDT_S02_HeatSink_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'HeatSink'
+                Class = 'cool_tydt_s02_heatsink_scitem'
+                Type = 'Cooler'
+                Grade = 'C'
+                ComponentClass = 'Stealth'
+            }
+        }
+        '^BP_CRAFT_COOL_TYDT_S02_IceBox_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'IceBox'
+                Class = 'cool_tydt_s02_icebox_scitem'
+                Type = 'Cooler'
+                Grade = 'B'
+                ComponentClass = 'Stealth'
+            }
+        }
+        '^BP_CRAFT_COOL_TYDT_S02_NightFall_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'NightFall'
+                Class = 'cool_tydt_s02_nightfall_scitem'
+                Type = 'Cooler'
+                Grade = 'A'
+                ComponentClass = 'Stealth'
+            }
+        }
+        '^BP_CRAFT_POWR_AMRS_S03_JS500_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'JS-500'
+                Class = 'powr_amrs_s03_js500_scitem'
+                Type = 'Power Plant'
+                Grade = 'A'
+                ComponentClass = 'Military'
+            }
+        }
+        '^BP_CRAFT_POWR_JUST_S01_Endurance_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'Endurance'
+                Class = 'powr_just_s01_endurance_scitem'
+                Type = 'Power Plant'
+                Grade = 'B'
+                ComponentClass = 'Industrial'
+            }
+        }
+        '^BP_CRAFT_POWR_SASU_S01_WhiteRose_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'WhiteRose'
+                Class = 'powr_sasu_s01_whiterose_scitem'
+                Type = 'Power Plant'
+                Grade = 'A'
+                ComponentClass = 'Civilian'
+            }
+        }
+        '^BP_CRAFT_POWR_SASU_S02_DayBreak_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'DayBreak'
+                Class = 'powr_sasu_s02_daybreak_scitem'
+                Type = 'Power Plant'
+                Grade = 'C'
+                ComponentClass = 'Civilian'
+            }
+        }
+        '^BP_CRAFT_QDRV_JUST_S01_Goliath_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'Goliath'
+                Class = 'qdrv_just_s01_goliath_scitem'
+                Type = 'Quantum Drive'
+                Grade = 'C'
+                ComponentClass = 'Industrial'
+            }
+        }
+        '^BP_CRAFT_QDRV_WETK_S01_Beacon_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'Beacon'
+                Class = 'qdrv_wetk_s01_beacon_scitem'
+                Type = 'Quantum Drive'
+                Grade = 'C'
+                ComponentClass = 'Military'
+            }
+        }
+        '^BP_CRAFT_RADR_WLOP_S00_Denning$' {
+            return [pscustomobject]@{
+                Name = 'Denning'
+                Class = 'radr_wlop_s00_denning'
+                Type = 'Radar'
+                Grade = 'C'
+                ComponentClass = 'Civilian'
+            }
+        }
+        '^BP_CRAFT_RADR_WLOP_S00_Fabian$' {
+            return [pscustomobject]@{
+                Name = 'Fabian'
+                Class = 'radr_wlop_s00_fabian'
+                Type = 'Radar'
+                Grade = 'A'
+                ComponentClass = 'Civilian'
+            }
+        }
+        '^BP_CRAFT_RADR_WLOP_S00_Vogel$' {
+            return [pscustomobject]@{
+                Name = 'Vogel'
+                Class = 'radr_wlop_s00_vogel'
+                Type = 'Radar'
+                Grade = 'B'
+                ComponentClass = 'Civilian'
+            }
+        }
+        '^BP_CRAFT_SHLD_SECO_S03_ARMOR_SCItem$' {
+            return [pscustomobject]@{
+                Name = 'ARMOR'
+                Class = 'shld_seco_s03_armor_scitem'
+                Type = 'Shield'
+                Grade = 'B'
+                ComponentClass = 'Civilian'
+            }
+        }
+    }
+
+    return $null
 }
 
 function Test-SCMiningCanonicalBlueprint {

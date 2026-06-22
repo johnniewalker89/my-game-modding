@@ -1,5 +1,20 @@
 # SC Mod Launcher Releases
 
+## 2.0.7
+
+### Что нового
+
+- Исправлены битые связи Wiki blueprint cache для ряда корабельных компонентов: `NightFall`, `JS-500`, `WhiteRose`, `Fabian` и связанных B/C-компонентов.
+- В фильтрах крафта теперь видны `NightFall`, `WhiteRose`, `Fabian`, а семейство силовых установок отображается как `JS-300/400/500`.
+- В релиз входит полный свежий cache `4.8.2-live.12061511`: SCMDB, Wiki blueprints/items, recipe families, UEX refinery yields и Erkul item passports.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.0.7.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 2.0.7`
+- Проверено: warm cache, blueprint override scan, scaffold backend, WPF build/smoke, update installer, release ZIP audit.
+
 ## 2.0.6
 
 ### Что нового

@@ -1,0 +1,731 @@
+{
+    "cacheKey":  "4.8.2-live.12061511",
+    "createdAt":  "2026-06-22T17:33:21.5043423+03:00",
+    "source":  "UEX refineries_yields",
+    "sourceUrl":  "https://uexcorp.space/mining/refineries",
+    "apiUrl":  "https://api.uexcorp.uk/2.0/refineries_yields",
+    "gameVersion":  "4.8.1",
+    "values":  "value_month",
+    "records":  215,
+    "stations":  [
+                     {
+                         "name":  "ARC-L1 Wide Forest Station",
+                         "aliases":  [
+                                         "ARC-L1"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Quartz",
+                                          "value":  11
+                                      },
+                                      {
+                                          "material":  "Beryl",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Titanium",
+                                          "value":  5
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  3
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Taranite",
+                                               "value":  -6
+                                           },
+                                           {
+                                               "material":  "Aluminum",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -4
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "ARC-L2 Lively Pathway Station",
+                         "aliases":  [
+                                         "ARC-L2"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Gold",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Copper",
+                                          "value":  6
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  3
+                                      },
+                                      {
+                                          "material":  "Titanium",
+                                          "value":  3
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Hephaestanite",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Tungsten",
+                                               "value":  -6
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -3
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "ARC-L4 Faint Glen Station",
+                         "aliases":  [
+                                         "ARC-L4"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Taranite",
+                                          "value":  5
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -9
+                                           },
+                                           {
+                                               "material":  "Hephaestanite",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Tungsten",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Checkmate Station",
+                         "aliases":  [
+                                         "Checkmate",
+                                         "Checkmate Refinery"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Laranite",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "CRU-L1 Ambitious Dream Station",
+                         "aliases":  [
+                                         "CRU-L1"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Beryl",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Corundum",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Iron",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  2
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Laranite",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Bexalite",
+                                               "value":  -6
+                                           },
+                                           {
+                                               "material":  "Gold",
+                                               "value":  -6
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "HUR-L1 Green Glade Station",
+                         "aliases":  [
+                                         "HUR-L1"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Laranite",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "HUR-L2 Faithful Dream Station",
+                         "aliases":  [
+                                         "HUR-L2"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Beryl",
+                                          "value":  1
+                                      },
+                                      {
+                                          "material":  "Corundum",
+                                          "value":  1
+                                      },
+                                      {
+                                          "material":  "Gold",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -3
+                                           },
+                                           {
+                                               "material":  "Taranite",
+                                               "value":  -3
+                                           },
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -2
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "MIC-L1 Shallow Frontier Station",
+                         "aliases":  [
+                                         "MIC-L1"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Agricium",
+                                          "value":  8
+                                      },
+                                      {
+                                          "material":  "Aluminum",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Copper",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Corundum",
+                                          "value":  2
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Beryl",
+                                               "value":  -6
+                                           },
+                                           {
+                                               "material":  "Quartz",
+                                               "value":  -3
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "MIC-L2 Long Forest Station",
+                         "aliases":  [
+                                         "MIC-L2"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Bexalite",
+                                          "value":  9
+                                      },
+                                      {
+                                          "material":  "Gold",
+                                          "value":  9
+                                      },
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  9
+                                      },
+                                      {
+                                          "material":  "Corundum",
+                                          "value":  6
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Beryl",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Quartz",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Borase",
+                                               "value":  -3
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "MIC-L5 Modern Icarus Station",
+                         "aliases":  [
+                                         "MIC-L5"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Titanium",
+                                          "value":  13
+                                      },
+                                      {
+                                          "material":  "Bexalite",
+                                          "value":  12
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  9
+                                      },
+                                      {
+                                          "material":  "Copper",
+                                          "value":  9
+                                      }
+                                  ],
+                         "penalties":  [
+
+                                       ]
+                     },
+                     {
+                         "name":  "Nyx Gateway (Pyro)",
+                         "aliases":  [
+                                         "Nyx Gateway"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Laranite",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Nyx Gateway (Stanton)",
+                         "aliases":  [
+                                         "Nyx Gateway"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Quartz",
+                                          "value":  11
+                                      },
+                                      {
+                                          "material":  "Beryl",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Titanium",
+                                          "value":  5
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  3
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Taranite",
+                                               "value":  -6
+                                           },
+                                           {
+                                               "material":  "Aluminum",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -4
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Orbituary",
+                         "aliases":  [
+
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Laranite",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Pyro Gateway (Nyx)",
+                         "aliases":  [
+                                         "Pyro Gateway"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Laranite",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Pyro Gateway (Stanton)",
+                         "aliases":  [
+                                         "Pyro Gateway"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Beryl",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Corundum",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Iron",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  2
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Laranite",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Bexalite",
+                                               "value":  -6
+                                           },
+                                           {
+                                               "material":  "Gold",
+                                               "value":  -6
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Refinement Center - Levski",
+                         "aliases":  [
+                                         "Levski"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Ice",
+                                          "value":  10
+                                      },
+                                      {
+                                          "material":  "Construction Material Rubble",
+                                          "value":  9
+                                      },
+                                      {
+                                          "material":  "Tin",
+                                          "value":  9
+                                      },
+                                      {
+                                          "material":  "Agricium",
+                                          "value":  8
+                                      }
+                                  ],
+                         "penalties":  [
+
+                                       ]
+                     },
+                     {
+                         "name":  "Ruin Station",
+                         "aliases":  [
+                                         "Ruin Station Refinery"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Laranite",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Stanton Gateway (Nyx)",
+                         "aliases":  [
+                                         "Stanton Gateway"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Laranite",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Stanton Gateway (Pyro)",
+                         "aliases":  [
+                                         "Stanton Gateway"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Tungsten",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Laranite",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Quantainium",
+                                          "value":  2
+                                      },
+                                      {
+                                          "material":  "Borase",
+                                          "value":  1
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Agricium",
+                                               "value":  -8
+                                           },
+                                           {
+                                               "material":  "Copper",
+                                               "value":  -5
+                                           },
+                                           {
+                                               "material":  "Corundum",
+                                               "value":  -5
+                                           }
+                                       ]
+                     },
+                     {
+                         "name":  "Terra Gateway (Stanton)",
+                         "aliases":  [
+                                         "Terra Gateway"
+                                     ],
+                         "best":  [
+                                      {
+                                          "material":  "Agricium",
+                                          "value":  8
+                                      },
+                                      {
+                                          "material":  "Aluminum",
+                                          "value":  7
+                                      },
+                                      {
+                                          "material":  "Copper",
+                                          "value":  4
+                                      },
+                                      {
+                                          "material":  "Corundum",
+                                          "value":  2
+                                      }
+                                  ],
+                         "penalties":  [
+                                           {
+                                               "material":  "Beryl",
+                                               "value":  -6
+                                           },
+                                           {
+                                               "material":  "Quartz",
+                                               "value":  -3
+                                           }
+                                       ]
+                     }
+                 ]
+}
