@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.7'
+    [string]$Version = '2.0.8'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +10,7 @@ $DistDir = Join-Path $ProjectDir 'dist'
 $ZipPath = Join-Path $DistDir "SC_Mod_Launcher_$Version.zip"
 $StageRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-release-" + [guid]::NewGuid().ToString('N'))
 $PackageRoot = Join-Path $StageRoot 'SC_Mod_Launcher'
+$SeedSnapshotRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-release-seeds-" + [guid]::NewGuid().ToString('N'))
 
 $packageItems = @(
     'SC_Mod_Launcher.ps1',
@@ -108,6 +109,31 @@ function Copy-ReleaseSeedItem {
     Copy-Item -LiteralPath $source -Destination $destination -Force
 }
 
+function Save-ReleaseSeedSnapshot {
+    foreach ($item in $releaseSeedItems) {
+        $source = Join-Path $ProjectDir $item
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Release seed item not found: $item"
+        }
+
+        $destination = Join-Path $SeedSnapshotRoot $item
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+        Copy-Item -LiteralPath $source -Destination $destination -Force
+    }
+}
+
+function Restore-ReleaseSeedSnapshot {
+    foreach ($item in $releaseSeedItems) {
+        $source = Join-Path $SeedSnapshotRoot $item
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Release seed snapshot missing: $item"
+        }
+
+        $destination = Join-Path $ProjectDir $item
+        Copy-Item -LiteralPath $source -Destination $destination -Force
+    }
+}
+
 function ConvertTo-PackageRelativePath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -121,9 +147,11 @@ function ConvertTo-PackageRelativePath {
 }
 
 try {
+    Save-ReleaseSeedSnapshot
     & (Join-Path $ScriptDir 'Test-Scaffold.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Build-WpfLauncher.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-WpfLauncher.ps1') | Out-Host
+    Restore-ReleaseSeedSnapshot
 
     if (Test-Path -LiteralPath $StageRoot) {
         Remove-Item -LiteralPath $StageRoot -Recurse -Force
@@ -186,5 +214,8 @@ try {
 finally {
     if (Test-Path -LiteralPath $StageRoot) {
         Remove-Item -LiteralPath $StageRoot -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $SeedSnapshotRoot) {
+        Remove-Item -LiteralPath $SeedSnapshotRoot -Recurse -Force
     }
 }

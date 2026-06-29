@@ -949,11 +949,24 @@ function Get-SCQuestSelectedCategoryNames {
 function Get-SCQuestSelectedFamilyOptionIds {
     param([string[]]$SelectedOptions)
 
-    return @(
+    $optionIds = @(
         @($SelectedOptions) |
             ForEach-Object { [string]$_ } |
             Where-Object { $_.StartsWith('questCraftFamily|', [System.StringComparison]::OrdinalIgnoreCase) }
     )
+
+    $expanded = New-Object System.Collections.Generic.List[string]
+    foreach ($optionId in @($optionIds)) {
+        $expanded.Add([string]$optionId)
+        if ([string]$optionId -in @(
+            'questCraftFamily|Корабельные компоненты|Охладители|exact:NightFall',
+            'questCraftFamily|Корабельные компоненты|Охладители|exact:SnowBlind'
+        )) {
+            $expanded.Add('questCraftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall')
+        }
+    }
+
+    return @($expanded.ToArray() | Sort-Object -Unique)
 }
 
 function Get-SCQuestCraftFamilyIndex {

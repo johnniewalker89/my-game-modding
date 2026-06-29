@@ -1588,6 +1588,105 @@ function Write-JsonHashtable {
     [System.IO.File]::WriteAllText($Path, $json, $encoding)
 }
 
+function Get-LatestQuestSiblingCacheFile {
+    param([string]$Filter)
+
+    $moduleRoot = Split-Path -Parent (Split-Path -Parent $ScriptDir)
+    $cacheDir = Join-Path $moduleRoot 'mining\cache'
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        return $null
+    }
+
+    return Get-ChildItem -LiteralPath $cacheDir -Filter $Filter -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+}
+
+function ConvertTo-QuestFamilyEnrichmentType {
+    param([AllowEmptyString()][string]$Subcategory)
+
+    switch ([string]$Subcategory) {
+        'Щиты' { return 'щит' }
+        'Квантовые двигатели' { return 'квантовый двигатель' }
+        'Силовые установки' { return 'силовая установка' }
+        'Охладители' { return 'охладитель' }
+        'Радары' { return 'радар' }
+        'Топливные форсунки' { return 'топливная форсунка' }
+        'Энергетика' { return 'корабельное орудие' }
+        'Баллистика' { return 'корабельное орудие' }
+        'Гибрид' { return 'корабельное орудие' }
+        'Добывающие лазеры' { return 'добывающий лазер' }
+        'Тяжёлая броня' { return 'тяжёлая броня' }
+        'Средняя броня' { return 'средняя броня' }
+        'Лёгкая броня' { return 'лёгкая броня' }
+        'Андерсьюты/костюмы' { return 'нижний костюм' }
+        'Винтовки' { return 'винтовка' }
+        'Снайперские винтовки' { return 'снайперская винтовка' }
+        'Пистолеты' { return 'пистолет' }
+        'Пистолеты-пулемёты' { return 'пистолет-пулемёт' }
+        'Дробовики' { return 'дробовик' }
+        'Пулемёты' { return 'пулемёт' }
+        'Арбалеты' { return 'арбалет' }
+    }
+
+    return $null
+}
+
+function New-FamilyEnrichmentFromEntry {
+    param(
+        [Parameter(Mandatory = $true)]$Entry,
+        [AllowEmptyString()][string]$Name
+    )
+
+    $subcategory = [string]$Entry.subcategory
+
+    return [pscustomobject]@{
+        found = $true
+        source = 'craft-family'
+        category = [string]$Entry.category
+        subcategory = $subcategory
+        type = ConvertTo-QuestFamilyEnrichmentType -Subcategory $subcategory
+        slot = $null
+        size = $null
+        grade = $null
+        class = $null
+        manufacturer = $null
+        blueprintUuid = $null
+        blueprintLink = $null
+        isCraftable = $true
+    }
+}
+
+function New-CraftFamilyEnrichmentMap {
+    $cacheFile = Get-LatestQuestSiblingCacheFile -Filter 'craft-family-index-*.json'
+    $map = @{}
+    if ($null -eq $cacheFile) {
+        return $map
+    }
+
+    try {
+        $index = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
+    }
+    catch {
+        return $map
+    }
+
+    foreach ($entry in (ConvertTo-Array $index.families)) {
+        foreach ($name in (ConvertTo-Array $entry.names)) {
+            $normalized = ([string]$name).Trim()
+            if ([string]::IsNullOrWhiteSpace($normalized)) {
+                continue
+            }
+
+            if (-not $map.ContainsKey($normalized)) {
+                $map[$normalized] = New-FamilyEnrichmentFromEntry -Entry $entry -Name $normalized
+            }
+        }
+    }
+
+    return $map
+}
+
 function Get-WikiItemsByName {
     param([string[]]$Names)
 
@@ -1710,6 +1809,7 @@ function New-EnrichmentMap {
 
     $cache = if ($NoCache) { @{} } else { Read-JsonHashtable -Path $WikiCachePath }
     $overrides = Read-JsonHashtable -Path $OverridesPath
+    $familyFallback = New-CraftFamilyEnrichmentMap
     $result = @{}
     $namesForWiki = New-Object System.Collections.Generic.List[string]
 
@@ -1756,6 +1856,16 @@ function New-EnrichmentMap {
         if ($overrides.ContainsKey($name)) {
             $base = if ($result.ContainsKey($name)) { $result[$name] } else { $null }
             $result[$name] = Normalize-EnrichmentCategory -Name $name -Info (Merge-OverrideEnrichment -Base $base -Override $overrides[$name])
+        }
+    }
+
+    foreach ($name in $Names) {
+        if ($familyFallback.ContainsKey($name) -and (
+            -not $result.ContainsKey($name) -or
+            -not $result[$name].found -or
+            [string]$result[$name].category -eq 'Не распознано'
+        )) {
+            $result[$name] = Normalize-EnrichmentCategory -Name $name -Info $familyFallback[$name]
         }
     }
 
@@ -2461,7 +2571,17 @@ function Get-PlanetRecipeFamily {
         if ($displayName -match '^JS-\d+$') {
             return [pscustomobject]@{
                 key = 'component:JS-series'
-                label = 'JS-300/400'
+                label = 'JS-300/400/500'
+                family = 'variant'
+                token = $null
+                original = $displayName
+            }
+        }
+
+        if ($displayName -match '^(SnowBlind|NightFall)$') {
+            return [pscustomobject]@{
+                key = 'component:SnowBlind-NightFall'
+                label = 'SnowBlind / NightFall'
                 family = 'variant'
                 token = $null
                 original = $displayName
@@ -2861,6 +2981,10 @@ function Get-BlueprintSubcategory {
         [string]$Name,
         $CraftInfo
     )
+
+    if ($CraftInfo -and $CraftInfo.PSObject.Properties['subcategory'] -and -not [string]::IsNullOrWhiteSpace([string]$CraftInfo.subcategory)) {
+        return [string]$CraftInfo.subcategory
+    }
 
     if ($Category -eq 'Корабельные компоненты') {
         return Get-ShipComponentSubcategory -Name $Name -CraftInfo $CraftInfo

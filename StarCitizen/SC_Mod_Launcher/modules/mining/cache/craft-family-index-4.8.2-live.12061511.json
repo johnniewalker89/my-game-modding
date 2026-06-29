@@ -751,23 +751,6 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:NightFall",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:NightFall",
-                         "label":  "NightFall",
-                         "sortLabel":  "NightFall",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "NightFall"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Savrilium"
-                                       ]
-                     },
-                     {
                          "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Serac",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Охладители",
@@ -785,14 +768,15 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:SnowBlind",
+                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Охладители",
-                         "familyKey":  "exact:SnowBlind",
-                         "label":  "SnowBlind",
-                         "sortLabel":  "SnowBlind",
+                         "familyKey":  "component:SnowBlind-NightFall",
+                         "label":  "SnowBlind / NightFall",
+                         "sortLabel":  "SnowBlind / NightFall",
                          "defaultSelected":  false,
                          "names":  [
+                                       "NightFall",
                                        "SnowBlind"
                                    ],
                          "resources":  [

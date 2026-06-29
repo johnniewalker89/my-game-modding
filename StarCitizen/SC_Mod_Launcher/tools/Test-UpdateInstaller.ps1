@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Installer = Join-Path $ScriptDir 'Install-ScModLauncherUpdate.ps1'
+$ReleaseCacheBuild = '4.8.2-live.12061511'
 
 function Assert-True {
     param(
@@ -80,10 +81,10 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260618-180558.starter-clean.bak') -PathType Leaf) 'Starter clean backup should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260618-180558.starter-clean.bak.meta.json') -PathType Leaf) 'Starter clean backup metadata should be installed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -PathType Leaf)) 'Old mining cache should be replaced by release cache.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki-blueprints-4.8.2-live.12030094.json') -PathType Leaf) 'Seed mining blueprints cache should be installed.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\craft-family-index-4.8.2-live.12030094.json') -PathType Leaf) 'Seed mining recipe family cache should be installed.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\refinery-yields-4.8.2-live.12030094.json') -PathType Leaf) 'Seed refinery cache should be installed.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\erkul-item-passports-4.8.2-live.12030094.json') -PathType Leaf) 'Seed item passport cache should be installed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\wiki-blueprints-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed mining blueprints cache should be installed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\craft-family-index-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed mining recipe family cache should be installed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\refinery-yields-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed refinery cache should be installed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\erkul-item-passports-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed item passport cache should be installed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.old.json') -PathType Leaf)) 'Old quest cache leftovers should be removed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -PathType Leaf) 'Seed quest items cache should be installed.'
     Assert-True ((Get-Content -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -Encoding UTF8 -Raw) -ne 'quest-cache') 'Seed quest items cache should replace old cache content.'

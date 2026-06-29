@@ -1963,11 +1963,33 @@ function Test-SCMiningSetContains {
     return ($null -ne $Set -and $Set.ContainsKey([string]$Value))
 }
 
+function Expand-SCMiningCraftFamilyOptionIds {
+    param([string[]]$OptionIds)
+
+    $expanded = New-Object System.Collections.Generic.List[string]
+    foreach ($optionId in @($OptionIds)) {
+        $value = [string]$optionId
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            continue
+        }
+
+        $expanded.Add($value)
+        if ($value -in @(
+            'craftFamily|Корабельные компоненты|Охладители|exact:NightFall',
+            'craftFamily|Корабельные компоненты|Охладители|exact:SnowBlind'
+        )) {
+            $expanded.Add('craftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall')
+        }
+    }
+
+    return @($expanded.ToArray() | Sort-Object -Unique)
+}
+
 function Get-SCMiningCraftFilter {
     param([string[]]$SelectedOptions)
 
     $selected = @($SelectedOptions | ForEach-Object { [string]$_ })
-    $familyOptionIds = @($selected | Where-Object { ([string]$_).StartsWith('craftFamily|', [System.StringComparison]::OrdinalIgnoreCase) })
+    $familyOptionIds = @(Expand-SCMiningCraftFamilyOptionIds -OptionIds @($selected | Where-Object { ([string]$_).StartsWith('craftFamily|', [System.StringComparison]::OrdinalIgnoreCase) }))
     $componentClasses = New-Object System.Collections.Generic.List[string]
     $componentMap = @{
         componentClassMilitary = 'Military'
@@ -2110,6 +2132,7 @@ function Test-SCMiningKnownHighValueShipComponent {
         '^Avalanche$',
         '^Blizzard$',
         '^Glacier$',
+        '^NightFall$',
         '^SnowBlind$',
         '^V60-26$',
         '^V801-11$',
@@ -2231,6 +2254,9 @@ function Get-SCMiningPlanetRecipeFamily {
         if ($label -match '^FullSpec(?:-(Go|Max))?$') {
             $token = if ([string]::IsNullOrWhiteSpace([string]$Matches[1])) { 'FullSpec' } else { "FullSpec-$($Matches[1])" }
             return [pscustomobject]@{ Key = 'component:FullSpec'; Label = 'FullSpec'; Family = 'name-list'; Token = $token }
+        }
+        if ($label -match '^(SnowBlind|NightFall)$') {
+            return [pscustomobject]@{ Key = 'component:SnowBlind-NightFall'; Label = 'SnowBlind / NightFall'; Family = 'variant'; Token = $null }
         }
         if ($label -match '^QuadraCell(?:\s+(MT|MX))?$') {
             return [pscustomobject]@{ Key = 'component:QuadraCell'; Label = 'QuadraCell / MT / MX'; Family = 'variant'; Token = $null }

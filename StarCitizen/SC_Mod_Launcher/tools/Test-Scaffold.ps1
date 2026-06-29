@@ -6,6 +6,8 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectDir = Split-Path -Parent $ScriptDir
 $CoreScript = Join-Path $ProjectDir 'shared\SC_Localization_Core.ps1'
 . $CoreScript
+$MiningModuleScript = Join-Path $ProjectDir 'modules\mining\module.ps1'
+. $MiningModuleScript
 $QuestModuleScript = Join-Path $ProjectDir 'modules\quest\module.ps1'
 . $QuestModuleScript
 
@@ -152,6 +154,15 @@ $questFiltered = Select-SCQuestRewardBlockCategories -Value $questBlockWithHidde
 Assert-True ($questFiltered.Contains('FR-86')) 'Quest filtering should keep visible categories.'
 Assert-True (-not $questFiltered.Contains('Материалы/особое')) 'Quest filtering should remove hidden materials/special category.'
 Assert-True (-not $questFiltered.Contains('Metamaterial Test')) 'Quest filtering should remove test metamaterial recipes.'
+$nightFallMergedMiningOptions = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Корабельные компоненты|Охладители|exact:NightFall')
+Assert-True ($nightFallMergedMiningOptions -contains 'craftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall') 'Mining family filters should migrate old NightFall selection to the merged SnowBlind/NightFall family.'
+$snowBlindMergedQuestOptions = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Корабельные компоненты|Охладители|exact:SnowBlind')
+Assert-True ($snowBlindMergedQuestOptions -contains 'questCraftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall') 'Quest family filters should migrate old SnowBlind selection to the merged SnowBlind/NightFall family.'
+$questFamilyIndex = Get-SCQuestCraftFamilyIndex
+$questCoolerFamilyBlock = "Quest\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n<EM4>Охладители:</EM4>\n- NightFall\n- SnowBlind"
+$questCoolerFiltered = Select-SCQuestRewardBlockCategories -Value $questCoolerFamilyBlock -SelectedCategoryNames @('Корабельные компоненты') -SelectedFamilyOptionIds $snowBlindMergedQuestOptions -FamilyIndex $questFamilyIndex
+Assert-True ($questCoolerFiltered.Contains('NightFall')) 'Merged cooler family should keep NightFall when old SnowBlind option is selected.'
+Assert-True ($questCoolerFiltered.Contains('SnowBlind')) 'Merged cooler family should keep SnowBlind when old SnowBlind option is selected.'
 Assert-True ((Get-SCQuestPossibleTitleKeys -DescriptionKey 'Foxwell_destroyprobe_M_desc_001') -contains 'Foxwell_destroyprobe_M_name_001') 'Quest blueprint marker cleanup should link _desc keys to _name keys.'
 Assert-True (Test-SCQuestLooksLikeTitleKey -Key 'Foxwell_destroyprobe_M_name_001') 'Quest blueprint marker cleanup should treat _name keys as title-like keys.'
 Assert-True ((Remove-SCQuestBlueprintTitleMarker -Value '[Ч] КОНТРАКТ ОРАНЖЕВОГО УРОВНЯ') -eq 'КОНТРАКТ ОРАНЖЕВОГО УРОВНЯ') 'Quest blueprint marker cleanup should remove [CH] marker from name values.'
