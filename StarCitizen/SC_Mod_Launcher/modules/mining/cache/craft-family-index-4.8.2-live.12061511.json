@@ -1,15 +1,31 @@
 {
     "cacheKey":  "4.8.2-live.12061511",
-    "createdAt":  "2026-06-22T17:33:19.5845717+03:00",
+    "createdAt":  "2026-06-29T23:28:44.0281098+03:00",
     "shipComponentGradeFilter":  "A",
     "families":  [
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|component:7-series",
+                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|component:capital-a:holdstrong",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Щиты",
-                         "familyKey":  "component:7-series",
-                         "label":  "7CA/7MA/7SA",
-                         "sortLabel":  "7CA/7MA/7SA",
+                         "familyKey":  "component:capital-a:holdstrong",
+                         "label":  "CAP-A: Holdstrong",
+                         "sortLabel":  "CAP-A",
+                         "defaultSelected":  false,
+                         "names":  [
+                                       "Holdstrong"
+                                   ],
+                         "resources":  [
+                                           "Feynmaline",
+                                           "Stileron"
+                                       ]
+                     },
+                     {
+                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|component:щиты:CIV-A:beradom+borase+gold",
+                         "category":  "Корабельные компоненты",
+                         "subcategory":  "Щиты",
+                         "familyKey":  "component:щиты:CIV-A:beradom+borase+gold",
+                         "label":  "CIV-A: 7CA/7MA/7SA",
+                         "sortLabel":  "CIV-A",
                          "defaultSelected":  false,
                          "names":  [
                                        "7CA \u0027Nargun\u0027",
@@ -23,12 +39,32 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|component:FR-series",
+                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|component:щиты:IND-A:beradom+riccite",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Щиты",
-                         "familyKey":  "component:FR-series",
-                         "label":  "FR-66/FR-76/FR-86",
-                         "sortLabel":  "FR",
+                         "familyKey":  "component:щиты:IND-A:beradom+riccite",
+                         "label":  "IND-A: Glacis/Palisade/Parapet/Rampart/RS-Barrier",
+                         "sortLabel":  "IND-A",
+                         "defaultSelected":  false,
+                         "names":  [
+                                       "Glacis",
+                                       "Palisade",
+                                       "Parapet",
+                                       "Rampart",
+                                       "RS-Barrier"
+                                   ],
+                         "resources":  [
+                                           "Beradom",
+                                           "Riccite"
+                                       ]
+                     },
+                     {
+                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|component:щиты:MIL-A:feynmaline+stileron",
+                         "category":  "Корабельные компоненты",
+                         "subcategory":  "Щиты",
+                         "familyKey":  "component:щиты:MIL-A:feynmaline+stileron",
+                         "label":  "MIL-A: FR-66/76/86",
+                         "sortLabel":  "MIL-A",
                          "defaultSelected":  false,
                          "names":  [
                                        "FR-66",
@@ -41,126 +77,15 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|exact:Glacis",
+                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|component:щиты:STE-A:feynmaline+savrilium",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Щиты",
-                         "familyKey":  "exact:Glacis",
-                         "label":  "Glacis",
-                         "sortLabel":  "Glacis",
+                         "familyKey":  "component:щиты:STE-A:feynmaline+savrilium",
+                         "label":  "STE-A: Mirage/Umbra",
+                         "sortLabel":  "STE-A",
                          "defaultSelected":  false,
                          "names":  [
-                                       "Glacis"
-                                   ],
-                         "resources":  [
-                                           "Beradom",
-                                           "Riccite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|exact:Holdstrong",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Щиты",
-                         "familyKey":  "exact:Holdstrong",
-                         "label":  "Holdstrong",
-                         "sortLabel":  "Holdstrong",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Holdstrong"
-                                   ],
-                         "resources":  [
-                                           "Feynmaline",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|exact:Mirage",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Щиты",
-                         "familyKey":  "exact:Mirage",
-                         "label":  "Mirage",
-                         "sortLabel":  "Mirage",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Mirage"
-                                   ],
-                         "resources":  [
-                                           "Feynmaline",
-                                           "Savrilium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|exact:Palisade",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Щиты",
-                         "familyKey":  "exact:Palisade",
-                         "label":  "Palisade",
-                         "sortLabel":  "Palisade",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Palisade"
-                                   ],
-                         "resources":  [
-                                           "Beradom",
-                                           "Riccite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|exact:Parapet",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Щиты",
-                         "familyKey":  "exact:Parapet",
-                         "label":  "Parapet",
-                         "sortLabel":  "Parapet",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Parapet"
-                                   ],
-                         "resources":  [
-                                           "Beradom",
-                                           "Riccite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|exact:Rampart",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Щиты",
-                         "familyKey":  "exact:Rampart",
-                         "label":  "Rampart",
-                         "sortLabel":  "Rampart",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Rampart"
-                                   ],
-                         "resources":  [
-                                           "Beradom",
-                                           "Riccite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|exact:RS-Barrier",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Щиты",
-                         "familyKey":  "exact:RS-Barrier",
-                         "label":  "RS-Barrier",
-                         "sortLabel":  "RS-Barrier",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "RS-Barrier"
-                                   ],
-                         "resources":  [
-                                           "Beradom",
-                                           "Riccite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Щиты|exact:Umbra",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Щиты",
-                         "familyKey":  "exact:Umbra",
-                         "label":  "Umbra",
-                         "sortLabel":  "Umbra",
-                         "defaultSelected":  false,
-                         "names":  [
+                                       "Mirage",
                                        "Umbra"
                                    ],
                          "resources":  [
@@ -169,63 +94,12 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Allegro",
+                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|component:capital-a:frontline",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:Allegro",
-                         "label":  "Allegro",
-                         "sortLabel":  "Allegro",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Allegro"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Torite",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Atlas",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:Atlas",
-                         "label":  "Atlas",
-                         "sortLabel":  "Atlas",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Atlas"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Torite",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Erebos",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:Erebos",
-                         "label":  "Erebos",
-                         "sortLabel":  "Erebos",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Erebos"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Torite",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Frontline",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:Frontline",
-                         "label":  "Frontline",
-                         "sortLabel":  "Frontline",
+                         "familyKey":  "component:capital-a:frontline",
+                         "label":  "CAP-A: Frontline",
+                         "sortLabel":  "CAP-A",
                          "defaultSelected":  false,
                          "names":  [
                                        "Frontline"
@@ -237,14 +111,17 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Hemera",
+                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|component:квантовые-двигатели:CIV-A:bexalite+torite+tungsten",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:Hemera",
-                         "label":  "Hemera",
-                         "sortLabel":  "Hemera",
+                         "familyKey":  "component:квантовые-двигатели:CIV-A:bexalite+torite+tungsten",
+                         "label":  "CIV-A: Allegro/Atlas/Erebos/Hemera",
+                         "sortLabel":  "CIV-A",
                          "defaultSelected":  false,
                          "names":  [
+                                       "Allegro",
+                                       "Atlas",
+                                       "Erebos",
                                        "Hemera"
                                    ],
                          "resources":  [
@@ -254,82 +131,16 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Spectre",
+                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|component:квантовые-двигатели:MIL-A:borase+stileron+tungsten",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:Spectre",
-                         "label":  "Spectre",
-                         "sortLabel":  "Spectre",
+                         "familyKey":  "component:квантовые-двигатели:MIL-A:borase+stileron+tungsten",
+                         "label":  "MIL-A: TS-2/VK-00/XL-1",
+                         "sortLabel":  "MIL-A",
                          "defaultSelected":  false,
                          "names":  [
-                                       "Spectre"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Savrilium",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Spicule",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:Spicule",
-                         "label":  "Spicule",
-                         "sortLabel":  "Spicule",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Spicule"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Savrilium",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:TS-2",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:TS-2",
-                         "label":  "TS-2",
-                         "sortLabel":  "TS-2",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "TS-2"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Stileron",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:VK-00",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:VK-00",
-                         "label":  "VK-00",
-                         "sortLabel":  "VK-00",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "VK-00"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Stileron",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|exact:XL-1",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Квантовые двигатели",
-                         "familyKey":  "exact:XL-1",
-                         "label":  "XL-1",
-                         "sortLabel":  "XL-1",
-                         "defaultSelected":  false,
-                         "names":  [
+                                       "TS-2",
+                                       "VK-00",
                                        "XL-1"
                                    ],
                          "resources":  [
@@ -339,131 +150,30 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:Breton",
+                         "optionId":  "craftFamily|Корабельные компоненты|Квантовые двигатели|component:квантовые-двигатели:STE-A:borase+savrilium+tungsten",
                          "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:Breton",
-                         "label":  "Breton",
-                         "sortLabel":  "Breton",
+                         "subcategory":  "Квантовые двигатели",
+                         "familyKey":  "component:квантовые-двигатели:STE-A:borase+savrilium+tungsten",
+                         "label":  "STE-A: Spectre/Spicule",
+                         "sortLabel":  "STE-A",
                          "defaultSelected":  false,
                          "names":  [
-                                       "Breton"
+                                       "Spectre",
+                                       "Spicule"
                                    ],
                          "resources":  [
-                                           "Laranite",
-                                           "Riccite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:Durango",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:Durango",
-                         "label":  "Durango",
-                         "sortLabel":  "Durango",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Durango"
-                                   ],
-                         "resources":  [
-                                           "Laranite",
-                                           "Riccite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:Eclipse",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:Eclipse",
-                         "label":  "Eclipse",
-                         "sortLabel":  "Eclipse",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Eclipse"
-                                   ],
-                         "resources":  [
-                                           "Beryl",
-                                           "Savrilium",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:Genoa",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:Genoa",
-                         "label":  "Genoa",
-                         "sortLabel":  "Genoa",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Genoa"
-                                   ],
-                         "resources":  [
-                                           "Laranite",
-                                           "Riccite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:JS-series",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "component:JS-series",
-                         "label":  "JS-300/400/500",
-                         "sortLabel":  "JS-300/400/500",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "JS-300",
-                                       "JS-400",
-                                       "JS-500"
-                                   ],
-                         "resources":  [
-                                           "Beryl",
-                                           "Savrilium",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:Lotus",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:Lotus",
-                         "label":  "Lotus",
-                         "sortLabel":  "Lotus",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Lotus"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
                                            "Borase",
-                                           "Laranite"
+                                           "Savrilium",
+                                           "Tungsten"
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:LumaCore-LuxCore",
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:capital-a:main-powerplant",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Силовые установки",
-                         "familyKey":  "component:LumaCore-LuxCore",
-                         "label":  "LumaCore / LuxCore",
-                         "sortLabel":  "LumaCore / LuxCore",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "LumaCore",
-                                       "LuxCore"
-                                   ],
-                         "resources":  [
-                                           "Beryl",
-                                           "Borase",
-                                           "Laranite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:Main Powerplant",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:Main Powerplant",
-                         "label":  "Main Powerplant",
-                         "sortLabel":  "Main Powerplant",
+                         "familyKey":  "component:capital-a:main-powerplant",
+                         "label":  "CAP-A: Main Powerplant",
+                         "sortLabel":  "CAP-A",
                          "defaultSelected":  false,
                          "names":  [
                                        "Main Powerplant"
@@ -477,14 +187,73 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:QuadraCell",
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:силовые-установки:CIV-A:bexalite+borase+laranite",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Силовые установки",
-                         "familyKey":  "component:QuadraCell",
-                         "label":  "QuadraCell / MT / MX",
-                         "sortLabel":  "QuadraCell / MT / MX",
+                         "familyKey":  "component:силовые-установки:CIV-A:bexalite+borase+laranite",
+                         "label":  "CIV-A: Lotus/Stellate/TigerLilly/WhiteRose",
+                         "sortLabel":  "CIV-A",
                          "defaultSelected":  false,
                          "names":  [
+                                       "Lotus",
+                                       "Stellate",
+                                       "TigerLilly",
+                                       "WhiteRose"
+                                   ],
+                         "resources":  [
+                                           "Bexalite",
+                                           "Borase",
+                                           "Laranite"
+                                       ]
+                     },
+                     {
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:силовые-установки:COM-A:beryl+borase+laranite",
+                         "category":  "Корабельные компоненты",
+                         "subcategory":  "Силовые установки",
+                         "familyKey":  "component:силовые-установки:COM-A:beryl+borase+laranite",
+                         "label":  "COM-A: LumaCore/LuxCore",
+                         "sortLabel":  "COM-A",
+                         "defaultSelected":  false,
+                         "names":  [
+                                       "LumaCore",
+                                       "LuxCore"
+                                   ],
+                         "resources":  [
+                                           "Beryl",
+                                           "Borase",
+                                           "Laranite"
+                                       ]
+                     },
+                     {
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:силовые-установки:IND-A:laranite+riccite",
+                         "category":  "Корабельные компоненты",
+                         "subcategory":  "Силовые установки",
+                         "familyKey":  "component:силовые-установки:IND-A:laranite+riccite",
+                         "label":  "IND-A: Breton/Durango/Genoa",
+                         "sortLabel":  "IND-A",
+                         "defaultSelected":  false,
+                         "names":  [
+                                       "Breton",
+                                       "Durango",
+                                       "Genoa"
+                                   ],
+                         "resources":  [
+                                           "Laranite",
+                                           "Riccite"
+                                       ]
+                     },
+                     {
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:силовые-установки:MIL-A:beryl+savrilium+stileron",
+                         "category":  "Корабельные компоненты",
+                         "subcategory":  "Силовые установки",
+                         "familyKey":  "component:силовые-установки:MIL-A:beryl+savrilium+stileron",
+                         "label":  "MIL-A: JS-300/400/500/ QuadraCell/MT/MX",
+                         "sortLabel":  "MIL-A",
+                         "defaultSelected":  false,
+                         "names":  [
+                                       "JS-300",
+                                       "JS-400",
+                                       "JS-500",
                                        "QuadraCell",
                                        "QuadraCell MT",
                                        "QuadraCell MX"
@@ -496,12 +265,29 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:Slipstream",
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:силовые-установки:STE-A:beryl+savrilium+stileron",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:Slipstream",
-                         "label":  "Slipstream",
-                         "sortLabel":  "Slipstream",
+                         "familyKey":  "component:силовые-установки:STE-A:beryl+savrilium+stileron",
+                         "label":  "STE-A: Eclipse",
+                         "sortLabel":  "STE-A",
+                         "defaultSelected":  false,
+                         "names":  [
+                                       "Eclipse"
+                                   ],
+                         "resources":  [
+                                           "Beryl",
+                                           "Savrilium",
+                                           "Stileron"
+                                       ]
+                     },
+                     {
+                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|component:силовые-установки:STE-A:beryl+lindinium+ouratite",
+                         "category":  "Корабельные компоненты",
+                         "subcategory":  "Силовые установки",
+                         "familyKey":  "component:силовые-установки:STE-A:beryl+lindinium+ouratite",
+                         "label":  "STE-A: Slipstream",
+                         "sortLabel":  "STE-A",
                          "defaultSelected":  false,
                          "names":  [
                                        "Slipstream"
@@ -513,182 +299,12 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:Stellate",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:Stellate",
-                         "label":  "Stellate",
-                         "sortLabel":  "Stellate",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Stellate"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Borase",
-                                           "Laranite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:TigerLilly",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:TigerLilly",
-                         "label":  "TigerLilly",
-                         "sortLabel":  "TigerLilly",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "TigerLilly"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Borase",
-                                           "Laranite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Силовые установки|exact:WhiteRose",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Силовые установки",
-                         "familyKey":  "exact:WhiteRose",
-                         "label":  "WhiteRose",
-                         "sortLabel":  "WhiteRose",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "WhiteRose"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Borase",
-                                           "Laranite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Algid",
+                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|component:capital-a:exotherm",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Охладители",
-                         "familyKey":  "exact:Algid",
-                         "label":  "Algid",
-                         "sortLabel":  "Algid",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Algid"
-                                   ],
-                         "resources":  [
-                                           "Pressurized Ice",
-                                           "Riccite",
-                                           "Titanium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Aufeis",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Aufeis",
-                         "label":  "Aufeis",
-                         "sortLabel":  "Aufeis",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Aufeis"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Avalanche",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Avalanche",
-                         "label":  "Avalanche",
-                         "sortLabel":  "Avalanche",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Avalanche"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Blizzard",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Blizzard",
-                         "label":  "Blizzard",
-                         "sortLabel":  "Blizzard",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Blizzard"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|component:Chill",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "component:Chill",
-                         "label":  "Chill-Max",
-                         "sortLabel":  "Chill variants",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Chill-Max"
-                                   ],
-                         "resources":  [
-                                           "Pressurized Ice",
-                                           "Riccite",
-                                           "Titanium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Draug",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Draug",
-                         "label":  "Draug",
-                         "sortLabel":  "Draug",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Draug"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Elsen",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Elsen",
-                         "label":  "Elsen",
-                         "sortLabel":  "Elsen",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Elsen"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Exotherm",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Exotherm",
-                         "label":  "Exotherm",
-                         "sortLabel":  "Exotherm",
+                         "familyKey":  "component:capital-a:exotherm",
+                         "label":  "CAP-A: Exotherm",
+                         "sortLabel":  "CAP-A",
                          "defaultSelected":  false,
                          "names":  [
                                        "Exotherm"
@@ -700,15 +316,21 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Gelid",
+                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|component:охладители:CIV-A:borase+pressurized-ice+tungsten",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Охладители",
-                         "familyKey":  "exact:Gelid",
-                         "label":  "Gelid",
-                         "sortLabel":  "Gelid",
+                         "familyKey":  "component:охладители:CIV-A:borase+pressurized-ice+tungsten",
+                         "label":  "CIV-A: Aufeis/Draug/Elsen/Gelid/Kragen/Serac/Tepilo",
+                         "sortLabel":  "CIV-A",
                          "defaultSelected":  false,
                          "names":  [
-                                       "Gelid"
+                                       "Aufeis",
+                                       "Draug",
+                                       "Elsen",
+                                       "Gelid",
+                                       "Kragen",
+                                       "Serac",
+                                       "Tepilo"
                                    ],
                          "resources":  [
                                            "Borase",
@@ -717,14 +339,36 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Glacier",
+                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|component:охладители:IND-A:pressurized-ice+riccite+titanium",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Охладители",
-                         "familyKey":  "exact:Glacier",
-                         "label":  "Glacier",
-                         "sortLabel":  "Glacier",
+                         "familyKey":  "component:охладители:IND-A:pressurized-ice+riccite+titanium",
+                         "label":  "IND-A: Algid/Chill-Max/Snowpack/Ultra-Flow",
+                         "sortLabel":  "IND-A",
                          "defaultSelected":  false,
                          "names":  [
+                                       "Algid",
+                                       "Chill-Max",
+                                       "Snowpack",
+                                       "Ultra-Flow"
+                                   ],
+                         "resources":  [
+                                           "Pressurized Ice",
+                                           "Riccite",
+                                           "Titanium"
+                                       ]
+                     },
+                     {
+                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|component:охладители:MIL-A:borase+pressurized-ice+stileron",
+                         "category":  "Корабельные компоненты",
+                         "subcategory":  "Охладители",
+                         "familyKey":  "component:охладители:MIL-A:borase+pressurized-ice+stileron",
+                         "label":  "MIL-A: Avalanche/Blizzard/Glacier",
+                         "sortLabel":  "MIL-A",
+                         "defaultSelected":  false,
+                         "names":  [
+                                       "Avalanche",
+                                       "Blizzard",
                                        "Glacier"
                                    ],
                          "resources":  [
@@ -734,46 +378,12 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Kragen",
+                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|component:охладители:STE-A:borase+pressurized-ice+savrilium",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Охладители",
-                         "familyKey":  "exact:Kragen",
-                         "label":  "Kragen",
-                         "sortLabel":  "Kragen",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Kragen"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Serac",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Serac",
-                         "label":  "Serac",
-                         "sortLabel":  "Serac",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Serac"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "component:SnowBlind-NightFall",
-                         "label":  "SnowBlind / NightFall",
-                         "sortLabel":  "SnowBlind / NightFall",
+                         "familyKey":  "component:охладители:STE-A:borase+pressurized-ice+savrilium",
+                         "label":  "STE-A: NightFall/SnowBlind",
+                         "sortLabel":  "STE-A",
                          "defaultSelected":  false,
                          "names":  [
                                        "NightFall",
@@ -786,133 +396,17 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Snowpack",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Snowpack",
-                         "label":  "Snowpack",
-                         "sortLabel":  "Snowpack",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Snowpack"
-                                   ],
-                         "resources":  [
-                                           "Pressurized Ice",
-                                           "Riccite",
-                                           "Titanium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Tepilo",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Tepilo",
-                         "label":  "Tepilo",
-                         "sortLabel":  "Tepilo",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Tepilo"
-                                   ],
-                         "resources":  [
-                                           "Borase",
-                                           "Pressurized Ice",
-                                           "Tungsten"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Охладители|exact:Ultra-Flow",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Охладители",
-                         "familyKey":  "exact:Ultra-Flow",
-                         "label":  "Ultra-Flow",
-                         "sortLabel":  "Ultra-Flow",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Ultra-Flow"
-                                   ],
-                         "resources":  [
-                                           "Pressurized Ice",
-                                           "Riccite",
-                                           "Titanium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:Abetti",
+                         "optionId":  "craftFamily|Корабельные компоненты|Радары|component:радары:CIV-A:gold+laranite+torite",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Радары",
-                         "familyKey":  "exact:Abetti",
-                         "label":  "Abetti",
-                         "sortLabel":  "Abetti",
+                         "familyKey":  "component:радары:CIV-A:gold+laranite+torite",
+                         "label":  "CIV-A: Abetti/Agrippa/Anysta/Fabian",
+                         "sortLabel":  "CIV-A",
                          "defaultSelected":  false,
                          "names":  [
-                                       "Abetti"
-                                   ],
-                         "resources":  [
-                                           "Gold",
-                                           "Laranite",
-                                           "Torite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:Agrippa",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Радары",
-                         "familyKey":  "exact:Agrippa",
-                         "label":  "Agrippa",
-                         "sortLabel":  "Agrippa",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Agrippa"
-                                   ],
-                         "resources":  [
-                                           "Gold",
-                                           "Laranite",
-                                           "Torite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:Anysta",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Радары",
-                         "familyKey":  "exact:Anysta",
-                         "label":  "Anysta",
-                         "sortLabel":  "Anysta",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Anysta"
-                                   ],
-                         "resources":  [
-                                           "Gold",
-                                           "Laranite",
-                                           "Torite"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:Cassandra",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Радары",
-                         "familyKey":  "exact:Cassandra",
-                         "label":  "Cassandra",
-                         "sortLabel":  "Cassandra",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Cassandra"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Borase",
-                                           "Savrilium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:Fabian",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Радары",
-                         "familyKey":  "exact:Fabian",
-                         "label":  "Fabian",
-                         "sortLabel":  "Fabian",
-                         "defaultSelected":  false,
-                         "names":  [
+                                       "Abetti",
+                                       "Agrippa",
+                                       "Anysta",
                                        "Fabian"
                                    ],
                          "resources":  [
@@ -922,12 +416,12 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|component:FullSpec",
+                         "optionId":  "craftFamily|Корабельные компоненты|Радары|component:радары:IND-A:laranite+riccite+titanium",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Радары",
-                         "familyKey":  "component:FullSpec",
-                         "label":  "FullSpec/FullSpec-Go/FullSpec-Max",
-                         "sortLabel":  "FullSpec",
+                         "familyKey":  "component:радары:IND-A:laranite+riccite+titanium",
+                         "label":  "IND-A: FullSpec/FullSpec-Go/FullSpec-Max",
+                         "sortLabel":  "IND-A",
                          "defaultSelected":  false,
                          "names":  [
                                        "FullSpec",
@@ -941,89 +435,42 @@
                                        ]
                      },
                      {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:Pelerous",
+                         "optionId":  "craftFamily|Корабельные компоненты|Радары|component:радары:MIL-A:bexalite+borase+stileron",
                          "category":  "Корабельные компоненты",
                          "subcategory":  "Радары",
-                         "familyKey":  "exact:Pelerous",
-                         "label":  "Pelerous",
-                         "sortLabel":  "Pelerous",
+                         "familyKey":  "component:радары:MIL-A:bexalite+borase+stileron",
+                         "label":  "MIL-A: V60-26/ V801-11/12/ V880",
+                         "sortLabel":  "MIL-A",
                          "defaultSelected":  false,
                          "names":  [
-                                       "Pelerous"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Borase",
-                                           "Savrilium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:Prophet",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Радары",
-                         "familyKey":  "exact:Prophet",
-                         "label":  "Prophet",
-                         "sortLabel":  "Prophet",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "Prophet"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Borase",
-                                           "Savrilium"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:V60-26",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Радары",
-                         "familyKey":  "exact:V60-26",
-                         "label":  "V60-26",
-                         "sortLabel":  "V60-26",
-                         "defaultSelected":  false,
-                         "names":  [
-                                       "V60-26"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Borase",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|component:V801-series",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Радары",
-                         "familyKey":  "component:V801-series",
-                         "label":  "V801-11/12",
-                         "sortLabel":  "V801-11/12",
-                         "defaultSelected":  false,
-                         "names":  [
+                                       "V60-26",
                                        "V801-11",
-                                       "V801-12"
-                                   ],
-                         "resources":  [
-                                           "Bexalite",
-                                           "Borase",
-                                           "Stileron"
-                                       ]
-                     },
-                     {
-                         "optionId":  "craftFamily|Корабельные компоненты|Радары|exact:V880",
-                         "category":  "Корабельные компоненты",
-                         "subcategory":  "Радары",
-                         "familyKey":  "exact:V880",
-                         "label":  "V880",
-                         "sortLabel":  "V880",
-                         "defaultSelected":  false,
-                         "names":  [
+                                       "V801-12",
                                        "V880"
                                    ],
                          "resources":  [
                                            "Bexalite",
                                            "Borase",
                                            "Stileron"
+                                       ]
+                     },
+                     {
+                         "optionId":  "craftFamily|Корабельные компоненты|Радары|component:радары:STE-A:bexalite+borase+savrilium",
+                         "category":  "Корабельные компоненты",
+                         "subcategory":  "Радары",
+                         "familyKey":  "component:радары:STE-A:bexalite+borase+savrilium",
+                         "label":  "STE-A: Cassandra/Pelerous/Prophet",
+                         "sortLabel":  "STE-A",
+                         "defaultSelected":  false,
+                         "names":  [
+                                       "Cassandra",
+                                       "Pelerous",
+                                       "Prophet"
+                                   ],
+                         "resources":  [
+                                           "Bexalite",
+                                           "Borase",
+                                           "Savrilium"
                                        ]
                      },
                      {

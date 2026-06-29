@@ -159,6 +159,40 @@ Assert-True ($nightFallMergedMiningOptions -contains 'craftFamily|Корабел
 $snowBlindMergedQuestOptions = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Корабельные компоненты|Охладители|exact:SnowBlind')
 Assert-True ($snowBlindMergedQuestOptions -contains 'questCraftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall') 'Quest family filters should migrate old SnowBlind selection to the merged SnowBlind/NightFall family.'
 $questFamilyIndex = Get-SCQuestCraftFamilyIndex
+$familyLabels = @{}
+foreach ($entry in @($questFamilyIndex.families)) {
+    $familyLabels[[string]$entry.label] = $entry
+}
+foreach ($expectedLabel in @(
+    'MIL-A: JS-300/400/500/ QuadraCell/MT/MX',
+    'CAP-A: Frontline',
+    'CAP-A: Main Powerplant',
+    'CIV-A: Abetti/Agrippa/Anysta/Fabian',
+    'IND-A: FullSpec/FullSpec-Go/FullSpec-Max',
+    'MIL-A: V60-26/ V801-11/12/ V880',
+    'STE-A: Cassandra/Pelerous/Prophet'
+)) {
+    Assert-True ($familyLabels.ContainsKey($expectedLabel)) "Craft family index should expose grouped label: $expectedLabel"
+}
+$milPowerFamily = $familyLabels['MIL-A: JS-300/400/500/ QuadraCell/MT/MX']
+$civPowerFamily = $familyLabels['CIV-A: Lotus/Stellate/TigerLilly/WhiteRose']
+$milPowerOptionId = 'questCraftFamily|' + (Get-SCQuestFamilyOptionSuffix -OptionId ([string]$milPowerFamily.optionId))
+$civPowerOptionId = 'questCraftFamily|' + (Get-SCQuestFamilyOptionSuffix -OptionId ([string]$civPowerFamily.optionId))
+$questPowerFamilyBlock = 'Quest\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n<EM4>Силовые установки:</EM4>\n- JS-300\n- JS-400\n- QuadraCell MX'
+$questPowerFamilyKept = Select-SCQuestRewardBlockCategories -Value $questPowerFamilyBlock -SelectedCategoryNames @('Корабельные компоненты') -SelectedFamilyOptionIds @($milPowerOptionId) -FamilyIndex $questFamilyIndex
+Assert-True ($questPowerFamilyKept.Contains('JS-300')) 'Selected MIL-A power family should keep JS-300.'
+Assert-True ($questPowerFamilyKept.Contains('QuadraCell MX')) 'Selected MIL-A power family should keep QuadraCell MX.'
+$questPowerFamilyDropped = Select-SCQuestRewardBlockCategories -Value $questPowerFamilyBlock -SelectedCategoryNames @('Корабельные компоненты') -SelectedFamilyOptionIds @($civPowerOptionId) -FamilyIndex $questFamilyIndex
+Assert-True (-not $questPowerFamilyDropped.Contains('JS-300')) 'Neighbor power family should not keep JS-300.'
+Assert-True (-not $questPowerFamilyDropped.Contains('QuadraCell MX')) 'Neighbor power family should not keep QuadraCell MX.'
+$frontlineMiningOptions = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Frontline')
+Assert-True (@($frontlineMiningOptions | Where-Object { $_ -like '*component:capital-a:frontline' }).Count -gt 0) 'Mining family filters should migrate old Frontline selection to CAP-A.'
+$frontlineQuestOptions = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Корабельные компоненты|Квантовые двигатели|exact:Frontline')
+Assert-True (@($frontlineQuestOptions | Where-Object { $_ -like '*component:capital-a:frontline' }).Count -gt 0) 'Quest family filters should migrate old Frontline selection to CAP-A.'
+$radarMiningOptions = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Корабельные компоненты|Радары|component:V801-series')
+Assert-True (@($radarMiningOptions | Where-Object { $_ -like '*component:радары:MIL-A:bexalite+borase+stileron' }).Count -gt 0) 'Mining family filters should migrate old V801 radar selection to MIL-A radars.'
+$radarQuestOptions = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Корабельные компоненты|Радары|component:FullSpec')
+Assert-True (@($radarQuestOptions | Where-Object { $_ -like '*component:радары:IND-A:laranite+riccite+titanium' }).Count -gt 0) 'Quest family filters should migrate old FullSpec radar selection to IND-A radars.'
 $questCoolerFamilyBlock = "Quest\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n<EM4>Охладители:</EM4>\n- NightFall\n- SnowBlind"
 $questCoolerFiltered = Select-SCQuestRewardBlockCategories -Value $questCoolerFamilyBlock -SelectedCategoryNames @('Корабельные компоненты') -SelectedFamilyOptionIds $snowBlindMergedQuestOptions -FamilyIndex $questFamilyIndex
 Assert-True ($questCoolerFiltered.Contains('NightFall')) 'Merged cooler family should keep NightFall when old SnowBlind option is selected.'

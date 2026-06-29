@@ -714,12 +714,13 @@ function Get-SCMiningItemCraftRecipeData {
 }
 
 function Get-SCMiningPlanetCraftBlueprints {
-    $cached = Get-SCMiningCachedWikiBlueprints
+    $scmdbCache = Read-SCMiningScmdbCache
+    $cached = Get-SCMiningCachedWikiBlueprints -CacheKey ([string]$scmdbCache.Version)
     if ($cached.Count -gt 0) {
         return @($cached)
     }
 
-    throw 'Mining wiki blueprints cache is missing. Refresh cache before applying.'
+    throw "Mining wiki blueprints cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
 }
 
 function Invoke-SCMiningScmdbJson {
@@ -758,7 +759,7 @@ function Read-SCMiningScmdbCache {
     }
 
     $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'scmdb-*.json' -File |
-        Where-Object { $_.Name -notlike '*.meta.json' } |
+        Where-Object { $_.Name -notlike '*.meta.json' -and $_.Name -match '(?i)-live\.' } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
     if ($null -eq $cacheFile) {
@@ -796,6 +797,7 @@ function Get-SCMiningCachedWikiBlueprints {
     }
     else {
         $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'wiki-blueprints-*.json' -File |
+            Where-Object { $_.Name -match '(?i)-live\.' } |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
     }
@@ -843,6 +845,7 @@ function Get-SCMiningCachedItemPassports {
     }
     else {
         $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'erkul-item-passports-*.json' -File |
+            Where-Object { $_.Name -match '(?i)-live\.' } |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
     }
@@ -1474,6 +1477,42 @@ function ConvertTo-SCMiningComponentClassLabel {
     return ([string]$Class).Trim()
 }
 
+function ConvertTo-SCMiningComponentClassCode {
+    param([AllowEmptyString()][string]$Class)
+
+    $key = ([string]$Class).Trim().ToLowerInvariant()
+    $map = @{
+        'civilian' = 'CIV'
+        'competition' = 'COM'
+        'industrial' = 'IND'
+        'military' = 'MIL'
+        'stealth' = 'STE'
+    }
+
+    if ($map.ContainsKey($key)) {
+        return $map[$key]
+    }
+
+    return ''
+}
+
+function Get-SCMiningComponentResourceFamilyKey {
+    param([string[]]$Resources)
+
+    $parts = @(
+        @($Resources) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object {
+                $clean = ([string]$_).Trim().ToLowerInvariant()
+                [regex]::Replace($clean, '[^a-z0-9]+', '-').Trim('-')
+            } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+
+    return ($parts -join '+')
+}
+
 function Get-SCMiningSafeCacheKey {
     param([string]$CacheKey)
 
@@ -1599,15 +1638,18 @@ function New-SCMiningPlanetCraftMap {
             continue
         }
 
+        $subcategory = Get-SCMiningPlanetBlueprintSubcategory -Blueprint $blueprint -Category $category
+        $componentGrade = Get-SCMiningBlueprintOutputGrade -Blueprint $blueprint -ItemLookup $itemLookup
+        $componentClass = Get-SCMiningBlueprintOutputComponentClass -Blueprint $blueprint -ItemLookup $itemLookup
         $key = if (-not [string]::IsNullOrWhiteSpace([string]$blueprint.uuid)) { [string]$blueprint.uuid } else { [string]$blueprint.key }
         $result[$key] = [pscustomobject]@{
             Name = $name
             Category = $category
-            Subcategory = Get-SCMiningPlanetBlueprintSubcategory -Blueprint $blueprint -Category $category
-            Family = Get-SCMiningPlanetRecipeFamily -Name $name -Category $category
+            Subcategory = $subcategory
+            Family = Get-SCMiningPlanetRecipeFamily -Name $name -Category $category -Subcategory $subcategory -Resources @($resources) -ComponentGrade $componentGrade -ComponentClass $componentClass
             Resources = @($resources)
-            ComponentGrade = Get-SCMiningBlueprintOutputGrade -Blueprint $blueprint -ItemLookup $itemLookup
-            ComponentClass = Get-SCMiningBlueprintOutputComponentClass -Blueprint $blueprint -ItemLookup $itemLookup
+            ComponentGrade = $componentGrade
+            ComponentClass = $componentClass
         }
     }
 
@@ -1963,10 +2005,102 @@ function Test-SCMiningSetContains {
     return ($null -ne $Set -and $Set.ContainsKey([string]$Value))
 }
 
+function Get-SCMiningCraftFamilyIndex {
+    $cacheFile = $null
+    try {
+        $scmdb = Read-SCMiningScmdbCache
+        $expectedPath = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdb.Version)
+        if (Test-Path -LiteralPath $expectedPath -PathType Leaf) {
+            $cacheFile = Get-Item -LiteralPath $expectedPath
+        }
+    }
+    catch {
+        $cacheFile = $null
+    }
+
+    if ($null -eq $cacheFile) {
+        $cacheDir = Get-SCMiningCacheDirectory
+        $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'craft-family-index-*.json' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '(?i)-live\.' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
+
+    if ($null -eq $cacheFile) {
+        return $null
+    }
+
+    try {
+        return (Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json)
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-SCMiningLegacyCraftFamilyKeysForName {
+    param(
+        [AllowEmptyString()][string]$Name,
+        [AllowEmptyString()][string]$Category
+    )
+
+    $label = ([string]$Name).Trim()
+    $keys = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($label)) {
+        $keys.Add("exact:$label")
+    }
+
+    if ($Category -eq (Get-SCMiningPlanetCategoryShipComponents)) {
+        if ($label -match '^FR-(66|76|86)$') { $keys.Add('component:FR-series') }
+        if ($label -match '^FullSpec(?:-(Go|Max))?$') { $keys.Add('component:FullSpec') }
+        if ($label -match '^(SnowBlind|NightFall)$') { $keys.Add('component:SnowBlind-NightFall') }
+        if ($label -match '^QuadraCell(?:\s+(MT|MX))?$') { $keys.Add('component:QuadraCell') }
+        if ($label -match '^(LumaCore|LuxCore)$') { $keys.Add('component:LumaCore-LuxCore') }
+        if ($label -match '^([567])(CA|MA|SA)\s+''[^'']+''$') { $keys.Add("component:$($Matches[1])-series") }
+        if ($label -match '^JS-\d+$') { $keys.Add('component:JS-series') }
+        if ($label -match '^V801-\d+$') { $keys.Add('component:V801-series') }
+        if ($label -match '^(.+?)(?:\s+(EX|SL|XL|Pro))$') { $keys.Add("component:$($Matches[1].Trim())") }
+        if ($label -match '^(.+?)-(Go|Max|Lite)$') { $keys.Add("component:$($Matches[1].Trim())") }
+    }
+
+    return @($keys.ToArray() | Sort-Object -Unique)
+}
+
+function New-SCMiningCraftFamilyOptionMigrationMap {
+    param([object]$FamilyIndex)
+
+    $map = @{}
+    if ($null -eq $FamilyIndex -or $null -eq $FamilyIndex.families) {
+        return $map
+    }
+
+    foreach ($entry in @($FamilyIndex.families)) {
+        $targetOptionId = [string]$entry.optionId
+        if ([string]::IsNullOrWhiteSpace($targetOptionId)) {
+            continue
+        }
+
+        foreach ($name in @($entry.names)) {
+            foreach ($legacyKey in @(Get-SCMiningLegacyCraftFamilyKeysForName -Name ([string]$name) -Category ([string]$entry.category))) {
+                $legacyOptionId = 'craftFamily|{0}|{1}|{2}' -f [string]$entry.category, [string]$entry.subcategory, [string]$legacyKey
+                if (-not $map.ContainsKey($legacyOptionId)) {
+                    $map[$legacyOptionId] = New-Object System.Collections.Generic.List[string]
+                }
+                if (-not $map[$legacyOptionId].Contains($targetOptionId)) {
+                    $map[$legacyOptionId].Add($targetOptionId)
+                }
+            }
+        }
+    }
+
+    return $map
+}
+
 function Expand-SCMiningCraftFamilyOptionIds {
     param([string[]]$OptionIds)
 
     $expanded = New-Object System.Collections.Generic.List[string]
+    $migrationMap = New-SCMiningCraftFamilyOptionMigrationMap -FamilyIndex (Get-SCMiningCraftFamilyIndex)
     foreach ($optionId in @($OptionIds)) {
         $value = [string]$optionId
         if ([string]::IsNullOrWhiteSpace($value)) {
@@ -1979,6 +2113,11 @@ function Expand-SCMiningCraftFamilyOptionIds {
             'craftFamily|Корабельные компоненты|Охладители|exact:SnowBlind'
         )) {
             $expanded.Add('craftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall')
+        }
+        if ($migrationMap.ContainsKey($value)) {
+            foreach ($targetOptionId in @($migrationMap[$value].ToArray())) {
+                $expanded.Add([string]$targetOptionId)
+            }
         }
     }
 
@@ -2154,7 +2293,11 @@ function Test-SCMiningKnownHighValueShipComponent {
 function Get-SCMiningPlanetRecipeFamily {
     param(
         [string]$Name,
-        [string]$Category
+        [string]$Category,
+        [string]$Subcategory,
+        [string[]]$Resources,
+        [string]$ComponentGrade,
+        [string]$ComponentClass
     )
 
     $label = ([string]$Name).Trim()
@@ -2248,6 +2391,29 @@ function Get-SCMiningPlanetRecipeFamily {
     }
 
     if ($Category -eq (Get-SCMiningPlanetCategoryShipComponents)) {
+        if ($label -match '^(Exotherm|Frontline|Holdstrong|Main Powerplant)$') {
+            $safeLabel = [regex]::Replace($label.ToLowerInvariant(), '[^a-z0-9]+', '-').Trim('-')
+            return [pscustomobject]@{
+                Key = "component:capital-a:$safeLabel"
+                Label = 'CAP-A'
+                Family = 'component-class-resource'
+                Token = $null
+            }
+        }
+
+        $componentGradeClean = ([string]$ComponentGrade).Trim().ToUpperInvariant()
+        $componentClassCode = ConvertTo-SCMiningComponentClassCode -Class $ComponentClass
+        $resourceKey = Get-SCMiningComponentResourceFamilyKey -Resources @($Resources)
+        if ($componentGradeClean -eq 'A' -and -not [string]::IsNullOrWhiteSpace($componentClassCode) -and -not [string]::IsNullOrWhiteSpace($resourceKey)) {
+            $safeSubcategory = [regex]::Replace(([string]$Subcategory).Trim().ToLowerInvariant(), '[^\p{L}\p{Nd}]+', '-').Trim('-')
+            return [pscustomobject]@{
+                Key = "component:$($safeSubcategory):$componentClassCode-$($componentGradeClean):$resourceKey"
+                Label = "$componentClassCode-$componentGradeClean"
+                Family = 'component-class-resource'
+                Token = $null
+            }
+        }
+
         if ($label -match '^FR-(66|76|86)$') {
             return [pscustomobject]@{ Key = 'component:FR-series'; Label = 'FR'; Family = 'hyphen-number-list'; Token = [int]$Matches[1] }
         }
@@ -2309,8 +2475,114 @@ function Get-SCMiningPlanetRecipeFamily {
     return [pscustomobject]@{ Key = "exact:$label"; Label = $label; Family = 'exact'; Token = $null }
 }
 
+function Get-SCMiningCompactRecipeDisplayName {
+    param([AllowEmptyString()][string]$Name)
+
+    $clean = ([string]$Name).Trim()
+    $clean = [regex]::Replace($clean, "\s+'[^']+'\s*$", '')
+    return $clean
+}
+
+function Get-SCMiningCompactRecipeNamePart {
+    param([AllowEmptyString()][string]$Name)
+
+    $clean = Get-SCMiningCompactRecipeDisplayName -Name $Name
+    if ($clean -match '^(.+?)-([A-Za-z]?\d+)$') {
+        return [pscustomobject]@{ Base = $Matches[1]; Suffix = $Matches[2]; Sort = $clean }
+    }
+    if ($clean -match '^(.+?)\s+(MT|MX|EX|SL|XL|Pro|Go|Max|Lite)$') {
+        return [pscustomobject]@{ Base = $Matches[1].Trim(); Suffix = $Matches[2]; Sort = $clean }
+    }
+
+    return [pscustomobject]@{ Base = $clean; Suffix = ''; Sort = $clean }
+}
+
+function Format-SCMiningCompactRecipeNameList {
+    param([string[]]$Names)
+
+    $cleanNames = @(
+        @($Names) |
+            ForEach-Object { Get-SCMiningCompactRecipeDisplayName -Name ([string]$_) } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    if ($cleanNames.Count -eq 0) {
+        return ''
+    }
+
+    $partsByBase = @{}
+    foreach ($name in @($cleanNames)) {
+        $part = Get-SCMiningCompactRecipeNamePart -Name $name
+        if ([string]::IsNullOrWhiteSpace([string]$part.Base)) {
+            continue
+        }
+
+        $base = [string]$part.Base
+        if (-not $partsByBase.ContainsKey($base)) {
+            $partsByBase[$base] = [pscustomobject]@{
+                Base = $base
+                Sort = [string]$part.Sort
+                Suffixes = New-Object System.Collections.Generic.List[string]
+                Exact = $false
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string]$part.Suffix)) {
+            $partsByBase[$base].Exact = $true
+        }
+        else {
+            $partsByBase[$base].Suffixes.Add([string]$part.Suffix)
+        }
+    }
+
+    $allExact = $true
+    $hasCompactedGroup = $false
+    foreach ($entry in @($partsByBase.Values)) {
+        if (-not $entry.Exact -or $entry.Suffixes.Count -gt 0) {
+            $allExact = $false
+        }
+        if ($entry.Suffixes.Count -gt 1 -or ($entry.Exact -and $entry.Suffixes.Count -gt 0)) {
+            $hasCompactedGroup = $true
+        }
+    }
+
+    $groups = foreach ($entry in @($partsByBase.Values)) {
+        $suffixes = @($entry.Suffixes.ToArray() | Sort-Object -Unique)
+        if ($entry.Exact -and $suffixes.Count -gt 0) {
+            [pscustomobject]@{ Label = ([string]$entry.Base) + '/' + ($suffixes -join '/'); Sort = [string]$entry.Sort }
+        }
+        elseif ($suffixes.Count -gt 1) {
+            [pscustomobject]@{ Label = ([string]$entry.Base) + '-' + ($suffixes -join '/'); Sort = [string]$entry.Sort }
+        }
+        elseif ($suffixes.Count -eq 1) {
+            [pscustomobject]@{ Label = ([string]$entry.Base) + '-' + $suffixes[0]; Sort = [string]$entry.Sort }
+        }
+        else {
+            [pscustomobject]@{ Label = [string]$entry.Base; Sort = [string]$entry.Sort }
+        }
+    }
+
+    if ($allExact) {
+        return (($groups | Sort-Object Sort | ForEach-Object { [string]$_.Label }) -join '/')
+    }
+
+    $separator = '/'
+    if ($hasCompactedGroup) {
+        $separator = '/ '
+    }
+
+    return (($groups | Sort-Object Sort | ForEach-Object { [string]$_.Label }) -join $separator)
+}
+
 function Format-SCMiningPlanetRecipeFamilyLabel {
     param([object]$Group)
+
+    if ($Group.Family -eq 'component-class-resource') {
+        $names = Format-SCMiningCompactRecipeNameList -Names @($Group.Names)
+        if (-not [string]::IsNullOrWhiteSpace($names)) {
+            return "$($Group.Label): $names"
+        }
+    }
 
     if ($Group.Names.Count -le 1 -or $Group.Family -eq 'exact') {
         return [string]$Group.Names[0]
@@ -3082,13 +3354,26 @@ function Get-SCMiningBlueprintOutputComponentClass {
         return ([string]$override.ComponentClass).Trim()
     }
 
+    $name = Get-SCMiningBlueprintOutputName -Blueprint $Blueprint -Reward $null
+    $class = Get-SCMiningBlueprintOutputClass -Blueprint $Blueprint -Reward $null
+
+    switch -Regex ($name) {
+        '^(Frontline|Holdstrong|Main Powerplant)$' { return '' }
+        '^(JS-300|JS-400|JS-500|QuadraCell|QuadraCell MT|QuadraCell MX|VK-00|XL-1|TS-2|FR-66|FR-76|FR-86|Avalanche|Blizzard|Glacier)$' { return 'Military' }
+        '^(LumaCore|LuxCore)$' { return 'Competition' }
+        '^(Breton|Genoa|Durango|Ultra-Flow|Snowpack|Chill-Max|Algid|Palisade|Rampart|Parapet|Glacis|RS-Barrier)$' { return 'Industrial' }
+        '^(Lotus|TigerLilly|Stellate|WhiteRose|Atlas|Hemera|Erebos|Allegro|Tepilo|Gelid|Aufeis|Draug|Elsen|Kragen|Serac|[567](CA|MA|SA)\s+''[^'']+'')$' { return 'Civilian' }
+        '^(Slipstream|Eclipse|SnowBlind|NightFall|Spectre|Spicule|Mirage|Umbra)$' { return 'Stealth' }
+        '^(Abetti|Agrippa|Anysta|Fabian)$' { return 'Civilian' }
+        '^(Cassandra|Pelerous|Prophet)$' { return 'Stealth' }
+        '^(FullSpec|FullSpec-Go|FullSpec-Max)$' { return 'Industrial' }
+        '^(V60-26|V801-11|V801-12|V880)$' { return 'Military' }
+    }
+
     $item = Get-SCMiningCachedItemInfo -Blueprint $Blueprint -ItemLookup $ItemLookup
     if ($null -ne $item -and -not [string]::IsNullOrWhiteSpace([string]$item.class)) {
         return ([string]$item.class).Trim()
     }
-
-    $name = Get-SCMiningBlueprintOutputName -Blueprint $Blueprint -Reward $null
-    $class = Get-SCMiningBlueprintOutputClass -Blueprint $Blueprint -Reward $null
 
     if ($name -match '^(Mirage|Umbra|Spectre|Spicule|Eclipse|SnowBlind)$') {
         return 'Stealth'
@@ -3360,6 +3645,7 @@ function Get-SCMiningCachedRefineryYields {
     }
     else {
         $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'refinery-yields-*.json' -File |
+            Where-Object { $_.Name -match '(?i)-live\.' } |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
     }

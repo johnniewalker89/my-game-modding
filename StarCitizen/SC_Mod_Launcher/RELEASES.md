@@ -1,5 +1,23 @@
 # SC Mod Launcher Releases
 
+## 2.0.9
+
+### Что нового
+
+- Фильтры A-grade корабельных компонентов стали компактнее: одинаковые по ресурсам линейки объединяются по классу, например `MIL-A: JS-300/400/500/ QuadraCell/MT/MX`.
+- Спец-компоненты capital A-grade теперь подписаны явно как `CAP-A`: `Frontline`, `Main Powerplant`, `Holdstrong`, `Exotherm`.
+- Радары получили такую же группировку по классу и ресурсам: `CIV-A`, `IND-A`, `MIL-A`, `STE-A`.
+- Старые сохранённые галки семейств рецептов мигрируют в новые группы автоматически; проверено снятие и повторное включение.
+- Прогрев cache снова берёт только LIVE-версию SCMDB и игнорирует PTU.
+- В релиз входит актуальный cache `4.8.2-live.12061511`.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.0.9.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 2.0.9`
+- Проверено: targeted family-option regression, scaffold backend, WPF build/smoke, update installer, release ZIP audit.
+
 ## 2.0.8
 
 ### Что нового

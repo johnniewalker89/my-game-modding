@@ -587,7 +587,7 @@ function Get-SCQuestScmdbData {
     }
 
     $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'scmdb-*.json' -File |
-        Where-Object { $_.Name -notlike '*.meta.json' } |
+        Where-Object { $_.Name -notlike '*.meta.json' -and $_.Name -match '(?i)-live\.' } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
     if ($null -eq $cacheFile) {
@@ -956,13 +956,20 @@ function Get-SCQuestSelectedFamilyOptionIds {
     )
 
     $expanded = New-Object System.Collections.Generic.List[string]
+    $migrationMap = New-SCQuestCraftFamilyOptionMigrationMap -FamilyIndex (Get-SCQuestCraftFamilyIndex)
     foreach ($optionId in @($optionIds)) {
-        $expanded.Add([string]$optionId)
-        if ([string]$optionId -in @(
+        $value = [string]$optionId
+        $expanded.Add($value)
+        if ($value -in @(
             'questCraftFamily|Корабельные компоненты|Охладители|exact:NightFall',
             'questCraftFamily|Корабельные компоненты|Охладители|exact:SnowBlind'
         )) {
             $expanded.Add('questCraftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall')
+        }
+        if ($migrationMap.ContainsKey($value)) {
+            foreach ($targetOptionId in @($migrationMap[$value].ToArray())) {
+                $expanded.Add([string]$targetOptionId)
+            }
         }
     }
 
@@ -975,9 +982,26 @@ function Get-SCQuestCraftFamilyIndex {
         return $null
     }
 
-    $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'craft-family-index-*.json' -File -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
+    $cacheFile = $null
+    try {
+        $scmdb = Get-SCQuestScmdbData
+        $safeCacheKey = [regex]::Replace([string]$scmdb.Version, '[^A-Za-z0-9._-]', '_')
+        $expectedPath = Join-Path $cacheDir ("craft-family-index-{0}.json" -f $safeCacheKey)
+        if (Test-Path -LiteralPath $expectedPath -PathType Leaf) {
+            $cacheFile = Get-Item -LiteralPath $expectedPath
+        }
+    }
+    catch {
+        $cacheFile = $null
+    }
+
+    if ($null -eq $cacheFile) {
+        $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'craft-family-index-*.json' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '(?i)-live\.' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
+
     if ($null -eq $cacheFile) {
         return $null
     }
@@ -988,6 +1012,65 @@ function Get-SCQuestCraftFamilyIndex {
     catch {
         return $null
     }
+}
+
+function Get-SCQuestLegacyCraftFamilyKeysForName {
+    param(
+        [AllowEmptyString()][string]$Name,
+        [AllowEmptyString()][string]$Category
+    )
+
+    $label = ([string]$Name).Trim()
+    $keys = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($label)) {
+        $keys.Add("exact:$label")
+    }
+
+    if ($Category -eq 'Корабельные компоненты') {
+        if ($label -match '^FR-(66|76|86)$') { $keys.Add('component:FR-series') }
+        if ($label -match '^FullSpec(?:-(Go|Max))?$') { $keys.Add('component:FullSpec') }
+        if ($label -match '^(SnowBlind|NightFall)$') { $keys.Add('component:SnowBlind-NightFall') }
+        if ($label -match '^QuadraCell(?:\s+(MT|MX))?$') { $keys.Add('component:QuadraCell') }
+        if ($label -match '^(LumaCore|LuxCore)$') { $keys.Add('component:LumaCore-LuxCore') }
+        if ($label -match '^([567])(CA|MA|SA)\s+''[^'']+''$') { $keys.Add("component:$($Matches[1])-series") }
+        if ($label -match '^JS-\d+$') { $keys.Add('component:JS-series') }
+        if ($label -match '^V801-\d+$') { $keys.Add('component:V801-series') }
+        if ($label -match '^(.+?)(?:\s+(EX|SL|XL|Pro))$') { $keys.Add("component:$($Matches[1].Trim())") }
+        if ($label -match '^(.+?)-(Go|Max|Lite)$') { $keys.Add("component:$($Matches[1].Trim())") }
+    }
+
+    return @($keys.ToArray() | Sort-Object -Unique)
+}
+
+function New-SCQuestCraftFamilyOptionMigrationMap {
+    param([object]$FamilyIndex)
+
+    $map = @{}
+    if ($null -eq $FamilyIndex -or $null -eq $FamilyIndex.families) {
+        return $map
+    }
+
+    foreach ($entry in @($FamilyIndex.families)) {
+        $sourceOptionId = [string]$entry.optionId
+        if ([string]::IsNullOrWhiteSpace($sourceOptionId)) {
+            continue
+        }
+
+        $targetOptionId = 'questCraftFamily|' + (Get-SCQuestFamilyOptionSuffix -OptionId $sourceOptionId)
+        foreach ($name in @($entry.names)) {
+            foreach ($legacyKey in @(Get-SCQuestLegacyCraftFamilyKeysForName -Name ([string]$name) -Category ([string]$entry.category))) {
+                $legacyOptionId = 'questCraftFamily|{0}|{1}|{2}' -f [string]$entry.category, [string]$entry.subcategory, [string]$legacyKey
+                if (-not $map.ContainsKey($legacyOptionId)) {
+                    $map[$legacyOptionId] = New-Object System.Collections.Generic.List[string]
+                }
+                if (-not $map[$legacyOptionId].Contains($targetOptionId)) {
+                    $map[$legacyOptionId].Add($targetOptionId)
+                }
+            }
+        }
+    }
+
+    return $map
 }
 
 function Get-SCQuestFamilyOptionSuffix {

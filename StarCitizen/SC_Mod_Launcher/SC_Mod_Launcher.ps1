@@ -230,6 +230,18 @@ function Get-SCScmdbCachePath {
     return (Join-Path (Get-SCScmdbCacheDirectory) ("scmdb-{0}.json" -f (Get-SCSafeCacheKey -CacheKey $Version)))
 }
 
+function Test-SCScmdbLiveVersion {
+    param($Version)
+
+    return ([string]$Version.version -match '(?i)-live\.' -or [string]$Version.file -match '(?i)-live\.')
+}
+
+function Select-SCScmdbLiveVersion {
+    param($Versions)
+
+    return @($Versions | Where-Object { Test-SCScmdbLiveVersion -Version $_ }) | Select-Object -First 1
+}
+
 function Get-SCLatestScmdbCachePath {
     $cacheDir = Get-SCScmdbCacheDirectory
     if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
@@ -237,7 +249,7 @@ function Get-SCLatestScmdbCachePath {
     }
 
     $latest = Get-ChildItem -LiteralPath $cacheDir -Filter 'scmdb-*.json' -File |
-        Where-Object { $_.Name -notlike '*.meta.json' } |
+        Where-Object { $_.Name -notlike '*.meta.json' -and $_.Name -match '(?i)-live\.' } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
     if ($null -eq $latest) {
@@ -606,12 +618,12 @@ function Write-ConsoleRemoteSourceSummary {
 
     $versions = Get-SCRemoteJson -Name 'SCMDB index' -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers
     if ($versions -and @($versions).Count -gt 0) {
-        $version = @($versions)[0]
+        $version = Select-SCScmdbLiveVersion -Versions $versions
         if (-not [string]::IsNullOrWhiteSpace([string]$version.file)) {
             [void](Get-SCRemoteJson -Name 'SCMDB data' -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers)
         }
         else {
-            Write-Host 'Source SCMDB data: FAIL; SCMDB index did not include data file.'
+            Write-Host 'Source SCMDB data: FAIL; SCMDB index did not include LIVE data file.'
         }
     }
     else {
@@ -746,7 +758,11 @@ function Write-ConsoleWarmCacheSummary {
         throw 'SCMDB version index returned no data.'
     }
 
-    $version = @($versions)[0]
+    $version = Select-SCScmdbLiveVersion -Versions $versions
+    if ($null -eq $version) {
+        throw 'SCMDB version index returned no LIVE version.'
+    }
+
     Write-Host "SCMDB version: $($version.version)"
     $scmdbData = $null
     if (-not [string]::IsNullOrWhiteSpace([string]$version.file)) {

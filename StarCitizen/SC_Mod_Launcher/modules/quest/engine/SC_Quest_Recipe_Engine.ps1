@@ -1019,7 +1019,7 @@ function Get-ScmdbData {
     }
 
     $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'scmdb-*.json' -File |
-        Where-Object { $_.Name -notlike '*.meta.json' } |
+        Where-Object { $_.Name -notlike '*.meta.json' -and $_.Name -match '(?i)-live\.' } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
     if ($null -eq $cacheFile) {
@@ -1041,6 +1041,33 @@ function Get-ScmdbData {
         Version = $version
         File = $file
         Data = $data
+    }
+}
+
+function Get-CurrentScmdbCacheVersion {
+    $cacheDir = Join-Path (Split-Path -Parent (Split-Path -Parent $ScriptDir)) 'scmdb\cache'
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        return $null
+    }
+
+    $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'scmdb-*.json' -File |
+        Where-Object { $_.Name -notlike '*.meta.json' -and $_.Name -match '(?i)-live\.' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($null -eq $cacheFile) {
+        return $null
+    }
+
+    try {
+        $payload = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
+        if ([string]::IsNullOrWhiteSpace([string]$payload.version) -or $null -eq $payload.data) {
+            return $null
+        }
+
+        return [string]$payload.version
+    }
+    catch {
+        return $null
     }
 }
 
@@ -1597,7 +1624,21 @@ function Get-LatestQuestSiblingCacheFile {
         return $null
     }
 
+    if ($Filter -eq 'craft-family-index-*.json') {
+        try {
+            $version = Get-CurrentScmdbCacheVersion
+            $safeCacheKey = [regex]::Replace([string]$version, '[^A-Za-z0-9._-]', '_')
+            $expectedPath = Join-Path $cacheDir ("craft-family-index-{0}.json" -f $safeCacheKey)
+            if (Test-Path -LiteralPath $expectedPath -PathType Leaf) {
+                return (Get-Item -LiteralPath $expectedPath)
+            }
+        }
+        catch {
+        }
+    }
+
     return Get-ChildItem -LiteralPath $cacheDir -Filter $Filter -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '(?i)-live\.' } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
 }
