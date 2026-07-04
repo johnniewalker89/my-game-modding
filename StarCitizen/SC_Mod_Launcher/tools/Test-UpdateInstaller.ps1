@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Installer = Join-Path $ScriptDir 'Install-ScModLauncherUpdate.ps1'
-$ReleaseCacheBuild = '4.8.2-live.12061511'
+$ReleaseCacheBuild = '4.8.3-live.12122953'
 
 function Assert-True {
     param(

@@ -3734,12 +3734,14 @@ function ConvertTo-SCMiningRefineryYieldCachePayload {
                 Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.material) -and [int]$_.value -ne 0 }
         )
 
-        $best = @($entries | Where-Object { [int]$_.value -gt 0 } | Sort-Object @{ Expression = { [int]$_.value }; Descending = $true }, material | Select-Object -First 4)
-        $penalties = @($entries | Where-Object { [int]$_.value -lt 0 } | Sort-Object @{ Expression = { [int]$_.value }; Ascending = $true }, material | Select-Object -First 3)
+        $yields = @($entries | Sort-Object @{ Expression = { [int]$_.value }; Descending = $true }, material)
+        $best = @($entries | Where-Object { [int]$_.value -gt 0 } | Sort-Object @{ Expression = { [int]$_.value }; Descending = $true }, material)
+        $penalties = @($entries | Where-Object { [int]$_.value -lt 0 } | Sort-Object @{ Expression = { [int]$_.value }; Ascending = $true }, material)
 
         $stations += [pscustomobject]@{
             name = [string]$group.Name
             aliases = @(Get-SCMiningRefineryYieldAliases -StationName ([string]$group.Name))
+            yields = @($yields)
             best = @($best)
             penalties = @($penalties)
         }
@@ -3990,8 +3992,22 @@ function Remove-SCMiningRefineryYieldHint {
 function Get-SCMiningRefineryYieldHintLine {
     param([object]$Station)
 
-    $best = @(Format-SCMiningRefineryYieldParts -Entries @($Station.best) -Positive)
-    $penalties = @(Format-SCMiningRefineryYieldParts -Entries @($Station.penalties))
+    $stationYields = @()
+    if ($Station.PSObject.Properties['yields']) {
+        $stationYields = @($Station.yields)
+    }
+
+    if ($stationYields.Count -gt 0) {
+        $bestEntries = @($stationYields | Where-Object { [int]$_.value -gt 0 } | Sort-Object @{ Expression = { [int]$_.value }; Descending = $true }, material)
+        $penaltyEntries = @($stationYields | Where-Object { [int]$_.value -lt 0 } | Sort-Object @{ Expression = { [int]$_.value }; Ascending = $true }, material)
+    }
+    else {
+        $bestEntries = @($Station.best)
+        $penaltyEntries = @($Station.penalties)
+    }
+
+    $best = @(Format-SCMiningRefineryYieldParts -Entries @($bestEntries) -Positive)
+    $penalties = @(Format-SCMiningRefineryYieldParts -Entries @($penaltyEntries))
     if ($best.Count -eq 0 -and $penalties.Count -eq 0) {
         return ''
     }

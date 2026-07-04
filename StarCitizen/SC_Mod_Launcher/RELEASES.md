@@ -1,5 +1,20 @@
 # SC Mod Launcher Releases
 
+## 2.0.10
+
+### Что нового
+
+- Исправлены подсказки переработки на refinery-станциях: теперь показывается полный профиль материалов UEX, а не усечённые топ-бонусы/штрафы.
+- Проверены станции со скринов: `CRU-L1`, `HUR-L1`, `MIC-L1`, `MIC-L5`; тестовый `global.ini` совпал с тем, что вносит патчер.
+- В релиз входит свежий LIVE cache `4.8.3-live.12122953`.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.0.10.zip`
+- SHA-256: см. страницу релиза на GitHub.
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 2.0.10`
+- Проверено: screenshot-station fixture, scaffold backend, WPF build/smoke, update installer, release ZIP audit.
+
 ## 2.0.9
 
 ### Что нового
