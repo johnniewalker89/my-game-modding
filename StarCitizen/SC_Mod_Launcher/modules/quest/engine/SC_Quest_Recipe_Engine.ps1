@@ -1071,19 +1071,47 @@ function Get-CurrentScmdbCacheVersion {
     }
 }
 
-function Invoke-ScmdbJson {
-    param([string]$Uri)
+function Invoke-RemoteJson {
+    param(
+        [string]$Uri,
+        [hashtable]$Headers,
+        [string]$Referer
+    )
 
     try {
-        return (Invoke-RestMethod -Uri $Uri -UseBasicParsing -TimeoutSec 20)
+        return (Invoke-RestMethod -Uri $Uri -Headers $Headers -UseBasicParsing -TimeoutSec 120)
     }
     catch {
         if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-            $json = & curl.exe -L --silent --show-error --fail --max-time 40 `
-                -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
-                -H 'Accept: application/json,text/plain,*/*' `
-                -e 'https://scmdb.net/' `
-                $Uri
+            $userAgent = if ($Headers -and $Headers.ContainsKey('User-Agent')) {
+                [string]$Headers['User-Agent']
+            }
+            else {
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'
+            }
+
+            $curlArgs = @(
+                '-L', '--silent', '--show-error', '--fail',
+                '--max-time', '120',
+                '-A', $userAgent
+            )
+            if ($Headers) {
+                foreach ($key in @($Headers.Keys)) {
+                    if ([string]$key -eq 'User-Agent') {
+                        continue
+                    }
+                    $curlArgs += @('-H', ('{0}: {1}' -f $key, $Headers[$key]))
+                }
+            }
+            if (-not ($Headers -and $Headers.ContainsKey('Accept'))) {
+                $curlArgs += @('-H', 'Accept: application/json,text/plain,*/*')
+            }
+            if (-not [string]::IsNullOrWhiteSpace($Referer)) {
+                $curlArgs += @('-e', $Referer)
+            }
+            $curlArgs += $Uri
+
+            $json = & curl.exe @curlArgs
             if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
                 return ($json | ConvertFrom-Json)
             }
@@ -1091,6 +1119,12 @@ function Invoke-ScmdbJson {
 
         throw
     }
+}
+
+function Invoke-ScmdbJson {
+    param([string]$Uri)
+
+    return (Invoke-RemoteJson -Uri $Uri -Headers @{} -Referer 'https://scmdb.net/')
 }
 
 function Add-NameToPool {
@@ -1743,7 +1777,7 @@ function Get-WikiItemsByName {
         $uri = "$WikiApiBaseUrl/items?$query&page[size]=100"
 
         try {
-            $response = Invoke-RestMethod -Uri $uri -UseBasicParsing -TimeoutSec 30
+            $response = Invoke-RemoteJson -Uri $uri -Headers @{} -Referer 'https://star-citizen.wiki/'
             foreach ($item in (ConvertTo-Array $response.data)) {
                 if ($item.name -and -not $itemsByName.ContainsKey([string]$item.name)) {
                     $itemsByName[[string]$item.name] = $item

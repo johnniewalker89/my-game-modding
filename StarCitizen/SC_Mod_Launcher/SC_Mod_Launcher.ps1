@@ -14,6 +14,9 @@ $ErrorActionPreference = 'Stop'
 $script:ConsoleUtf8Encoding = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $script:ConsoleUtf8Encoding
 $OutputEncoding = $script:ConsoleUtf8Encoding
+$script:NetworkTimeoutSec = 120
+$script:ProbeTimeoutSec = 120
+$script:SourceCheckTimeoutSec = 15
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $CoreScript = Join-Path $ScriptRoot 'shared\SC_Localization_Core.ps1'
@@ -417,24 +420,55 @@ function Get-SCRemoteJson {
     param(
         [string]$Name,
         [string]$Uri,
-        [hashtable]$Headers
+        [hashtable]$Headers,
+        [int]$TimeoutSec = $script:NetworkTimeoutSec,
+        [switch]$Quiet
     )
 
     try {
-        $result = Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 45
-        Write-Host "Source ${Name}: OK"
+        $result = Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec $TimeoutSec
+        if (-not $Quiet) {
+            Write-Host "Source ${Name}: OK"
+        }
         return $result
     }
     catch {
-        if ($Uri -match '^https://scmdb\.net/' -and (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
+        $primaryError = $_.Exception.Message
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
             try {
-                $json = & curl.exe -L --silent --show-error --fail --max-time 45 `
-                    -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
-                    -H 'Accept: application/json,text/plain,*/*' `
-                    -e 'https://scmdb.net/' `
-                    $Uri
+                $userAgent = if ($Headers -and $Headers.ContainsKey('User-Agent')) {
+                    [string]$Headers['User-Agent']
+                }
+                else {
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'
+                }
+
+                $curlArgs = @(
+                    '-L', '--silent', '--show-error', '--fail',
+                    '--max-time', ([string]$TimeoutSec),
+                    '-A', $userAgent
+                )
+                if ($Headers) {
+                    foreach ($key in @($Headers.Keys)) {
+                        if ([string]$key -eq 'User-Agent') {
+                            continue
+                        }
+                        $curlArgs += @('-H', ('{0}: {1}' -f $key, $Headers[$key]))
+                    }
+                }
+                if (-not ($Headers -and $Headers.ContainsKey('Accept'))) {
+                    $curlArgs += @('-H', 'Accept: application/json,text/plain,*/*')
+                }
+                if ($Headers -and $Headers.ContainsKey('Referer')) {
+                    $curlArgs += @('-e', ([string]$Headers['Referer']))
+                }
+
+                $curlArgs += $Uri
+                $json = & curl.exe @curlArgs
                 if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
-                    Write-Host "Source ${Name}: OK"
+                    if (-not $Quiet) {
+                        Write-Host "Source ${Name}: OK"
+                    }
                     return ($json | ConvertFrom-Json)
                 }
             }
@@ -442,8 +476,78 @@ function Get-SCRemoteJson {
             }
         }
 
-        Write-Host "Source ${Name}: FAIL; $($_.Exception.Message)"
+        if (-not $Quiet) {
+            Write-Host "Source ${Name}: FAIL; $primaryError"
+        }
         return $null
+    }
+}
+
+function Test-SCRemoteFileAvailable {
+    param(
+        [string]$Name,
+        [string]$Uri,
+        [hashtable]$Headers,
+        [int]$TimeoutSec = $script:ProbeTimeoutSec
+    )
+
+    try {
+        [void](Invoke-WebRequest -Uri $Uri -Method Head -Headers $Headers -TimeoutSec $TimeoutSec -UseBasicParsing)
+        Write-Host "Source ${Name}: OK"
+        return $true
+    }
+    catch {
+        $primaryError = $_.Exception.Message
+        try {
+            $rangeHeaders = @{}
+            foreach ($key in @($Headers.Keys)) {
+                $rangeHeaders[$key] = $Headers[$key]
+            }
+            $rangeHeaders['Range'] = 'bytes=0-0'
+            [void](Invoke-WebRequest -Uri $Uri -Method Get -Headers $rangeHeaders -TimeoutSec $TimeoutSec -UseBasicParsing)
+            Write-Host "Source ${Name}: OK"
+            return $true
+        }
+        catch {
+            if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+                try {
+                    $userAgent = if ($Headers -and $Headers.ContainsKey('User-Agent')) {
+                        [string]$Headers['User-Agent']
+                    }
+                    else {
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'
+                    }
+
+                    $curlArgs = @(
+                        '-L', '--silent', '--show-error', '--fail',
+                        '--max-time', ([string]$TimeoutSec),
+                        '-r', '0-0',
+                        '-o', 'NUL',
+                        '-A', $userAgent
+                    )
+                    if ($Headers) {
+                        foreach ($key in @($Headers.Keys)) {
+                            if ([string]$key -eq 'User-Agent') {
+                                continue
+                            }
+                            $curlArgs += @('-H', ('{0}: {1}' -f $key, $Headers[$key]))
+                        }
+                    }
+                    $curlArgs += $Uri
+
+                    & curl.exe @curlArgs | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "Source ${Name}: OK"
+                        return $true
+                    }
+                }
+                catch {
+                }
+            }
+
+            Write-Host "Source ${Name}: FAIL; $primaryError"
+            return $false
+        }
     }
 }
 
@@ -484,6 +588,7 @@ function Assert-SCLocalCachesAvailable {
         [pscustomobject]@{ Name = 'mining blueprints'; Path = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining recipe families'; Path = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining refinery yields'; Path = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$scmdbCache.Version) },
+        [pscustomobject]@{ Name = 'mining raw ore buy prices'; Path = Get-SCMiningLocationTradeCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'quest items'; Path = (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json') }
     )
 
@@ -588,6 +693,26 @@ function Write-SCMiningRefineryYieldFallbackCache {
     return $targetPath
 }
 
+function Write-SCMiningLocationTradeFallbackCache {
+    param([string]$CacheKey)
+
+    $targetPath = Get-SCMiningLocationTradeCachePath -CacheKey $CacheKey
+    $fallback = Get-SCMiningCachedLocationTrade -CacheKey $CacheKey
+    if ($null -eq $fallback) {
+        $fallback = Get-SCMiningCachedLocationTrade
+    }
+    if ($null -eq $fallback) {
+        return $null
+    }
+
+    $sourceKey = [string]$fallback.cacheKey
+    Set-SCJsonProperty -Object $fallback -Name 'fallbackFromCacheKey' -Value $sourceKey
+    Set-SCJsonProperty -Object $fallback -Name 'cacheKey' -Value ([string]$CacheKey)
+    Set-SCJsonProperty -Object $fallback -Name 'createdAt' -Value ((Get-Date).ToString('o'))
+    Write-SCMiningLocationTradeCache -CachePath $targetPath -Payload $fallback
+    return $targetPath
+}
+
 function Write-SCMiningItemPassportFallbackCache {
     param([string]$CacheKey)
 
@@ -616,11 +741,11 @@ function Write-ConsoleRemoteSourceSummary {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $headers = @{ 'User-Agent' = 'SC-Mod-Launcher/1.0 preflight' }
 
-    $versions = Get-SCRemoteJson -Name 'SCMDB index' -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers
+    $versions = Get-SCRemoteJson -Name 'SCMDB index' -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers -TimeoutSec $script:SourceCheckTimeoutSec
     if ($versions -and @($versions).Count -gt 0) {
         $version = Select-SCScmdbLiveVersion -Versions $versions
         if (-not [string]::IsNullOrWhiteSpace([string]$version.file)) {
-            [void](Get-SCRemoteJson -Name 'SCMDB data' -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers)
+            [void](Test-SCRemoteFileAvailable -Name 'SCMDB data' -Uri ("https://scmdb.net/data/{0}" -f $version.file) -Headers $headers -TimeoutSec $script:SourceCheckTimeoutSec)
         }
         else {
             Write-Host 'Source SCMDB data: FAIL; SCMDB index did not include LIVE data file.'
@@ -633,47 +758,36 @@ function Write-ConsoleRemoteSourceSummary {
     [void](Test-SCWikiBlueprintSource -Headers $headers)
     [void](Test-SCWikiItemsSource -Headers $headers)
     [void](Test-SCRefineryYieldsSource -Headers $headers)
+    [void](Test-SCLocationTradeSource -Headers $headers)
     [void](Test-SCErkulItemPassportSource -Headers $headers)
 }
 
 function Test-SCWikiBlueprintSource {
     param([hashtable]$Headers)
 
-    try {
-        [void](Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec 45)
-        Write-Host 'Source Wiki blueprints: OK'
-        return $true
-    }
-    catch {
-        Write-Host "Source Wiki blueprints: FAIL; $($_.Exception.Message)"
-        return $false
-    }
+    $result = Get-SCRemoteJson -Name 'Wiki blueprints' -Uri 'https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec $script:SourceCheckTimeoutSec
+    return ($null -ne $result)
 }
 
 function Test-SCWikiItemsSource {
     param([hashtable]$Headers)
 
-    try {
-        [void](Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/items?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec 45)
-        Write-Host 'Source Wiki items: OK'
-        return $true
-    }
-    catch {
-        Write-Host "Source Wiki items: FAIL; $($_.Exception.Message)"
-        return $false
-    }
+    $result = Get-SCRemoteJson -Name 'Wiki items' -Uri 'https://api.star-citizen.wiki/api/items?page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec $script:SourceCheckTimeoutSec
+    return ($null -ne $result)
 }
 
 function Test-SCRefineryYieldsSource {
     param([hashtable]$Headers)
 
     try {
-        $result = Invoke-RestMethod -Uri 'https://api.uexcorp.uk/2.0/refineries_yields' -Headers $Headers -TimeoutSec 45
+        $result = Get-SCRemoteJson -Name 'UEX refinery yields' -Uri 'https://api.uexcorp.uk/2.0/refineries_yields' -Headers $Headers -TimeoutSec $script:SourceCheckTimeoutSec
+        if ($null -eq $result) {
+            return $false
+        }
         if (@($result.data).Count -eq 0) {
             throw 'empty response'
         }
 
-        Write-Host 'Source UEX refinery yields: OK'
         return $true
     }
     catch {
@@ -682,17 +796,47 @@ function Test-SCRefineryYieldsSource {
     }
 }
 
+function Test-SCLocationTradeSource {
+    param([hashtable]$Headers)
+
+    try {
+        $terminals = Get-SCRemoteJson -Name 'UEX terminals' -Uri 'https://api.uexcorp.uk/2.0/terminals' -Headers $Headers -TimeoutSec $script:SourceCheckTimeoutSec -Quiet
+        $rawPrices = Get-SCRemoteJson -Name 'UEX raw ore prices' -Uri 'https://api.uexcorp.uk/2.0/commodities_raw_prices_all' -Headers $Headers -TimeoutSec $script:SourceCheckTimeoutSec -Quiet
+        if ($null -eq $terminals -or $null -eq $rawPrices) {
+            throw 'one of raw ore endpoints is unavailable'
+        }
+        if (@($terminals.data).Count -eq 0 -or @($rawPrices.data).Count -eq 0) {
+            throw 'empty response'
+        }
+
+        Write-Host 'Source UEX raw ore buy prices: OK'
+        return $true
+    }
+    catch {
+        Write-Host "Source UEX raw ore buy prices: FAIL; $($_.Exception.Message)"
+        return $false
+    }
+}
+
 function Test-SCErkulItemPassportSource {
     param([hashtable]$Headers)
 
     try {
-        . (Get-SCMiningModuleScriptPath)
-        $result = Invoke-SCMiningErkulJson -Path 'live/weapons' -Headers $Headers
+        $requestHeaders = @{}
+        foreach ($key in @($Headers.Keys)) {
+            $requestHeaders[$key] = $Headers[$key]
+        }
+        $requestHeaders['Accept'] = 'application/json,text/plain,*/*'
+        $requestHeaders['Origin'] = 'https://www.erkul.games'
+        $requestHeaders['Referer'] = 'https://www.erkul.games/'
+        $result = Get-SCRemoteJson -Name 'Erkul item passports' -Uri 'https://server.erkul.games/live/weapons' -Headers $requestHeaders -TimeoutSec $script:SourceCheckTimeoutSec
+        if ($null -eq $result) {
+            return $false
+        }
         if (@($result).Count -eq 0) {
             throw 'empty response'
         }
 
-        Write-Host 'Source Erkul item passports: OK'
         return $true
     }
     catch {
@@ -736,6 +880,8 @@ function Write-ConsolePreflightSummary {
             Write-SCCacheStatusLine -Name 'mining recipe families' -Path $familyIndexPath
             $refineryYieldPath = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining refinery yields' -Path $refineryYieldPath
+            $locationTradePath = Get-SCMiningLocationTradeCachePath -CacheKey ([string]$scmdbCache.Version)
+            Write-SCCacheStatusLine -Name 'mining raw ore buy prices' -Path $locationTradePath
             $itemPassportPath = Get-SCMiningItemPassportCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining item passports' -Path $itemPassportPath
         }
@@ -827,6 +973,24 @@ function Write-ConsoleWarmCacheSummary {
         }
 
         Write-SCFallbackCacheLine -Name 'mining refinery yields' -Path $fallbackPath -Reason 'source unavailable'
+    }
+
+    $locationTradePath = Get-SCMiningLocationTradeCachePath -CacheKey ([string]$version.version)
+    try {
+        $locationTrade = Get-SCMiningLocationTradePrices -Headers $headers -CacheKey ([string]$version.version) -ForceRefresh
+        Write-Host 'Source UEX raw ore buy prices: OK'
+        Write-Host "UEX raw ore buy locations: $(@($locationTrade.locations).Count)"
+        Write-SCRefreshedCacheLine -Name 'mining raw ore buy prices' -Path $locationTradePath
+    }
+    catch {
+        $reason = $_.Exception.Message
+        Write-Host "Source UEX raw ore buy prices: FALLBACK; $reason"
+        $fallbackPath = Write-SCMiningLocationTradeFallbackCache -CacheKey ([string]$version.version)
+        if ([string]::IsNullOrWhiteSpace($fallbackPath)) {
+            throw "UEX raw ore buy price source is unavailable and no fallback cache exists: $reason"
+        }
+
+        Write-SCFallbackCacheLine -Name 'mining raw ore buy prices' -Path $fallbackPath -Reason 'source unavailable'
     }
 
     $itemPassportPath = Get-SCMiningItemPassportCachePath -CacheKey ([string]$version.version)

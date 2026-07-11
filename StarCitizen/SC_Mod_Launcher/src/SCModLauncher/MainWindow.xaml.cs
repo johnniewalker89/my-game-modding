@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.0.10";
+    private const string CurrentLauncherVersion = "2.1.0";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -50,8 +50,8 @@ public partial class MainWindow : Window
     private const string LauncherAssetSuffix = ".zip";
     private const double DefaultWindowWidth = 1280;
     private const double DefaultWindowHeight = 820;
-    private static readonly TimeSpan PreflightProcessTimeout = TimeSpan.FromSeconds(45);
-    private static readonly TimeSpan WarmCacheProcessTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan PreflightProcessTimeout = TimeSpan.FromSeconds(150);
+    private static readonly TimeSpan WarmCacheProcessTimeout = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan LiveApplyProcessTimeout = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DefaultBackendProcessTimeout = TimeSpan.FromMinutes(3);
     private static readonly HttpClient UpdateHttpClient = CreateUpdateHttpClient();
@@ -361,7 +361,7 @@ public partial class MainWindow : Window
     {
         var client = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(12)
+            Timeout = TimeSpan.FromSeconds(30)
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("SC-Mod-Launcher/1.0");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");

@@ -470,6 +470,53 @@ $refineryCleaned = [System.IO.File]::ReadAllText($refineryGlobalIni, $encoding)
 Assert-True (-not $refineryCleaned.Contains($refineryYieldLabel)) 'Disabled refinery yield option should remove UEX refinery label.'
 Assert-True ($refineryCleaned.Contains('ARC_L1_station_desc=Located at ArcCorp L1. This description does not repeat the full station name.')) 'Disabled refinery yield option should preserve base station description.'
 
+$rawOreBuyLabel = 'Скупка сырой руды (UEX, ориентир)'
+$rawOreBuyLegacyLabel = 'Торговля (UEX, ориентир)'
+$rawOreBuyLive = Join-Path $tempRoot 'RawOreBuy\LIVE'
+$rawOreBuyLoc = Join-Path $rawOreBuyLive 'data\Localization\korean_(south_korea)'
+$rawOreBuyGlobalIni = Join-Path $rawOreBuyLoc 'global.ini'
+$rawOreBuyReports = Join-Path $tempRoot 'raw-ore-buy-reports'
+$rawOreBuyBackups = Join-Path $tempRoot 'raw-ore-buy-backups'
+New-Item -ItemType Directory -Force -Path $rawOreBuyLoc | Out-Null
+[System.IO.File]::WriteAllLines($rawOreBuyGlobalIni, @(
+    'RR_CRU_L1=CRU-L1 Ambitious Dream Station',
+    'RR_CRU_L1_desc=CRU-L1 test station card.',
+    'ui_pregame_port_Levski_name=Levski',
+    'ui_pregame_port_Levski_desc=Levski pregame location card.',
+    'ui_pregame_port_Area18_name=Area 18',
+    'ui_pregame_port_Area18_desc=Area 18 city card.\n\n<EM4>Торговля (UEX, ориентир)</EM4>\n<EM4>Покупают:</EM4> Agricium 10k\n<EM4>Продают:</EM4> Methane 3,03k',
+    'ArcCorpMining045,P=ArcCorp Mining Area 045',
+    'ArcCorpMining045_desc=ArcCorp Mining Area 045 outpost card.'
+), $encoding)
+$rawOreBuyEnabled = @{ mining = @('refineryYieldHints', 'rawOreBuyHints'); quest = @('reputationHints') + $allQuestOptions }
+$rawOreBuyDisabled = @{ mining = @(); quest = @('reputationHints') + $allQuestOptions }
+$rawOreBuyApply = Invoke-SCModPatch -LivePath $rawOreBuyLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $rawOreBuyEnabled -ReportDirectory $rawOreBuyReports -BackupDirectory $rawOreBuyBackups
+Assert-True ($rawOreBuyApply.Report.writeSucceeded -eq $true) 'Raw ore buy apply should write fixture file.'
+Assert-True ([int]$rawOreBuyApply.Report.conflictCount -eq 0) 'Raw ore buy apply should not conflict with unrelated descriptions.'
+Assert-True ([int]$rawOreBuyApply.Report.changedLines -eq 3) 'Raw ore buy apply should change linked station descriptions and clean legacy trade block.'
+$rawOreBuyPatched = [System.IO.File]::ReadAllText($rawOreBuyGlobalIni, $encoding)
+Assert-True ($rawOreBuyPatched.Contains($rawOreBuyLabel)) 'Raw ore buy apply should add UEX raw ore label.'
+Assert-True ($rawOreBuyPatched.Contains('RR_CRU_L1_desc=CRU-L1 test station card.\n\n<EM4>Переработка (UEX)</EM4>')) 'Raw ore buy apply should patch CRU-L1 station card after refinery block.'
+Assert-True ($rawOreBuyPatched.Contains('<EM4>Руда:</EM4> Agricium 1,04k')) 'Raw ore buy apply should add CRU-L1 raw ore buy list.'
+Assert-True ($rawOreBuyPatched.Contains('ui_pregame_port_Levski_desc=Levski pregame location card.\n\n<EM4>Переработка (UEX)</EM4>')) 'Combined refinery/raw ore apply should start Levski card with refinery block.'
+Assert-True ($rawOreBuyPatched.Contains('Ice +10%')) 'Combined refinery/raw ore apply should include Levski refinery bonus.'
+Assert-True ($rawOreBuyPatched.Contains('<EM4>Скупка сырой руды (UEX, ориентир)</EM4>')) 'Combined refinery/raw ore apply should include raw ore block after refinery block.'
+Assert-True ($rawOreBuyPatched.IndexOf('<EM4>Переработка (UEX)</EM4>') -lt $rawOreBuyPatched.IndexOf('<EM4>Скупка сырой руды (UEX, ориентир)</EM4>')) 'Combined refinery/raw ore apply should keep refinery block before raw ore buy block.'
+Assert-True ($rawOreBuyPatched.Contains('<EM4>Руда:</EM4> Agricium 3k')) 'Raw ore buy apply should add Levski raw ore buy list.'
+Assert-True (-not $rawOreBuyPatched.Contains($rawOreBuyLegacyLabel)) 'Raw ore buy apply should remove legacy trade label.'
+Assert-True (-not $rawOreBuyPatched.Contains('<EM4>Покупают:</EM4>')) 'Raw ore buy apply should not add generic buy list.'
+Assert-True (-not $rawOreBuyPatched.Contains('<EM4>Продают:</EM4>')) 'Raw ore buy apply should not add generic sell list.'
+
+$rawOreBuyRepeat = Invoke-SCModPatch -LivePath $rawOreBuyLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $rawOreBuyEnabled -ReportDirectory $rawOreBuyReports -BackupDirectory $rawOreBuyBackups -DryRun
+Assert-True ([int]$rawOreBuyRepeat.Report.changedLines -eq 0) 'Raw ore buy apply should be idempotent while enabled.'
+
+$rawOreBuyRemove = Invoke-SCModPatch -LivePath $rawOreBuyLive -ScriptRoot $ProjectDir -SelectedOptionsByModule $rawOreBuyDisabled -ReportDirectory $rawOreBuyReports -BackupDirectory $rawOreBuyBackups
+Assert-True ($rawOreBuyRemove.Report.writeSucceeded -eq $true) 'Disabled raw ore buy option should write cleanup fixture file.'
+Assert-True ([int]$rawOreBuyRemove.Report.changedLines -eq 2) 'Disabled raw ore buy option should remove refinery and raw ore buy hints.'
+$rawOreBuyCleaned = [System.IO.File]::ReadAllText($rawOreBuyGlobalIni, $encoding)
+Assert-True (-not $rawOreBuyCleaned.Contains($rawOreBuyLabel)) 'Disabled raw ore buy option should remove UEX raw ore label.'
+Assert-True (-not $rawOreBuyCleaned.Contains($refineryYieldLabel)) 'Disabled raw ore buy fixture should also remove refinery label.'
+
 $stageSourceRoot = Join-Path $tempRoot 'StageSource\LIVE'
 $stageSourceLoc = Join-Path $stageSourceRoot 'data\Localization\korean_(south_korea)'
 $stageSourceGlobalIni = Join-Path $stageSourceLoc 'global.ini'

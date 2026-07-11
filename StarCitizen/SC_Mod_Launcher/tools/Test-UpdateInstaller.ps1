@@ -84,6 +84,7 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\wiki-blueprints-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed mining blueprints cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\craft-family-index-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed mining recipe family cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\refinery-yields-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed refinery cache should be installed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\raw-ore-buy-prices-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed raw ore buy cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\erkul-item-passports-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed item passport cache should be installed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.old.json') -PathType Leaf)) 'Old quest cache leftovers should be removed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -PathType Leaf) 'Seed quest items cache should be installed.'

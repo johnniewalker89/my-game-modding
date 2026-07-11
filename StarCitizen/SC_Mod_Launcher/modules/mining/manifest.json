@@ -16,7 +16,14 @@
     {
       "id": "refineryYieldHints",
       "name": "Бонусы переработки",
-      "description": "Показывать лучшие бонусы и штрафы переработки руды в описаниях refinery-станций.",
+      "description": "Показывать полный профиль бонусов и штрафов переработки руды в описаниях refinery-станций.",
+      "default": false,
+      "group": "Крафт"
+    },
+    {
+      "id": "rawOreBuyHints",
+      "name": "Скупка сырой руды",
+      "description": "Показывать ориентировочные цены скупки сырой руды на refinery/ore sales терминалах по UEX.",
       "default": false,
       "group": "Крафт"
     },

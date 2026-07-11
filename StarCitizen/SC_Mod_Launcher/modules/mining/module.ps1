@@ -7,11 +7,13 @@
     $selectedMethods = Get-SCMiningSelectedMethods -SelectedOptions $SelectedOptions
     $enableItemCraftHints = @($SelectedOptions) -contains 'itemCraftHints'
     $enableRefineryYieldHints = @($SelectedOptions) -contains 'refineryYieldHints'
+    $enableLocationTradeHints = @($SelectedOptions) -contains 'rawOreBuyHints'
     $craftFilter = Get-SCMiningCraftFilter -SelectedOptions $SelectedOptions
     $operations = @()
     $changedPlanetKeys = @()
     $itemCraftWarnings = @()
     $refineryYieldWarnings = @()
+    $locationTradeWarnings = @()
     $itemPassportWarnings = @()
     $itemCraftMetadata = @{
         enabled = $enableItemCraftHints
@@ -27,6 +29,13 @@
         stationCount = 0
         matchedStationDescriptions = 0
         changedStationDescriptions = 0
+    }
+    $locationTradeMetadata = @{
+        enabled = $enableLocationTradeHints
+        source = 'UEX terminals + commodities_raw_prices_all'
+        locationCount = 0
+        matchedLocationDescriptions = 0
+        changedLocationDescriptions = 0
     }
     $itemPassportMetadata = @{
         enabled = $true
@@ -110,32 +119,51 @@
         }
     }
 
+    $workingValues = Copy-SCMiningValueMap -Values $Context.Values
+    Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations $operations
+    $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
+
     if ($enableItemCraftHints) {
-        $itemPlan = New-SCMiningItemCraftHintOperations -Context $Context -RecipeData $recipeData
+        $itemPlan = New-SCMiningItemCraftHintOperations -Context $workingContext -RecipeData $recipeData
         $operations += @($itemPlan.Operations)
         $itemCraftWarnings += @($itemPlan.Warnings)
         $itemCraftMetadata = $itemPlan.Metadata
     }
     else {
-        $itemPlan = Remove-SCMiningItemCraftHintOperations -Context $Context
+        $itemPlan = Remove-SCMiningItemCraftHintOperations -Context $workingContext
         $operations += @($itemPlan.Operations)
         $itemCraftMetadata = $itemPlan.Metadata
     }
+    Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($itemPlan.Operations)
+    $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
 
     if ($enableRefineryYieldHints) {
-        $refineryPlan = New-SCMiningRefineryYieldHintOperations -Context $Context
+        $refineryPlan = New-SCMiningRefineryYieldHintOperations -Context $workingContext
         $operations += @($refineryPlan.Operations)
         $refineryYieldWarnings += @($refineryPlan.Warnings)
         $refineryYieldMetadata = $refineryPlan.Metadata
     }
     else {
-        $refineryPlan = Remove-SCMiningRefineryYieldHintOperations -Context $Context
+        $refineryPlan = Remove-SCMiningRefineryYieldHintOperations -Context $workingContext
         $operations += @($refineryPlan.Operations)
         $refineryYieldMetadata = $refineryPlan.Metadata
     }
+    Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($refineryPlan.Operations)
+    $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
 
-    $workingValues = Copy-SCMiningValueMap -Values $Context.Values
-    Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations $operations
+    if ($enableLocationTradeHints) {
+        $locationTradePlan = New-SCMiningLocationTradeHintOperations -Context $workingContext
+        $operations += @($locationTradePlan.Operations)
+        $locationTradeWarnings += @($locationTradePlan.Warnings)
+        $locationTradeMetadata = $locationTradePlan.Metadata
+    }
+    else {
+        $locationTradePlan = Remove-SCMiningLocationTradeHintOperations -Context $workingContext
+        $operations += @($locationTradePlan.Operations)
+        $locationTradeMetadata = $locationTradePlan.Metadata
+    }
+    Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($locationTradePlan.Operations)
+
     $itemPassportPlan = New-SCMiningItemPassportOperations -Context $Context -Values $workingValues
     $operations += @($itemPassportPlan.Operations)
     $itemPassportWarnings += @($itemPassportPlan.Warnings)
@@ -153,13 +181,14 @@
         changedPlanetKeysSample = @($changedPlanetKeys | Select-Object -First 20)
         itemCraftHints = $itemCraftMetadata
         refineryYieldHints = $refineryYieldMetadata
+        locationTradeHints = $locationTradeMetadata
         itemPassports = $itemPassportMetadata
     }
 
     return [pscustomobject]@{
         ModuleId = 'mining'
         Operations = @($operations)
-        Warnings = @($recipeDataWarnings + $itemCraftWarnings + $refineryYieldWarnings + $itemPassportWarnings)
+        Warnings = @($recipeDataWarnings + $itemCraftWarnings + $refineryYieldWarnings + $locationTradeWarnings + $itemPassportWarnings)
         Metadata = $metadata
     }
 }
@@ -491,6 +520,127 @@ function Remove-SCMiningRefineryYieldHintOperations {
     }
 }
 
+function New-SCMiningLocationTradeHintOperations {
+    param([object]$Context)
+
+    $metadata = @{
+        enabled = $true
+        source = ''
+        sourceUrl = ''
+        gameVersion = ''
+        locationCount = 0
+        matchedLocationDescriptions = 0
+        changedLocationDescriptions = 0
+        changedLocationKeysSample = @()
+    }
+
+    try {
+        $data = Get-SCMiningLocationTradeData
+        $metadata.source = [string]$data.source
+        $metadata.sourceUrl = [string]$data.sourceUrl
+        $metadata.gameVersion = [string]$data.gameVersion
+        $metadata.locationCount = @($data.locations).Count
+
+        $operations = @()
+        $changedKeys = New-Object System.Collections.Generic.List[string]
+        $matchedDescriptions = 0
+        foreach ($key in @($Context.Values.Keys | Sort-Object)) {
+            if ($key -notmatch '(?i)_desc(?:,|$)|_description(?:,|$)' -and [string]::IsNullOrWhiteSpace((Get-SCMiningLocationTradeKnownLocationTitle -Key $key -Values $Context.Values))) {
+                continue
+            }
+
+            $current = [string]$Context.Values[$key]
+            $clean = Remove-SCMiningLocationTradeHint -Value $current
+            $location = Find-SCMiningLocationTradeLocation -Key $key -Values $Context.Values -Locations @($data.locations)
+            if ($null -eq $location) {
+                if ($clean -ne $current) {
+                    $operations += [pscustomobject]@{
+                        ModuleId = 'mining'
+                        OptionId = 'rawOreBuyHints'
+                        Key = $key
+                        Operation = 'replaceValue'
+                        OriginalValue = $current
+                        NewValue = $clean
+                        OwnedMarkers = @('SC_LOCATION_TRADE_HINT_BLOCK')
+                    }
+                    $changedKeys.Add($key)
+                }
+                continue
+            }
+
+            $matchedDescriptions++
+            $updated = Set-SCMiningLocationTradeHint -Value $clean -Location $location
+            if ($updated -ne $current) {
+                $operations += [pscustomobject]@{
+                    ModuleId = 'mining'
+                    OptionId = 'rawOreBuyHints'
+                    Key = $key
+                    Operation = 'replaceValue'
+                    OriginalValue = $current
+                    NewValue = $updated
+                    OwnedMarkers = @('SC_LOCATION_TRADE_HINT_BLOCK')
+                }
+                $changedKeys.Add($key)
+            }
+        }
+
+        $metadata.matchedLocationDescriptions = $matchedDescriptions
+        $metadata.changedLocationDescriptions = @($operations).Count
+        $metadata.changedLocationKeysSample = @($changedKeys | Select-Object -First 20)
+
+        return [pscustomobject]@{
+            Operations = @($operations)
+            Warnings = @()
+            Metadata = $metadata
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            Operations = @()
+            Warnings = @("Raw ore buy hints skipped: $($_.Exception.Message)")
+            Metadata = $metadata
+        }
+    }
+}
+
+function Remove-SCMiningLocationTradeHintOperations {
+    param([object]$Context)
+
+    $operations = @()
+    foreach ($key in @($Context.Values.Keys | Sort-Object)) {
+        $current = [string]$Context.Values[$key]
+        $hasCurrentHint = $current.IndexOf((Get-SCMiningLocationTradeHintLabel), [System.StringComparison]::Ordinal) -ge 0
+        $hasLegacyHint = $current.IndexOf((Get-SCMiningLocationTradeLegacyHintLabel), [System.StringComparison]::Ordinal) -ge 0
+        if (-not $hasCurrentHint -and -not $hasLegacyHint) {
+            continue
+        }
+
+        $updated = Remove-SCMiningLocationTradeHint -Value $current
+        if ($updated -ne $current) {
+            $operations += [pscustomobject]@{
+                ModuleId = 'mining'
+                OptionId = 'rawOreBuyHints'
+                Key = $key
+                Operation = 'replaceValue'
+                OriginalValue = $current
+                NewValue = $updated
+                OwnedMarkers = @('SC_LOCATION_TRADE_HINT_BLOCK')
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Operations = @($operations)
+        Metadata = @{
+            enabled = $false
+            source = 'UEX terminals + commodities_raw_prices_all'
+            locationCount = 0
+            matchedLocationDescriptions = 0
+            changedLocationDescriptions = @($operations).Count
+        }
+    }
+}
+
 function New-SCMiningItemPassportOperations {
     param(
         [object]$Context,
@@ -609,6 +759,26 @@ function Copy-SCMiningValueMap {
     return $copy
 }
 
+function New-SCMiningContextWithValues {
+    param(
+        [object]$Context,
+        [hashtable]$Values
+    )
+
+    return [pscustomobject]@{
+        LivePath = $Context.LivePath
+        GlobalIniPath = $Context.GlobalIniPath
+        EncodingInfo = $Context.EncodingInfo
+        OriginalSha256 = $Context.OriginalSha256
+        OriginalSize = $Context.OriginalSize
+        Lines = $Context.Lines
+        Values = $Values
+        KeyLineIndexes = $Context.KeyLineIndexes
+        LineCount = $Context.LineCount
+        KeyCount = $Context.KeyCount
+    }
+}
+
 function Apply-SCMiningOperationsToValueMap {
     param(
         [hashtable]$Values,
@@ -723,22 +893,47 @@ function Get-SCMiningPlanetCraftBlueprints {
     throw "Mining wiki blueprints cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
 }
 
-function Invoke-SCMiningScmdbJson {
+function Invoke-SCMiningRemoteJson {
     param(
         [string]$Uri,
-        [hashtable]$Headers
+        [hashtable]$Headers,
+        [string]$Referer
     )
 
     try {
-        return (Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 45)
+        return (Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 120)
     }
     catch {
         if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-            $json = & curl.exe -L --silent --show-error --fail --max-time 45 `
-                -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36' `
-                -H 'Accept: application/json,text/plain,*/*' `
-                -e 'https://scmdb.net/' `
-                $Uri
+            $userAgent = if ($Headers -and $Headers.ContainsKey('User-Agent')) {
+                [string]$Headers['User-Agent']
+            }
+            else {
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'
+            }
+
+            $curlArgs = @(
+                '-L', '--silent', '--show-error', '--fail',
+                '--max-time', '120',
+                '-A', $userAgent
+            )
+            if ($Headers) {
+                foreach ($key in @($Headers.Keys)) {
+                    if ([string]$key -eq 'User-Agent') {
+                        continue
+                    }
+                    $curlArgs += @('-H', ('{0}: {1}' -f $key, $Headers[$key]))
+                }
+            }
+            if (-not ($Headers -and $Headers.ContainsKey('Accept'))) {
+                $curlArgs += @('-H', 'Accept: application/json,text/plain,*/*')
+            }
+            if (-not [string]::IsNullOrWhiteSpace($Referer)) {
+                $curlArgs += @('-e', $Referer)
+            }
+            $curlArgs += $Uri
+
+            $json = & curl.exe @curlArgs
             if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
                 return ($json | ConvertFrom-Json)
             }
@@ -746,6 +941,15 @@ function Invoke-SCMiningScmdbJson {
 
         throw
     }
+}
+
+function Invoke-SCMiningScmdbJson {
+    param(
+        [string]$Uri,
+        [hashtable]$Headers
+    )
+
+    return (Invoke-SCMiningRemoteJson -Uri $Uri -Headers $Headers -Referer 'https://scmdb.net/')
 }
 
 function Get-SCMiningScmdbCacheDirectory {
@@ -951,11 +1155,11 @@ function Invoke-SCMiningErkulJson {
     }
 
     try {
-        return (Invoke-RestMethod -Uri $uri -Headers $requestHeaders -TimeoutSec 45)
+        return (Invoke-RestMethod -Uri $uri -Headers $requestHeaders -TimeoutSec 120)
     }
     catch {
         if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-            $json = & curl.exe -L --silent --show-error --fail --max-time 60 `
+            $json = & curl.exe -L --silent --show-error --fail --max-time 120 `
                 -A ([string]$requestHeaders['User-Agent']) `
                 -H 'Accept: application/json,text/plain,*/*' `
                 -H 'Origin: https://www.erkul.games' `
@@ -2818,7 +3022,7 @@ function Get-SCMiningWikiBlueprints {
         }
     }
 
-    $first = Invoke-RestMethod -Uri 'https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=100&page%5Bnumber%5D=1' -Headers $Headers
+    $first = Invoke-SCMiningRemoteJson -Uri 'https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=100&page%5Bnumber%5D=1' -Headers $Headers -Referer 'https://star-citizen.wiki/'
     $all = New-Object System.Collections.Generic.List[object]
     foreach ($item in @($first.data)) {
         $all.Add($item)
@@ -2826,7 +3030,7 @@ function Get-SCMiningWikiBlueprints {
 
     $lastPage = [int]$first.meta.last_page
     for ($page = 2; $page -le $lastPage; $page++) {
-        $result = Invoke-RestMethod -Uri ("https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=100&page%5Bnumber%5D={0}" -f $page) -Headers $Headers
+        $result = Invoke-SCMiningRemoteJson -Uri ("https://api.star-citizen.wiki/api/blueprints?page%5Bsize%5D=100&page%5Bnumber%5D={0}" -f $page) -Headers $Headers -Referer 'https://star-citizen.wiki/'
         foreach ($item in @($result.data)) {
             $all.Add($item)
         }
@@ -3800,6 +4004,286 @@ function Write-SCMiningRefineryYieldCache {
     [System.IO.File]::WriteAllText($CachePath, $json, $encoding)
 }
 
+function Get-SCMiningLocationTradeData {
+    $scmdbCache = Read-SCMiningScmdbCache
+    $cached = Get-SCMiningCachedLocationTrade -CacheKey ([string]$scmdbCache.Version)
+    if ($null -eq $cached) {
+        throw "Mining raw ore buy price cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
+    }
+
+    return $cached
+}
+
+function Get-SCMiningCachedLocationTrade {
+    param([string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        return $null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($CacheKey)) {
+        $path = Get-SCMiningLocationTradeCachePath -CacheKey $CacheKey
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $cacheFile = Get-Item -LiteralPath $path
+        }
+        else {
+            $legacyPath = Get-SCMiningLocationTradeLegacyCachePath -CacheKey $CacheKey
+            if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
+                $cacheFile = Get-Item -LiteralPath $legacyPath
+            }
+            else {
+                $cacheFile = $null
+            }
+        }
+    }
+    else {
+        $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'raw-ore-buy-prices-*.json' -File |
+            Where-Object { $_.Name -match '(?i)-live\.' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if ($null -eq $cacheFile) {
+            $cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'location-trade-*.json' -File |
+                Where-Object { $_.Name -match '(?i)-live\.' } |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1
+        }
+    }
+
+    if ($null -eq $cacheFile) {
+        return $null
+    }
+
+    try {
+        $cache = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
+        if ($cache.PSObject.Properties['locations'] -and @($cache.locations).Count -gt 0) {
+            return $cache
+        }
+    }
+    catch {
+    }
+
+    return $null
+}
+
+function Get-SCMiningLocationTradeCachePath {
+    param([string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    return (Join-Path $cacheDir ("raw-ore-buy-prices-{0}.json" -f (Get-SCMiningSafeCacheKey -CacheKey $CacheKey)))
+}
+
+function Get-SCMiningLocationTradeLegacyCachePath {
+    param([string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    return (Join-Path $cacheDir ("location-trade-{0}.json" -f (Get-SCMiningSafeCacheKey -CacheKey $CacheKey)))
+}
+
+function Get-SCMiningLocationTradePrices {
+    param(
+        [hashtable]$Headers,
+        [string]$CacheKey,
+        [switch]$ForceRefresh
+    )
+
+    $cachePath = Get-SCMiningLocationTradeCachePath -CacheKey $CacheKey
+    if (-not $ForceRefresh -and (Test-Path -LiteralPath $cachePath -PathType Leaf)) {
+        $cached = Get-SCMiningCachedLocationTrade -CacheKey $CacheKey
+        if ($null -ne $cached) {
+            return $cached
+        }
+
+        Remove-Item -LiteralPath $cachePath -Force -ErrorAction SilentlyContinue
+    }
+
+    $terminalsRaw = Invoke-SCMiningScmdbJson -Uri 'https://api.uexcorp.uk/2.0/terminals' -Headers $Headers
+    $rawPricesRaw = Invoke-SCMiningScmdbJson -Uri 'https://api.uexcorp.uk/2.0/commodities_raw_prices_all' -Headers $Headers
+
+    $terminals = @($terminalsRaw.data)
+    $rawPrices = @($rawPricesRaw.data)
+    if ($terminals.Count -eq 0 -or $rawPrices.Count -eq 0) {
+        throw 'UEX raw ore endpoints returned no data.'
+    }
+
+    $payload = ConvertTo-SCMiningLocationTradeCachePayload -CacheKey $CacheKey -Terminals $terminals -RawPrices $rawPrices
+    Write-SCMiningLocationTradeCache -CachePath $cachePath -Payload $payload
+    return $payload
+}
+
+function ConvertTo-SCMiningLocationTradeCachePayload {
+    param(
+        [string]$CacheKey,
+        [object[]]$Terminals,
+        [object[]]$RawPrices
+    )
+
+    $terminalById = @{}
+    foreach ($terminal in @($Terminals)) {
+        $id = [string]$terminal.id
+        if (-not [string]::IsNullOrWhiteSpace($id)) {
+            $terminalById[$id] = $terminal
+        }
+    }
+
+    $locationMap = @{}
+    foreach ($record in @($RawPrices)) {
+        $terminal = $terminalById[[string]$record.id_terminal]
+        if ($null -eq $terminal -or [string]$terminal.type -ne 'commodity_raw') {
+            continue
+        }
+
+        $locationName = Get-SCMiningLocationTradeTerminalDisplayName -Terminal $terminal -Fallback ([string]$record.terminal_name)
+        if ([string]::IsNullOrWhiteSpace($locationName) -or [int]$record.price_sell -le 0) {
+            continue
+        }
+
+        Add-SCMiningLocationTradeRecord -LocationMap $locationMap -LocationName $locationName -Terminal $terminal -Kind 'rawBuys' -Commodity ([string]$record.commodity_name) -Price ([int]$record.price_sell)
+    }
+
+    $locations = @()
+    foreach ($entry in @($locationMap.GetEnumerator() | Sort-Object Name)) {
+        $value = $entry.Value
+        $rawBuys = @(Merge-SCMiningLocationTradeEntries -Entries @($value.rawBuys) -PreferHighPrice)
+        if ($rawBuys.Count -eq 0) {
+            continue
+        }
+
+        $locations += [pscustomobject]@{
+            name = [string]$value.name
+            aliases = @($value.aliases | Sort-Object -Unique)
+            rawBuys = @($rawBuys)
+        }
+    }
+
+    return [pscustomobject]@{
+        cacheKey = [string]$CacheKey
+        createdAt = (Get-Date).ToString('o')
+        source = 'UEX terminals + commodities_raw_prices_all'
+        sourceUrl = 'https://uexcorp.space/api/documentation'
+        apiUrls = @(
+            'https://api.uexcorp.uk/2.0/terminals',
+            'https://api.uexcorp.uk/2.0/commodities_raw_prices_all'
+        )
+        gameVersion = [string]$CacheKey
+        values = 'price_sell terminal buys raw ore from player'
+        terminalRecords = @($Terminals).Count
+        rawPriceRecords = @($RawPrices).Count
+        locations = @($locations)
+    }
+}
+
+function Get-SCMiningLocationTradeTerminalDisplayName {
+    param(
+        [object]$Terminal,
+        [string]$Fallback
+    )
+
+    foreach ($field in @('displayname', 'space_station_name', 'outpost_name', 'city_name', 'name')) {
+        $value = [string]$Terminal.$field
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return $value
+        }
+    }
+
+    return [string]$Fallback
+}
+
+function Add-SCMiningLocationTradeRecord {
+    param(
+        [hashtable]$LocationMap,
+        [string]$LocationName,
+        [object]$Terminal,
+        [string]$Kind,
+        [string]$Commodity,
+        [int]$Price
+    )
+
+    if ([string]::IsNullOrWhiteSpace($LocationName) -or [string]::IsNullOrWhiteSpace($Commodity) -or $Price -le 0) {
+        return
+    }
+
+    if (-not $LocationMap.ContainsKey($LocationName)) {
+        $LocationMap[$LocationName] = [pscustomobject]@{
+            name = $LocationName
+            aliases = @()
+            rawBuys = @()
+        }
+    }
+
+    $location = $LocationMap[$LocationName]
+    $aliases = @($location.aliases + @(Get-SCMiningLocationTradeAliases -LocationName $LocationName -Terminal $Terminal) | Sort-Object -Unique)
+    $location.aliases = @($aliases)
+    $entry = [pscustomobject]@{
+        commodity = [regex]::Replace($Commodity, '\s+\((Ore|Raw)\)$', '')
+        price = $Price
+    }
+    $location.$Kind = @($location.$Kind + $entry)
+}
+
+function Merge-SCMiningLocationTradeEntries {
+    param(
+        [object[]]$Entries,
+        [switch]$PreferHighPrice
+    )
+
+    $result = @()
+    foreach ($group in (@($Entries) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.commodity) -and [int]$_.price -gt 0 } | Group-Object commodity)) {
+        if ($PreferHighPrice) {
+            $entry = @($group.Group | Sort-Object @{ Expression = { [int]$_.price }; Descending = $true } | Select-Object -First 1)[0]
+        }
+        else {
+            $entry = @($group.Group | Sort-Object @{ Expression = { [int]$_.price }; Descending = $false } | Select-Object -First 1)[0]
+        }
+
+        $result += [pscustomobject]@{
+            commodity = [string]$entry.commodity
+            price = [int]$entry.price
+        }
+    }
+
+    return @($result | Sort-Object commodity)
+}
+
+function Get-SCMiningLocationTradeAliases {
+    param(
+        [string]$LocationName,
+        [object]$Terminal
+    )
+
+    $aliases = @()
+    if ($LocationName -match '^(ARC|CRU|HUR|MIC)-L\d\b') {
+        $aliases += $Matches[0]
+    }
+    if ($LocationName -match '^(?<name>.+ Gateway) \([^)]+\)$') {
+        $aliases += $Matches['name']
+    }
+    foreach ($field in @('nickname', 'space_station_name', 'outpost_name', 'city_name')) {
+        $value = [string]$Terminal.$field
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            $aliases += $value
+        }
+    }
+
+    return @($aliases | Sort-Object -Unique)
+}
+
+function Write-SCMiningLocationTradeCache {
+    param(
+        [string]$CachePath,
+        [object]$Payload
+    )
+
+    $cacheDir = Split-Path -Parent $CachePath
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+    }
+
+    $json = $Payload | ConvertTo-Json -Depth 10
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($CachePath, $json, $encoding)
+}
+
 function Find-SCMiningRefineryYieldStation {
     param(
         [string]$Key,
@@ -4048,8 +4532,228 @@ function Format-SCMiningRefineryYieldParts {
     return @($parts)
 }
 
+function Find-SCMiningLocationTradeLocation {
+    param(
+        [string]$Key,
+        [hashtable]$Values,
+        [object[]]$Locations
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Key)) {
+        return $null
+    }
+
+    $relatedValues = @(Get-SCMiningLocationTradeRelatedTitleValues -Key $Key -Values $Values)
+    if ($relatedValues.Count -eq 0) {
+        return $null
+    }
+
+    foreach ($location in @($Locations)) {
+        foreach ($candidate in @(Get-SCMiningLocationTradeCandidates -Location $location | Sort-Object { $_.Length } -Descending)) {
+            if ([string]::IsNullOrWhiteSpace($candidate) -or $candidate.Length -lt 4) {
+                continue
+            }
+            if (-not (Test-SCMiningLocationTradeCandidateKeyScope -Key $Key -Candidate $candidate)) {
+                continue
+            }
+
+            foreach ($value in $relatedValues) {
+                if ($value.IndexOf($candidate, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    return $location
+                }
+            }
+        }
+    }
+
+    return $null
+}
+
+function Get-SCMiningLocationTradeCandidates {
+    param([object]$Location)
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    $locationName = [string]$Location.name
+    if (-not [string]::IsNullOrWhiteSpace($locationName)) {
+        $candidates.Add($locationName)
+        if ($locationName -match '^(?<name>.+ Gateway) \([^)]+\)$') {
+            $candidates.Add($Matches['name'])
+        }
+    }
+    foreach ($alias in @($Location.aliases)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$alias)) {
+            $candidates.Add([string]$alias)
+        }
+    }
+
+    return @($candidates.ToArray() | Sort-Object -Unique)
+}
+
+function Get-SCMiningLocationTradeRelatedTitleValues {
+    param(
+        [string]$Key,
+        [hashtable]$Values
+    )
+
+    $knownLocationTitle = Get-SCMiningLocationTradeKnownLocationTitle -Key $Key -Values $Values
+    if (-not [string]::IsNullOrWhiteSpace($knownLocationTitle)) {
+        return @($knownLocationTitle)
+    }
+
+    $baseKey = Get-SCMiningRefineryYieldBaseKey -Key $Key
+    if ([string]::IsNullOrWhiteSpace($baseKey)) {
+        return @()
+    }
+
+    $candidateKeys = @(
+        $baseKey,
+        "$baseKey,P",
+        "$baseKey,PU",
+        "$baseKey" + '_name'
+    )
+    $result = New-Object System.Collections.Generic.List[string]
+    foreach ($candidateKey in $candidateKeys) {
+        if ($Values.ContainsKey($candidateKey)) {
+            $value = [string]$Values[$candidateKey]
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                $result.Add($value)
+            }
+        }
+    }
+
+    return @($result.ToArray())
+}
+
+function Get-SCMiningLocationTradeKnownLocationTitle {
+    param(
+        [string]$Key,
+        [hashtable]$Values
+    )
+
+    return (Get-SCMiningRefineryYieldKnownLocationTitle -Key $Key -Values $Values)
+}
+
+function Test-SCMiningLocationTradeCandidateKeyScope {
+    param(
+        [string]$Key,
+        [string]$Candidate
+    )
+
+    if ($Candidate -match '^(ARC|CRU|HUR|MIC)-L\d$') {
+        return $Key.StartsWith('RR_', [System.StringComparison]::OrdinalIgnoreCase)
+    }
+
+    return $true
+}
+
+function Set-SCMiningLocationTradeHint {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [object]$Location
+    )
+
+    $clean = Remove-SCMiningLocationTradeHint -Value $Value
+    $line = Get-SCMiningLocationTradeHintLine -Location $Location
+    if ([string]::IsNullOrWhiteSpace($line)) {
+        return $clean
+    }
+
+    if ([string]::IsNullOrWhiteSpace($clean)) {
+        return $line
+    }
+
+    return ($clean.TrimEnd() + '\n\n' + $line).TrimEnd()
+}
+
+function Remove-SCMiningLocationTradeHint {
+    param([AllowEmptyString()][string]$Value)
+
+    $labelPattern = '(?:' + [regex]::Escape((Get-SCMiningLocationTradeHintLabel)) + '|' + [regex]::Escape((Get-SCMiningLocationTradeLegacyHintLabel)) + '):?'
+    $linePattern = '<EM[1-5]>' + $labelPattern + '</EM[1-5]>\s*[^\\]*(?=$|\\n)'
+    $categoryPattern = '<EM[1-5]>(?:' +
+        [regex]::Escape((Get-SCMiningLocationTradeBuysLabel)) + '|' +
+        [regex]::Escape((Get-SCMiningLocationTradeSellsLabel)) + '|' +
+        [regex]::Escape((Get-SCMiningLocationTradeRawBuysLabel)) +
+        ')</EM[1-5]>\s*[^\\]*(?=$|\\n)'
+    $blockPattern = '(?:\\n){0,2}' + $linePattern + '(?:\\n' + $categoryPattern + '){0,3}'
+    if (-not [regex]::IsMatch([string]$Value, $blockPattern)) {
+        return [string]$Value
+    }
+
+    $clean = [regex]::Replace([string]$Value, $blockPattern, '')
+    return (Trim-SCMiningEncodedTrailingBreaks -Value $clean)
+}
+
+function Get-SCMiningLocationTradeHintLine {
+    param([object]$Location)
+
+    $rawBuys = @(Format-SCMiningLocationTradeParts -Entries @($Location.rawBuys))
+    if ($rawBuys.Count -eq 0) {
+        return ''
+    }
+
+    $segments = New-Object System.Collections.Generic.List[string]
+    if ($rawBuys.Count -gt 0) {
+        $segments.Add('<EM4>' + (Get-SCMiningLocationTradeRawBuysLabel) + '</EM4> ' + ($rawBuys -join ', '))
+    }
+
+    return '<EM4>' + (Get-SCMiningLocationTradeHintLabel) + '</EM4>' + '\n' + ($segments.ToArray() -join '\n')
+}
+
+function Format-SCMiningLocationTradeParts {
+    param([object[]]$Entries)
+
+    $parts = @()
+    foreach ($entry in @($Entries)) {
+        $commodity = [string]$entry.commodity
+        $price = [int]$entry.price
+        if ([string]::IsNullOrWhiteSpace($commodity) -or $price -le 0) {
+            continue
+        }
+
+        $parts += ('{0} {1}' -f $commodity, (Format-SCMiningLocationTradePrice -Price $price))
+    }
+
+    return @($parts)
+}
+
+function Format-SCMiningLocationTradePrice {
+    param([int]$Price)
+
+    if ($Price -ge 1000000) {
+        return ('{0:0.#}m' -f ($Price / 1000000.0))
+    }
+    if ($Price -ge 10000) {
+        return ('{0:0.#}k' -f ($Price / 1000.0))
+    }
+    if ($Price -ge 1000) {
+        return ('{0:0.##}k' -f ($Price / 1000.0))
+    }
+
+    return [string]$Price
+}
+
 function Get-SCMiningRefineryYieldHintLabel {
     return ((ConvertFrom-SCCodePoints -CodePoints @(0x041F, 0x0435, 0x0440, 0x0435, 0x0440, 0x0430, 0x0431, 0x043E, 0x0442, 0x043A, 0x0430)) + ' (UEX)')
+}
+
+function Get-SCMiningLocationTradeHintLabel {
+    return ((ConvertFrom-SCCodePoints -CodePoints @(0x0421, 0x043A, 0x0443, 0x043F, 0x043A, 0x0430, 0x0020, 0x0441, 0x044B, 0x0440, 0x043E, 0x0439, 0x0020, 0x0440, 0x0443, 0x0434, 0x044B)) + ' (UEX, ' + (ConvertFrom-SCCodePoints -CodePoints @(0x043E, 0x0440, 0x0438, 0x0435, 0x043D, 0x0442, 0x0438, 0x0440)) + ')')
+}
+
+function Get-SCMiningLocationTradeLegacyHintLabel {
+    return ((ConvertFrom-SCCodePoints -CodePoints @(0x0422, 0x043E, 0x0440, 0x0433, 0x043E, 0x0432, 0x043B, 0x044F)) + ' (UEX, ' + (ConvertFrom-SCCodePoints -CodePoints @(0x043E, 0x0440, 0x0438, 0x0435, 0x043D, 0x0442, 0x0438, 0x0440)) + ')')
+}
+
+function Get-SCMiningLocationTradeBuysLabel {
+    return (ConvertFrom-SCCodePoints -CodePoints @(0x041F, 0x043E, 0x043A, 0x0443, 0x043F, 0x0430, 0x044E, 0x0442, 0x003A))
+}
+
+function Get-SCMiningLocationTradeSellsLabel {
+    return (ConvertFrom-SCCodePoints -CodePoints @(0x041F, 0x0440, 0x043E, 0x0434, 0x0430, 0x044E, 0x0442, 0x003A))
+}
+
+function Get-SCMiningLocationTradeRawBuysLabel {
+    return (ConvertFrom-SCCodePoints -CodePoints @(0x0420, 0x0443, 0x0434, 0x0430, 0x003A))
 }
 
 function Get-SCMiningRefineryBonusLabel {

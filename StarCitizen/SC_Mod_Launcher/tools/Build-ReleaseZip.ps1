@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.0.10'
+    [string]$Version = '2.1.0'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +33,7 @@ $releaseSeedItems = @(
     'modules\mining\cache\wiki-blueprints-4.8.3-live.12122953.json',
     'modules\mining\cache\craft-family-index-4.8.3-live.12122953.json',
     'modules\mining\cache\refinery-yields-4.8.3-live.12122953.json',
+    'modules\mining\cache\raw-ore-buy-prices-4.8.3-live.12122953.json',
     'modules\mining\cache\erkul-item-passports-4.8.3-live.12122953.json',
     'modules\quest\engine\cache\wiki-items-cache.json',
     'modules\quest\engine\cache\wiki-items-cache.json.meta.json'
