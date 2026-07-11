@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.0";
+    private const string CurrentLauncherVersion = "2.1.1";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -1794,8 +1794,19 @@ Write-Host "FAMILY_INDEX:$indexPath"
         SetBackendProgress(percent);
     }
 
-    private void HandleBackendProgressLine(BackendRunMode mode, string line)
+    private void HandleBackendProgressLine(BackendRunMode mode, string line, List<string>? streamedPreflightSourceLines = null)
     {
+        if (mode is BackendRunMode.Preflight or BackendRunMode.CachePreflight &&
+            line.StartsWith("Source ", StringComparison.OrdinalIgnoreCase))
+        {
+            if (streamedPreflightSourceLines is not null &&
+                !streamedPreflightSourceLines.Contains(line, StringComparer.OrdinalIgnoreCase))
+            {
+                streamedPreflightSourceLines.Add(line);
+                AddMetricLog(GetSourceDisplayLine(line) + ".");
+            }
+        }
+
         if (_backendProgressRun is null)
         {
             return;
@@ -1833,6 +1844,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
             else if (line.Equals("Progress: apply write", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(92);
             else if (line.StartsWith("SC Mod Launcher LIVE apply", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(96);
         }
+    }
+
+    private static string GetSourceDisplayLine(string sourceLine)
+    {
+        return sourceLine.StartsWith("Source ", StringComparison.OrdinalIgnoreCase)
+            ? "Источник " + sourceLine["Source ".Length..]
+            : sourceLine;
     }
 
     private static string BuildBackendProgressText(string label, int percent, int waitFrame = 0)
@@ -3587,7 +3605,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
             var args = BuildBackendArguments(mode, mode is BackendRunMode.DryRun or BackendRunMode.LiveApply ? optionsPath : null);
             var timeout = GetBackendTimeout(mode);
             var backendStopwatch = Stopwatch.StartNew();
-            var result = await RunProcessAsync("powershell.exe", args.ToString(), line => HandleBackendProgressLine(mode, line), timeout);
+            var streamedPreflightSourceLines = new List<string>();
+            var result = await RunProcessAsync(
+                "powershell.exe",
+                args.ToString(),
+                line => HandleBackendProgressLine(mode, line, streamedPreflightSourceLines),
+                timeout);
             backendStopwatch.Stop();
             var diagnosticPath = WriteBackendDiagnosticLog(mode, result, timeout);
             if (mode is BackendRunMode.WarmCache or BackendRunMode.LiveApply)
@@ -3600,7 +3623,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 switch (mode)
                 {
                     case BackendRunMode.Preflight:
-                        AddPreflightSummary(result.Output, requireGlobalIni: false);
+                        AddPreflightSummary(result.Output, requireGlobalIni: false, skippedSourceLines: streamedPreflightSourceLines);
                         break;
                     case BackendRunMode.WarmCache:
                         AddWarmCacheSummary(result.Output);
@@ -3623,6 +3646,10 @@ Write-Host "FAMILY_INDEX:$indexPath"
             {
                 var message = !string.IsNullOrWhiteSpace(result.Error) ? result.Error.Trim() : result.Output.Trim();
                 AddError(string.IsNullOrWhiteSpace(message) ? $"Процесс завершился с кодом {result.ExitCode}." : message);
+                if ((mode is BackendRunMode.Preflight or BackendRunMode.CachePreflight) && streamedPreflightSourceLines.Count > 0)
+                {
+                    AddMetricLog("Проверка оборвалась после: " + GetSourceDisplayLine(streamedPreflightSourceLines.Last()) + ".");
+                }
                 AddPathLog("Диагностика", diagnosticPath);
             }
             else if (!string.IsNullOrWhiteSpace(result.Error))
@@ -3744,7 +3771,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private static string Quote(string value) => '"' + value.Replace("\"", "\\\"") + '"';
 
-    private void AddPreflightSummary(string output, bool requireGlobalIni = true)
+    private void AddPreflightSummary(string output, bool requireGlobalIni = true, IReadOnlyCollection<string>? skippedSourceLines = null)
     {
         var lines = GetBackendLines(output);
         string FindValue(string prefix) => lines.FirstOrDefault(line => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Substring(prefix.Length).Trim() ?? "";
@@ -3754,6 +3781,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         foreach (var sourceLine in lines.Where(line => line.StartsWith("Source ", StringComparison.OrdinalIgnoreCase)))
         {
+            if (skippedSourceLines is not null &&
+                skippedSourceLines.Contains(sourceLine, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             AddMetricLog("Источник " + sourceLine["Source ".Length..] + ".");
         }
 

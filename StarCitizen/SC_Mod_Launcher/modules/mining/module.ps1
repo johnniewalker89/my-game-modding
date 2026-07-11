@@ -4242,6 +4242,10 @@ function Merge-SCMiningLocationTradeEntries {
         }
     }
 
+    if ($PreferHighPrice) {
+        return @($result | Sort-Object @{ Expression = { -[int]$_.price } }, commodity)
+    }
+
     return @($result | Sort-Object commodity)
 }
 
@@ -4703,7 +4707,8 @@ function Format-SCMiningLocationTradeParts {
     param([object[]]$Entries)
 
     $parts = @()
-    foreach ($entry in @($Entries)) {
+    $sortedEntries = @($Entries) | Sort-Object @{ Expression = { -[int]$_.price } }, commodity
+    foreach ($entry in @($sortedEntries)) {
         $commodity = [string]$entry.commodity
         $price = [int]$entry.price
         if ([string]::IsNullOrWhiteSpace($commodity) -or $price -le 0) {
