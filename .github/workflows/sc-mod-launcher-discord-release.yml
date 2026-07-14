@@ -6,7 +6,7 @@ on:
       tag:
         description: Release tag to announce
         required: true
-        default: sc-mod-launcher-v2.1.1
+        default: sc-mod-launcher-v2.1.2
   release:
     types:
       - published
