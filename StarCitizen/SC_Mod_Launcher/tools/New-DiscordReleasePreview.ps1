@@ -99,7 +99,7 @@ $notificationContent = if ($roleMentionId -and $role -eq "<@&$roleMentionId>") {
 $opener = ([string]$openers[$index]).Replace('{role}', $role)
 $closer = [string]$closers[$index]
 $body = Convert-MarkdownForDiscord -Body ([string]$release.body)
-$releaseLead = "Смотрите, что JOHNNIE нам [подвез]($($release.url)):"
+$releaseLead = "Смотрите, что [JOHNNIE](https://discord.com/users/256047341692387329) нам [подвез]($($release.url)):"
 $assetLines = @()
 foreach ($asset in @($release.assets)) {
     if ($asset.name -like 'SC_Mod_Launcher_*.zip') {
