@@ -121,6 +121,10 @@ $messageParts += $closer
 
 $message = ($messageParts | Where-Object { $_ -and $_.Trim() }) -join "`n`n"
 $embedDescription = $message
+$allowedRoleIds = @()
+if ($roleMentionId) {
+    $allowedRoleIds += $roleMentionId
+}
 
 $embedPayload = [ordered]@{
     content = $notificationContent
@@ -133,7 +137,7 @@ $embedPayload = [ordered]@{
     )
     allowed_mentions = [ordered]@{
         parse = @()
-        roles = if ($roleMentionId) { @($roleMentionId) } else { @() }
+        roles = $allowedRoleIds
     }
 }
 
