@@ -81,6 +81,16 @@ $index = if ($TemplateIndex -ge 0) {
 }
 
 $role = [string]$phrases.roleMention
+$roleMentionId = if ($phrases.PSObject.Properties.Name -contains 'roleMentionId') {
+    [string]$phrases.roleMentionId
+} else {
+    ''
+}
+$notificationContent = if ($roleMentionId -and $role -eq "<@&$roleMentionId>") {
+    $role
+} else {
+    ''
+}
 $opener = ([string]$openers[$index]).Replace('{role}', $role)
 $closer = [string]$closers[$index]
 $body = Convert-MarkdownForDiscord -Body ([string]$release.body)
@@ -113,7 +123,7 @@ $message = ($messageParts | Where-Object { $_ -and $_.Trim() }) -join "`n`n"
 $embedDescription = $message
 
 $embedPayload = [ordered]@{
-    content = ''
+    content = $notificationContent
     embeds = @(
         [ordered]@{
             title = [string]$release.name
@@ -123,6 +133,7 @@ $embedPayload = [ordered]@{
     )
     allowed_mentions = [ordered]@{
         parse = @()
+        roles = if ($roleMentionId) { @($roleMentionId) } else { @() }
     }
 }
 
@@ -133,6 +144,7 @@ $result = [ordered]@{
     url = $release.url
     templateIndex = $index
     roleMention = $role
+    roleMentionId = $roleMentionId
     messageLength = $message.Length
     message = $message
     payload = $embedPayload
