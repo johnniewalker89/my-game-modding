@@ -1,0 +1,82 @@
+name: SC Mod Launcher Discord Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to announce
+        required: true
+        default: sc-mod-launcher-v2.1.1
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+jobs:
+  discord-release:
+    name: Post release announcement
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release target
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $tag = '${{ inputs.tag }}'
+            $webhookKind = 'test'
+          } else {
+            $tag = '${{ github.event.release.tag_name }}'
+            $webhookKind = 'release'
+          }
+
+          if (-not $tag.StartsWith('sc-mod-launcher-v')) {
+            "skip=true" >> $env:GITHUB_ENV
+            "Release tag '$tag' is not an SC Mod Launcher release."
+            exit 0
+          }
+
+          "skip=false" >> $env:GITHUB_ENV
+          "release_tag=$tag" >> $env:GITHUB_ENV
+          "webhook_kind=$webhookKind" >> $env:GITHUB_ENV
+
+      - name: Build Discord payload
+        if: env.skip != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./StarCitizen/SC_Mod_Launcher/tools/New-DiscordReleasePreview.ps1 `
+            -Tag $env:release_tag `
+            -Format DiscordEmbedJson `
+            -OutFile discord-release-payload.json
+
+      - name: Post to Discord
+        if: env.skip != 'true'
+        shell: pwsh
+        env:
+          DISCORD_TEST_WEBHOOK_URL: ${{ secrets.DISCORD_TEST_WEBHOOK_URL }}
+          DISCORD_RELEASE_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+        run: |
+          if ($env:webhook_kind -eq 'release') {
+            $webhook = $env:DISCORD_RELEASE_WEBHOOK_URL
+            $secretName = 'DISCORD_RELEASE_WEBHOOK_URL'
+          } else {
+            $webhook = $env:DISCORD_TEST_WEBHOOK_URL
+            $secretName = 'DISCORD_TEST_WEBHOOK_URL'
+          }
+
+          if ([string]::IsNullOrWhiteSpace($webhook)) {
+            throw "Missing GitHub secret: $secretName"
+          }
+
+          $payload = Get-Content -LiteralPath discord-release-payload.json -Raw -Encoding UTF8
+          Invoke-RestMethod `
+            -Method Post `
+            -Uri $webhook `
+            -ContentType 'application/json' `
+            -Body $payload | Out-Null
