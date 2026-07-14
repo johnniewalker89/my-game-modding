@@ -7,6 +7,14 @@ on:
         description: Release tag to announce
         required: true
         default: sc-mod-launcher-v2.1.2
+      webhook_kind:
+        description: Discord webhook target
+        required: true
+        type: choice
+        options:
+          - test
+          - release
+        default: test
   release:
     types:
       - published
@@ -28,7 +36,7 @@ jobs:
         run: |
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             $tag = '${{ inputs.tag }}'
-            $webhookKind = 'test'
+            $webhookKind = '${{ inputs.webhook_kind }}'
           } else {
             $tag = '${{ github.event.release.tag_name }}'
             $webhookKind = 'release'
