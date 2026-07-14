@@ -86,8 +86,13 @@ $roleMentionId = if ($phrases.PSObject.Properties.Name -contains 'roleMentionId'
 } else {
     ''
 }
+$notificationTemplate = if ($phrases.PSObject.Properties.Name -contains 'roleNotificationText') {
+    [string]$phrases.roleNotificationText
+} else {
+    '{role}'
+}
 $notificationContent = if ($roleMentionId -and $role -eq "<@&$roleMentionId>") {
-    $role
+    $notificationTemplate.Replace('{role}', $role)
 } else {
     ''
 }
