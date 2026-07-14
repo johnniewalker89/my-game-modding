@@ -587,8 +587,10 @@ function Assert-SCLocalCachesAvailable {
     $required = @(
         [pscustomobject]@{ Name = 'mining blueprints'; Path = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining recipe families'; Path = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version) },
+        [pscustomobject]@{ Name = 'mining data'; Path = Get-SCMiningMiningDataCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining refinery yields'; Path = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining raw ore buy prices'; Path = Get-SCMiningLocationTradeCachePath -CacheKey ([string]$scmdbCache.Version) },
+        [pscustomobject]@{ Name = 'mining item passports'; Path = Get-SCMiningItemPassportCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'quest items'; Path = (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json') }
     )
 
@@ -878,6 +880,8 @@ function Write-ConsolePreflightSummary {
             Write-SCCacheStatusLine -Name 'mining blueprints' -Path $miningCachePath
             $familyIndexPath = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining recipe families' -Path $familyIndexPath
+            $miningDataPath = Get-SCMiningMiningDataCachePath -CacheKey ([string]$scmdbCache.Version)
+            Write-SCCacheStatusLine -Name 'mining data' -Path $miningDataPath
             $refineryYieldPath = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining refinery yields' -Path $refineryYieldPath
             $locationTradePath = Get-SCMiningLocationTradeCachePath -CacheKey ([string]$scmdbCache.Version)
@@ -924,6 +928,21 @@ function Write-ConsoleWarmCacheSummary {
     if (-not (Test-SCWikiBlueprintSource -Headers $headers)) {
         throw 'Wiki blueprints source is unavailable.'
     }
+
+    $miningDataUri = "https://scmdb.net/data/mining_data-$($version.version).json"
+    $miningData = Get-SCRemoteJson -Name 'SCMDB mining data' -Uri $miningDataUri -Headers $headers
+    if ($null -eq $miningData -or $null -eq $miningData.locations -or @($miningData.locations).Count -eq 0) {
+        throw 'SCMDB mining data returned no locations.'
+    }
+    $miningDataPath = Get-SCMiningMiningDataCachePath -CacheKey ([string]$version.version)
+    $miningDataDir = Split-Path -Parent $miningDataPath
+    if (-not (Test-Path -LiteralPath $miningDataDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $miningDataDir | Out-Null
+    }
+    $miningDataJson = $miningData | ConvertTo-Json -Depth 80
+    [System.IO.File]::WriteAllText($miningDataPath, $miningDataJson, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "SCMDB mining locations: $(@($miningData.locations).Count)"
+    Write-SCRefreshedCacheLine -Name 'mining data' -Path $miningDataPath
 
     $blueprints = @(Get-SCMiningWikiBlueprints -Headers $headers -CacheKey ([string]$version.version) -ForceRefresh)
     $cachePath = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$version.version)

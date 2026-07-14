@@ -19,7 +19,7 @@
         highValueScripHighlightsEnabled = $enableHighValueScripHighlights
         wikeloItemHintsEnabled = $enableWikeloItemHints
         reputationHintsEnabled = $enableReputationHints
-        blueprintMarkerPolicy = 'Title marker [CH] is kept only when the contract has visible selected blueprint categories.'
+        blueprintMarkerPolicy = 'Title marker [CH] is synchronized from final linked contract descriptions; mixed shared titles use [CH?].'
         specialMarkerPolicy = 'Ace pilot [A] and scrip [S] markers are always kept when reported by SCMDB; high-value scrip title highlighting is optional.'
         inspectedKeys = $Context.KeyCount
         engine = $null
@@ -104,29 +104,7 @@
     }
 
     $titleVisibility = (ConvertTo-SCQuestTitleVisibilityMap -PairMap $titleVisibilityPairs).Map
-    $normalizedPatchedValueKeys = (ConvertTo-SCQuestNormalizedValueKeyMap -Values $patchedValues).Map
-
-    foreach ($key in @($patchedValues.Keys)) {
-        $value = [string]$patchedValues[$key]
-        if (-not (Test-SCQuestLooksLikeTitleKey -Key $key)) {
-            continue
-        }
-
-        $removeBlueprintMarker = $false
-        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
-        if ($titleVisibility.ContainsKey($normalizedKey)) {
-            $removeBlueprintMarker = ([int]$titleVisibility[$normalizedKey].Total -gt 0 -and [int]$titleVisibility[$normalizedKey].Visible -eq 0)
-        }
-
-        $linkedDescriptionKeys = @(Get-SCQuestLinkedDescriptionKeys -TitleKey $key -TitleDescriptionMap $titleDescriptionMap)
-        if ($linkedDescriptionKeys.Count -gt 0) {
-            $removeBlueprintMarker = -not (Test-SCQuestAnyLinkedDescriptionHasRewardBlock -DescriptionKeys $linkedDescriptionKeys -Values $patchedValues -NormalizedValueKeys $normalizedPatchedValueKeys)
-        }
-
-        if ($removeBlueprintMarker) {
-            $patchedValues[$key] = Remove-SCQuestBlueprintTitleMarker -Value $value
-        }
-    }
+    $blueprintTitleMarkerStats = Update-SCQuestBlueprintTitleMarkerVisibility -Values $patchedValues -TitleDescriptionMap $titleDescriptionMap -TitleVisibility $titleVisibility
 
     Write-Host 'Progress: quest filter done'
     Write-Host 'Progress: quest extras start'
@@ -190,13 +168,10 @@
     $metadata.highValueScripHighlightChanged = $highlightStats.Changed
     $metadata.highValueScripHighlightTag = $highlightConfig.Tag
     $metadata.wikeloItemHints = $wikeloHintStats
-    $metadata.removedBlueprintTitleMarkers = @($patchedValues.Keys | Where-Object {
-        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $_
-        (Test-SCQuestLooksLikeTitleKey -Key $_) -and
-        $titleVisibility.ContainsKey($normalizedKey) -and
-        [int]$titleVisibility[$normalizedKey].Total -gt 0 -and
-        [int]$titleVisibility[$normalizedKey].Visible -eq 0
-    }).Count
+    $metadata.addedBlueprintTitleMarkers = $blueprintTitleMarkerStats.Added
+    $metadata.removedBlueprintTitleMarkers = $blueprintTitleMarkerStats.Removed
+    $metadata.keptBlueprintTitleMarkers = $blueprintTitleMarkerStats.Kept
+    $metadata.mixedBlueprintTitleMarkers = $blueprintTitleMarkerStats.Mixed
     $metadata.changedDescriptionLines = $changedDescriptionLines
     $metadata.changedWikeloHintLines = $changedWikeloHintLines
     $metadata.changedTitleLines = $changedTitleLines
@@ -1524,6 +1499,80 @@ function Get-SCQuestLinkedDescriptionKeys {
     return @()
 }
 
+function Get-SCQuestPossibleDescriptionBaseKeys {
+    param([string]$TitleKey)
+
+    $normalizedTitleKey = Get-SCQuestNormalizedIniKey -Key $TitleKey
+    $baseKeys = New-Object System.Collections.Generic.List[string]
+    foreach ($pattern in @('_Title_', '_title_', '_TITLE_')) {
+        if ($normalizedTitleKey.Contains($pattern)) {
+            $baseKeys.Add($normalizedTitleKey.Replace($pattern, $pattern.Replace('Title', 'Desc').Replace('title', 'desc').Replace('TITLE', 'DESC')))
+            $baseKeys.Add($normalizedTitleKey.Replace($pattern, $pattern.Replace('Title', 'desc').Replace('title', 'desc').Replace('TITLE', 'desc')))
+        }
+    }
+
+    if ($normalizedTitleKey -match '(?i)_title(?:_\d+)?$') {
+        $baseKeys.Add(([regex]::Replace($normalizedTitleKey, '_title(?:_\d+)?$', '_desc', 'IgnoreCase')))
+    }
+    if ($normalizedTitleKey -match '(?i)_name(?:_\d+)?$') {
+        $baseKeys.Add(([regex]::Replace($normalizedTitleKey, '_name(?:_\d+)?$', '_desc', 'IgnoreCase')))
+    }
+
+    return @($baseKeys.ToArray() | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+}
+
+function Get-SCQuestLinkedDescriptionKeysForTitle {
+    param(
+        [string]$TitleKey,
+        [hashtable]$TitleDescriptionMap,
+        [hashtable]$Values,
+        [string[]]$DescriptionKeys
+    )
+
+    $keys = @{}
+    foreach ($descriptionKey in Get-SCQuestLinkedDescriptionKeys -TitleKey $TitleKey -TitleDescriptionMap $TitleDescriptionMap) {
+        $keys[(Get-SCQuestNormalizedIniKey -Key $descriptionKey)] = $true
+    }
+
+    $baseKeys = @(Get-SCQuestPossibleDescriptionBaseKeys -TitleKey $TitleKey)
+    if ($baseKeys.Count -gt 0) {
+        $candidateKeys = @($DescriptionKeys)
+        if ($candidateKeys.Count -eq 0 -and $null -ne $Values) {
+            $candidateKeys = @($Values.Keys)
+        }
+
+        foreach ($key in $candidateKeys) {
+            $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+            foreach ($baseKey in $baseKeys) {
+                if ($normalizedKey.StartsWith($baseKey, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $suffix = $normalizedKey.Substring($baseKey.Length)
+                    if ($suffix -eq '' -or $suffix -match '(?i)^(?:_|$)') {
+                        $keys[$normalizedKey] = $true
+                    }
+                }
+            }
+        }
+    }
+
+    return @($keys.Keys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+}
+
+function ConvertTo-SCQuestDescriptionKeyIndex {
+    param([hashtable]$Values)
+
+    $keys = @{}
+    foreach ($key in @($Values.Keys)) {
+        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+        if ([string]::IsNullOrWhiteSpace($normalizedKey) -or -not ($normalizedKey -match '(?i)(^|_)(desc|description)(_|$)')) {
+            continue
+        }
+
+        $keys[$normalizedKey] = $true
+    }
+
+    return [pscustomobject]@{ Keys = @($keys.Keys | Sort-Object -Unique) }
+}
+
 function ConvertTo-SCQuestNormalizedValueKeyMap {
     param([hashtable]$Values)
 
@@ -1566,6 +1615,199 @@ function Test-SCQuestAnyLinkedDescriptionHasRewardBlock {
     return $false
 }
 
+function Test-SCQuestAllLinkedDescriptionsHaveRewardBlock {
+    param(
+        [string[]]$DescriptionKeys,
+        [hashtable]$Values,
+        [hashtable]$NormalizedValueKeys
+    )
+
+    $matched = 0
+    foreach ($descriptionKey in @($DescriptionKeys)) {
+        $normalizedDescriptionKey = Get-SCQuestNormalizedIniKey -Key $descriptionKey
+        if ([string]::IsNullOrWhiteSpace($normalizedDescriptionKey) -or -not $NormalizedValueKeys.ContainsKey($normalizedDescriptionKey)) {
+            continue
+        }
+
+        foreach ($rawKey in @($NormalizedValueKeys[$normalizedDescriptionKey].Keys)) {
+            if (-not $Values.ContainsKey($rawKey)) {
+                continue
+            }
+
+            $matched++
+            if (-not (Test-SCQuestHasRewardBlock -Value ([string]$Values[$rawKey]))) {
+                return $false
+            }
+        }
+    }
+
+    return ($matched -gt 0)
+}
+
+function Get-SCQuestLinkedDescriptionRewardBlockStats {
+    param(
+        [string[]]$DescriptionKeys,
+        [hashtable]$Values,
+        [hashtable]$NormalizedValueKeys
+    )
+
+    $matched = 0
+    $visible = 0
+    foreach ($descriptionKey in @($DescriptionKeys)) {
+        $normalizedDescriptionKey = Get-SCQuestNormalizedIniKey -Key $descriptionKey
+        if ([string]::IsNullOrWhiteSpace($normalizedDescriptionKey) -or -not $NormalizedValueKeys.ContainsKey($normalizedDescriptionKey)) {
+            continue
+        }
+
+        foreach ($rawKey in @($NormalizedValueKeys[$normalizedDescriptionKey].Keys)) {
+            if (-not $Values.ContainsKey($rawKey)) {
+                continue
+            }
+
+            $matched++
+            if (Test-SCQuestHasRewardBlock -Value ([string]$Values[$rawKey])) {
+                $visible++
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Matched = $matched
+        Visible = $visible
+        AnyVisible = ($visible -gt 0)
+        AllVisible = ($matched -gt 0 -and $visible -eq $matched)
+    }
+}
+
+function Test-SCQuestHasBlueprintTitleMarker {
+    param([AllowEmptyString()][string]$Value)
+
+    return ([string]$Value -match '(?:^|\s)(?:<EM\d>)?\[Ч\](?:</EM\d>)?(?:\s|$)')
+}
+
+function Test-SCQuestHasMixedBlueprintTitleMarker {
+    param([AllowEmptyString()][string]$Value)
+
+    return ([string]$Value -match '(?:^|\s)(?:<EM\d>)?\[Ч\?\](?:</EM\d>)?(?:\s|$)')
+}
+
+function Test-SCQuestHasAnyBlueprintTitleMarker {
+    param([AllowEmptyString()][string]$Value)
+
+    return ((Test-SCQuestHasBlueprintTitleMarker -Value $Value) -or (Test-SCQuestHasMixedBlueprintTitleMarker -Value $Value))
+}
+
+function Get-SCQuestBlueprintTitleCandidateKeys {
+    param(
+        [hashtable]$Values,
+        [hashtable]$TitleDescriptionMap,
+        [hashtable]$TitleVisibility
+    )
+
+    $keys = @{}
+    foreach ($key in @($TitleDescriptionMap.Keys)) {
+        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+        if (-not [string]::IsNullOrWhiteSpace($normalizedKey)) {
+            $keys[$normalizedKey] = $true
+        }
+    }
+
+    foreach ($key in @($TitleVisibility.Keys)) {
+        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+        if (-not [string]::IsNullOrWhiteSpace($normalizedKey)) {
+            $keys[$normalizedKey] = $true
+        }
+    }
+
+    foreach ($key in @($Values.Keys)) {
+        $value = [string]$Values[$key]
+        if ((Test-SCQuestLooksLikeTitleKey -Key $key) -and (Test-SCQuestHasAnyBlueprintTitleMarker -Value $value)) {
+            $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+            if (-not [string]::IsNullOrWhiteSpace($normalizedKey)) {
+                $keys[$normalizedKey] = $true
+            }
+        }
+    }
+
+    return @($keys.Keys | Sort-Object -Unique)
+}
+
+function Update-SCQuestBlueprintTitleMarkerVisibility {
+    param(
+        [hashtable]$Values,
+        [hashtable]$TitleDescriptionMap,
+        [hashtable]$TitleVisibility
+    )
+
+    $normalizedValueKeys = (ConvertTo-SCQuestNormalizedValueKeyMap -Values $Values).Map
+    $descriptionKeyIndex = (ConvertTo-SCQuestDescriptionKeyIndex -Values $Values).Keys
+    $candidateTitleKeys = @(Get-SCQuestBlueprintTitleCandidateKeys -Values $Values -TitleDescriptionMap $TitleDescriptionMap -TitleVisibility $TitleVisibility)
+    $stats = @{
+        Added = 0
+        Removed = 0
+        Kept = 0
+        Mixed = 0
+    }
+
+    foreach ($normalizedKey in $candidateTitleKeys) {
+        if (-not $normalizedValueKeys.ContainsKey($normalizedKey)) {
+            continue
+        }
+
+        foreach ($key in @($normalizedValueKeys[$normalizedKey].Keys)) {
+            if (-not $Values.ContainsKey($key) -or -not (Test-SCQuestLooksLikeTitleKey -Key $key)) {
+                continue
+            }
+
+            $value = [string]$Values[$key]
+            $markerState = 'none'
+            $hasExactBlueprintMarker = Test-SCQuestHasBlueprintTitleMarker -Value $value
+            $hasMixedBlueprintMarker = Test-SCQuestHasMixedBlueprintTitleMarker -Value $value
+            $hasAnyBlueprintMarker = $hasExactBlueprintMarker -or $hasMixedBlueprintMarker
+            if ($TitleVisibility.ContainsKey($normalizedKey)) {
+                if ([int]$TitleVisibility[$normalizedKey].Total -gt 0 -and [int]$TitleVisibility[$normalizedKey].Visible -eq [int]$TitleVisibility[$normalizedKey].Total) {
+                    $markerState = 'exact'
+                }
+            }
+
+            $linkedDescriptionKeys = @(Get-SCQuestLinkedDescriptionKeysForTitle -TitleKey $key -TitleDescriptionMap $TitleDescriptionMap -Values $Values -DescriptionKeys $descriptionKeyIndex)
+            if ($linkedDescriptionKeys.Count -gt 0) {
+                $rewardStats = Get-SCQuestLinkedDescriptionRewardBlockStats -DescriptionKeys $linkedDescriptionKeys -Values $Values -NormalizedValueKeys $normalizedValueKeys
+                if ([bool]$rewardStats.AllVisible) {
+                    $markerState = 'exact'
+                }
+                elseif ([bool]$rewardStats.AnyVisible) {
+                    $markerState = 'mixed'
+                }
+                else {
+                    $markerState = 'none'
+                }
+            }
+
+            if ($markerState -eq 'exact' -and -not $hasExactBlueprintMarker) {
+                $Values[$key] = Add-SCQuestBlueprintTitleMarker -Value $value
+                $stats.Added++
+            }
+            elseif ($markerState -eq 'mixed' -and -not $hasMixedBlueprintMarker) {
+                $Values[$key] = Add-SCQuestMixedBlueprintTitleMarker -Value $value
+                $stats.Mixed++
+            }
+            elseif ($markerState -eq 'none' -and $hasAnyBlueprintMarker) {
+                $Values[$key] = Remove-SCQuestBlueprintTitleMarker -Value $value
+                $stats.Removed++
+            }
+            elseif ($markerState -eq 'exact' -and $hasExactBlueprintMarker) {
+                $stats.Kept++
+            }
+            elseif ($markerState -eq 'mixed' -and $hasMixedBlueprintMarker) {
+                $stats.Mixed++
+            }
+        }
+    }
+
+    return [pscustomobject]$stats
+}
+
 function Test-SCQuestLooksLikeTitleKey {
     param([string]$Key)
 
@@ -1606,11 +1848,52 @@ function Remove-SCQuestBlueprintTitleMarker {
     $updated = $Value
     do {
         $before = $updated
-        $updated = [regex]::Replace($updated, '^\s*<EM\d>\[Ч\]</EM\d>\s*', '')
-        $updated = [regex]::Replace($updated, '^\s*\[Ч\]\s*', '')
-        $updated = [regex]::Replace($updated, '^((?:(?:<EM\d>)?\[(?!Ч\])[^]]+\](?:</EM\d>)?\s*)*)(?:<EM\d>)?\[Ч\](?:</EM\d>)?\s*', '$1')
+        $updated = [regex]::Replace($updated, '^\s*<EM\d>\[Ч\??\]</EM\d>\s*', '')
+        $updated = [regex]::Replace($updated, '^\s*\[Ч\??\]\s*', '')
+        $updated = [regex]::Replace($updated, '^((?:(?:<EM\d>)?\[(?!Ч\??\])[^]]+\](?:</EM\d>)?\s*)*)(?:<EM\d>)?\[Ч\??\](?:</EM\d>)?\s*', '$1')
     }
     while ($updated -ne $before)
 
     return $updated
+}
+
+function Add-SCQuestBlueprintTitleMarker {
+    param(
+        [AllowEmptyString()][string]$Value
+    )
+
+    return Add-SCQuestBlueprintTitleMarkerCore -Value $Value -Marker '[Ч]'
+}
+
+function Add-SCQuestMixedBlueprintTitleMarker {
+    param(
+        [AllowEmptyString()][string]$Value
+    )
+
+    return Add-SCQuestBlueprintTitleMarkerCore -Value $Value -Marker '[Ч?]'
+}
+
+function Add-SCQuestBlueprintTitleMarkerCore {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [Parameter(Mandatory = $true)][string]$Marker
+    )
+
+    $cleanValue = Remove-SCQuestBlueprintTitleMarker -Value ([string]$Value)
+
+    $match = [regex]::Match(
+        [string]$cleanValue,
+        '^(?<prefix>\s*(?:(?:<EM[1-5]>)?\[(?!Ч\??\])[^]]+\](?:</EM[1-5]>)?\s*)*)(?<rest>.*)$',
+        [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $match.Success) {
+        return ($Marker + ' ' + [string]$cleanValue).TrimEnd()
+    }
+
+    $prefix = $match.Groups['prefix'].Value
+    $rest = $match.Groups['rest'].Value
+    if ([string]::IsNullOrWhiteSpace($rest)) {
+        return ($prefix + $Marker).TrimEnd()
+    }
+
+    return $prefix + $Marker + ' ' + $rest
 }

@@ -345,9 +345,14 @@ function Test-SCOperationOwnsMarker {
 function Get-SCWikeloItemHintBlock {
     param([AllowEmptyString()][string]$Value)
 
+    $stopLabels = @(
+        'Крафт:',
+        'Базовые ТТХ \(Erkul\)',
+        'ТТХ \(Erkul\)'
+    ) -join '|'
     $match = [regex]::Match(
         [string]$Value,
-        '(?s)(?<block>\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*)$')
+        '(?s)(?<block>\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*?)(?=(?:\\n\\n(?:<EM[1-5]>)?(?:' + $stopLabels + '))|$)')
     if (-not $match.Success) {
         return ''
     }
@@ -358,9 +363,14 @@ function Get-SCWikeloItemHintBlock {
 function Remove-SCWikeloItemHintBlock {
     param([AllowEmptyString()][string]$Value)
 
+    $stopLabels = @(
+        'Крафт:',
+        'Базовые ТТХ \(Erkul\)',
+        'ТТХ \(Erkul\)'
+    ) -join '|'
     return [regex]::Replace(
         [string]$Value,
-        '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*$',
+        '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*?(?=(?:\\n\\n(?:<EM[1-5]>)?(?:' + $stopLabels + '))|$)',
         '',
         [System.Text.RegularExpressions.RegexOptions]::Singleline)
 }
@@ -632,7 +642,9 @@ function Invoke-SCModPatchPlan {
     foreach ($module in $modules) {
         Write-Host "Progress: module $($module.Id) start"
         $selectedOptions = @(Get-SCSelectedOptionsForModule -Module $module -SelectedOptionsByModule $SelectedOptionsByModule)
+        $moduleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $plan = Invoke-SCModulePlan -Module $module -Context $context -SelectedOptions $selectedOptions
+        $moduleStopwatch.Stop()
         $operations = @($plan.Operations)
         $warnings = @($plan.Warnings)
         Write-Host "Progress: module $($module.Id) done"
@@ -644,6 +656,7 @@ function Invoke-SCModPatchPlan {
             name = $module.Name
             selectedOptions = $selectedOptions
             operationCount = $operations.Count
+            elapsedMs = $moduleStopwatch.ElapsedMilliseconds
             warnings = $warnings
             metadata = $plan.Metadata
         }

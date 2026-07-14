@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.1.1'
+    [string]$Version = '2.1.2'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,6 +32,7 @@ $releaseSeedItems = @(
     'modules\scmdb\cache\scmdb-4.8.3-live.12122953.json.meta.json',
     'modules\mining\cache\wiki-blueprints-4.8.3-live.12122953.json',
     'modules\mining\cache\craft-family-index-4.8.3-live.12122953.json',
+    'modules\mining\cache\mining-data-4.8.3-live.12122953.json',
     'modules\mining\cache\refinery-yields-4.8.3-live.12122953.json',
     'modules\mining\cache\raw-ore-buy-prices-4.8.3-live.12122953.json',
     'modules\mining\cache\erkul-item-passports-4.8.3-live.12122953.json',

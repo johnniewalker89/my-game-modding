@@ -193,6 +193,32 @@ $radarMiningOptions = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFam
 Assert-True (@($radarMiningOptions | Where-Object { $_ -like '*component:радары:MIL-A:bexalite+borase+stileron' }).Count -gt 0) 'Mining family filters should migrate old V801 radar selection to MIL-A radars.'
 $radarQuestOptions = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Корабельные компоненты|Радары|component:FullSpec')
 Assert-True (@($radarQuestOptions | Where-Object { $_ -like '*component:радары:IND-A:laranite+riccite+titanium' }).Count -gt 0) 'Quest family filters should migrate old FullSpec radar selection to IND-A radars.'
+$miningLocationIndex = (Get-SCMiningLocationInventoryIndex).ByKey
+Assert-True ($miningLocationIndex.ContainsKey('Stanton1b_Desc')) 'Mining location index should map Aberdeen to SCMDB mining data.'
+$aberdeenShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Stanton1b_Desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($aberdeenShipResources.Contains('Corundum 29.8%')) 'Aberdeen ship mining resources should come from SCMDB mining data with spawn percentages.'
+Assert-True ((Normalize-SCMiningResourceName -Name 'Corundum 29.8%') -eq 'Corundum') 'Mining recipe matching should ignore displayed spawn percentages.'
+Assert-True ($miningLocationIndex.ContainsKey('RR_MIC_L5_desc')) 'Mining location index should map MIC-L5 station to a mining profile.'
+$micL5ShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['RR_MIC_L5_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($micL5ShipResources.Contains('Torite 28.5%')) 'MIC-L5 station should receive the Lagrange mining resources with spawn percentages.'
+Assert-True ($miningLocationIndex.ContainsKey('Pyro1_desc')) 'Mining location index should map Pyro planets to SCMDB mining data.'
+$pyroShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Pyro1_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($pyroShipResources.Contains('Iron 32.7%') -and $pyroShipResources.Contains('Copper 32.6%')) 'Pyro planet resources should include SCMDB spawn percentages.'
+Assert-True ($miningLocationIndex.ContainsKey('pyro_asteroid_cluster_desc')) 'Mining location index should map Pyro cluster descriptions to PDSA mining data.'
+$pyroClusterShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['pyro_asteroid_cluster_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($pyroClusterShipResources.Contains('Torite 28.5%') -and $pyroClusterShipResources.Contains('Corundum 14.9%')) 'Pyro cluster resources should come from Pyro Deep Space Asteroids.'
+Assert-True ($miningLocationIndex.ContainsKey('AsteroidCluster_MiningBase_Desc')) 'Mining location index should map generic mining bases to Aaron Halo data.'
+$aaronShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['AsteroidCluster_MiningBase_Desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($aaronShipResources.Contains('Beryl 18%') -and $aaronShipResources.Contains('Quantainium 2%')) 'Mining base resources should include Aaron Halo mining profile.'
+Assert-True ($miningLocationIndex.ContainsKey('Pyro_asteroidbeltA_desc')) 'Mining location index should map generic Pyro belt text to combined Pyro belt profiles.'
+$pyroBeltShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Pyro_asteroidbeltA_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($pyroBeltShipResources.Contains('Silicon 26.7%') -and $pyroBeltShipResources.Contains('Tungsten 28.5%')) 'Combined Pyro belt resources should normalize Raw Silicon and include warm/cool belt materials.'
+Assert-True ($miningLocationIndex.ContainsKey('Nyx_RockCracker_Desc')) 'Mining location index should map Nyx breaker stations to mining data.'
+$rockCrackerHandResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Nyx_RockCracker_Desc'].ResourcesByMethod[(Get-SCMiningHandCode)]
+Assert-True ($rockCrackerHandResources.Contains('Sadaryx 1%')) 'Breaker station interior should expose Sadaryx hand-mining data.'
+Assert-True ($miningLocationIndex.ContainsKey('RR_HUR_L1_desc')) 'Mining location index should map other Stanton R&R Lagrange stations, not only MIC-L5.'
+$hurL1ShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['RR_HUR_L1_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($hurL1ShipResources.Contains('Laranite 28.5%') -and $hurL1ShipResources.Contains('Corundum 17.8%')) 'HUR-L1 should receive the Lagrange A mining profile.'
 $questCoolerFamilyBlock = "Quest\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n<EM4>Охладители:</EM4>\n- NightFall\n- SnowBlind"
 $questCoolerFiltered = Select-SCQuestRewardBlockCategories -Value $questCoolerFamilyBlock -SelectedCategoryNames @('Корабельные компоненты') -SelectedFamilyOptionIds $snowBlindMergedQuestOptions -FamilyIndex $questFamilyIndex
 Assert-True ($questCoolerFiltered.Contains('NightFall')) 'Merged cooler family should keep NightFall when old SnowBlind option is selected.'
@@ -200,6 +226,69 @@ Assert-True ($questCoolerFiltered.Contains('SnowBlind')) 'Merged cooler family s
 Assert-True ((Get-SCQuestPossibleTitleKeys -DescriptionKey 'Foxwell_destroyprobe_M_desc_001') -contains 'Foxwell_destroyprobe_M_name_001') 'Quest blueprint marker cleanup should link _desc keys to _name keys.'
 Assert-True (Test-SCQuestLooksLikeTitleKey -Key 'Foxwell_destroyprobe_M_name_001') 'Quest blueprint marker cleanup should treat _name keys as title-like keys.'
 Assert-True ((Remove-SCQuestBlueprintTitleMarker -Value '[Ч] КОНТРАКТ ОРАНЖЕВОГО УРОВНЯ') -eq 'КОНТРАКТ ОРАНЖЕВОГО УРОВНЯ') 'Quest blueprint marker cleanup should remove [CH] marker from name values.'
+Assert-True ((Remove-SCQuestBlueprintTitleMarker -Value '[Ч?] КОНТРАКТ ОРАНЖЕВОГО УРОВНЯ') -eq 'КОНТРАКТ ОРАНЖЕВОГО УРОВНЯ') 'Quest blueprint marker cleanup should remove [CH?] marker from name values.'
+$mixedCargoTitleValues = @{
+    'Covalex_HaulCargo_AToB_title' = '[Ч] РАНГ: ~mission(ReputationRank) - ПРЯМАЯ ГРУЗОПЕРЕВОЗКА ~mission(CargoGradeToken) ГРУЗА'
+    'Covalex_HaulCargo_AToB_desc_01' = 'Обычная доставка без чертежей'
+    'Covalex_HaulCargo_AtoB_desc_DeliverAll' = "Доставка\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n- XL-1"
+}
+$mixedCargoTitleMap = @{
+    'Covalex_HaulCargo_AToB_title' = @{
+        'Covalex_HaulCargo_AtoB_desc_DeliverAll' = $true
+    }
+}
+$mixedMarkerStats = Update-SCQuestBlueprintTitleMarkerVisibility -Values $mixedCargoTitleValues -TitleDescriptionMap $mixedCargoTitleMap -TitleVisibility @{}
+Assert-True (-not (Test-SCQuestHasBlueprintTitleMarker -Value $mixedCargoTitleValues['Covalex_HaulCargo_AToB_title'])) 'Quest blueprint marker cleanup should remove exact [CH] from mixed shared cargo titles.'
+Assert-True (Test-SCQuestHasMixedBlueprintTitleMarker -Value $mixedCargoTitleValues['Covalex_HaulCargo_AToB_title']) 'Quest blueprint marker cleanup should add [CH?] to mixed shared cargo titles.'
+Assert-True ([int]$mixedMarkerStats.Mixed -eq 1) 'Quest blueprint marker cleanup should report mixed shared cargo titles.'
+$allRewardCargoTitleValues = @{
+    'Covalex_HaulCargo_AToB_title' = '[Ч] РАНГ: ~mission(ReputationRank) - ПРЯМАЯ ГРУЗОПЕРЕВОЗКА ~mission(CargoGradeToken) ГРУЗА'
+    'Covalex_HaulCargo_AToB_desc_01' = "Обычная доставка\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n- XL-1"
+    'Covalex_HaulCargo_AtoB_desc_DeliverAll' = "Доставка\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n- XL-1"
+}
+$null = Update-SCQuestBlueprintTitleMarkerVisibility -Values $allRewardCargoTitleValues -TitleDescriptionMap $mixedCargoTitleMap -TitleVisibility @{}
+Assert-True (Test-SCQuestHasBlueprintTitleMarker -Value $allRewardCargoTitleValues['Covalex_HaulCargo_AToB_title']) 'Quest blueprint marker cleanup should keep [CH] when all linked cargo descriptions have visible blueprint blocks.'
+Assert-True (-not (Test-SCQuestHasMixedBlueprintTitleMarker -Value $allRewardCargoTitleValues['Covalex_HaulCargo_AToB_title'])) 'Quest blueprint marker cleanup should not keep [CH?] when all linked descriptions have visible blueprint blocks.'
+$missingMarkerCargoTitleValues = @{
+    'Covalex_HaulCargo_AToB_title' = 'РАНГ: ~mission(ReputationRank) - ПРЯМАЯ ГРУЗОПЕРЕВОЗКА ~mission(CargoGradeToken) ГРУЗА'
+    'Covalex_HaulCargo_AToB_desc_01' = "Обычная доставка\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n- XL-1"
+    'Covalex_HaulCargo_AtoB_desc_DeliverAll' = "Доставка\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n- XL-1"
+}
+$missingMarkerStats = Update-SCQuestBlueprintTitleMarkerVisibility -Values $missingMarkerCargoTitleValues -TitleDescriptionMap $mixedCargoTitleMap -TitleVisibility @{}
+Assert-True (Test-SCQuestHasBlueprintTitleMarker -Value $missingMarkerCargoTitleValues['Covalex_HaulCargo_AToB_title']) 'Quest blueprint marker sync should add [CH] to titles when every linked description has visible blueprint blocks.'
+Assert-True ([int]$missingMarkerStats.Added -eq 1) 'Quest blueprint marker sync should report added [CH] markers.'
+
+$passportRecord = [pscustomobject]@{ blockLines = @('DPS 253 | урон 101.2', 'темп 150/мин | скорость 765 м/с') }
+$itemWithUtilityBlocks = "Описание предмета\n\n<EM4>Wikelo заказы:</EM4>\n- 2 на Argo ATLS GEO IKTI\n\nКрафт: Titanium | Copper\n\nБазовые ТТХ (Erkul)\nDPS 253 | урон 101.2\nтемп 150/мин | скорость 765 м/с"
+$itemPassOne = Set-SCMiningItemPassportBlock -Value $itemWithUtilityBlocks -Record $passportRecord
+$itemPassOne = Set-SCMiningItemCraftHint -Value $itemPassOne -Resources @('Titanium', 'Copper')
+$itemPassTwo = Set-SCMiningItemPassportBlock -Value $itemPassOne -Record $passportRecord
+$itemPassTwo = Set-SCMiningItemCraftHint -Value $itemPassTwo -Resources @('Titanium', 'Copper')
+Assert-True ($itemPassTwo -eq $itemPassOne) 'Mining item Wikelo/craft/passport blocks should be idempotent across repeated passes.'
+Assert-True (($itemPassOne -split [regex]::Escape('Базовые ТТХ (Erkul)')).Count -eq 2) 'Mining item passport block should appear only once after craft hint normalization.'
+$sharedMergeBaseOperation = [pscustomobject]@{
+    ModuleId = 'mining'
+    OptionId = 'itemPassports'
+    Key = 'item_Test_Desc'
+    Operation = 'replaceValue'
+    OriginalValue = 'Описание'
+    NewValue = "Описание\n\n<EM4>Wikelo заказы:</EM4>\n- 1 на тест\n\nКрафт: Titanium | Copper\n\nБазовые ТТХ (Erkul)\nDPS 10"
+    OwnedMarkers = @('SC_ITEM_PASSPORT_BLOCK')
+}
+$sharedMergeWikeloCleanup = [pscustomobject]@{
+    ModuleId = 'quest'
+    OptionId = 'questRewards'
+    Key = 'item_Test_Desc'
+    Operation = 'replaceValue'
+    OriginalValue = $sharedMergeBaseOperation.NewValue
+    NewValue = 'Описание'
+    OwnedMarkers = @('SCMDB_WIKELO_ITEM_HINT')
+}
+$sharedMergeResult = @(Merge-SCComposableModuleOperations -Operations @($sharedMergeBaseOperation, $sharedMergeWikeloCleanup))
+Assert-True ($sharedMergeResult.Count -eq 1) 'Shared Wikelo merge should compose mining and quest item operations.'
+Assert-True (-not ([string]$sharedMergeResult[0].NewValue).Contains('Wikelo заказы')) 'Shared Wikelo merge should remove only the Wikelo block when quest cleanup is disabled.'
+Assert-True (([string]$sharedMergeResult[0].NewValue).Contains('Крафт: Titanium | Copper')) 'Shared Wikelo merge should preserve mining craft hints after Wikelo cleanup.'
+Assert-True (([string]$sharedMergeResult[0].NewValue).Contains('Базовые ТТХ (Erkul)')) 'Shared Wikelo merge should preserve Erkul passport hints after Wikelo cleanup.'
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-test-" + [guid]::NewGuid().ToString('N'))
 $liveRoot = Join-Path $tempRoot 'LIVE'
@@ -261,6 +350,27 @@ $titleWithBlueprintMarker = "$(Format-TitleMarkers -TitleInfo $titleInfoWithBlue
 $titleWithoutBlueprintMarker = "ОХОТА ЗА ГОЛОВАМИ $(Format-ReputationTitleMarker -TitleInfo $titleInfoWithoutBlueprintMarker)"
 Assert-True ($titleWithBlueprintMarker -eq '[Ч] ОХОТА ЗА ГОЛОВАМИ [4K]') 'Blueprint title marker should stay before the title when reputation is appended.'
 Assert-True ($titleWithoutBlueprintMarker -eq 'ОХОТА ЗА ГОЛОВАМИ [4K]') 'Disabling blueprint title marker should not affect reputation suffix.'
+
+$reputationCargoLive = Join-Path $tempRoot 'RepCargo\LIVE'
+$reputationCargoLoc = Join-Path $reputationCargoLive 'data\Localization\korean_(south_korea)'
+$reputationCargoGlobal = Join-Path $reputationCargoLoc 'global.ini'
+$reputationCargoReport = Join-Path $tempRoot 'rep-cargo-report.json'
+New-Item -ItemType Directory -Force -Path $reputationCargoLoc | Out-Null
+[System.IO.File]::WriteAllLines($reputationCargoGlobal, @(
+    'Covalex_HaulCargo_SingleToMulti_title=РАНГ: ~mission(ReputationRank) - ГРУЗОПЕРЕВОЗКА МАЛОГАБАРИТНОГО ГРУЗА',
+    'Covalex_HaulCargo_SingleToMulti_desc_03=Здравствуйте, generic cargo text'
+), $encoding)
+& $questEngineScript -GlobalIniPath $reputationCargoGlobal -NoBackup -NoCraftIntel -ReportPath $reputationCargoReport | Out-Null
+$reputationCargoDescLine = [System.IO.File]::ReadAllLines($reputationCargoGlobal, $encoding) |
+    Where-Object { $_ -like 'Covalex_HaulCargo_SingleToMulti_desc_03=*' } |
+    Select-Object -First 1
+Assert-True ($reputationCargoDescLine.Contains('<EM4>Репутация по вариантам</EM4>:')) 'Generic Covalex cargo descriptions should receive inferred reputation blocks from SCMDB title family.'
+Assert-True ($reputationCargoDescLine.Contains('50/500/1K/2K')) 'Generic Covalex cargo reputation block should include SCMDB variant amounts.'
+Assert-True ($reputationCargoDescLine.Contains('Здравствуйте, generic cargo text')) 'Inferred cargo reputation block should preserve original description text.'
+$reputationCargoTitleLine = [System.IO.File]::ReadAllLines($reputationCargoGlobal, $encoding) |
+    Where-Object { $_ -like 'Covalex_HaulCargo_SingleToMulti_title=*' } |
+    Select-Object -First 1
+Assert-True ($reputationCargoTitleLine.Contains('[РЕП]')) 'Generic Covalex cargo title should keep a reputation marker while linked descriptions carry the exact amounts.'
 
 $reputationRiskLive = Join-Path $tempRoot 'RepRisk\LIVE'
 $reputationRiskLoc = Join-Path $reputationRiskLive 'data\Localization\korean_(south_korea)'
@@ -389,15 +499,16 @@ $repeatShipOnly = Invoke-SCModPatch -LivePath $liveRoot -ScriptRoot $ProjectDir 
 Assert-True ([int]$repeatShipOnly.Report.changedLines -eq 0) 'Ship-only mining filter should be idempotent.'
 
 $allMethodsAfterShipOnly = Invoke-SCModPatch -LivePath $liveRoot -ScriptRoot $ProjectDir -SelectedOptionsByModule $allMethods -ReportDirectory $reports -BackupDirectory $backups -DryRun
-Assert-True ([int]$allMethodsAfterShipOnly.Report.changedLines -eq 0) 'All-method legacy fallback should be idempotent without a recipe map.'
-Assert-True ([int]$allMethodsAfterShipOnly.Report.moduleOperationCount -eq 0) 'All-method legacy fallback should produce no operations without a recipe map.'
+Assert-True ([int]$allMethodsAfterShipOnly.Report.changedLines -eq 1) 'All-method mining filter should restore detailed recipes after ship-only filtering.'
+Assert-True ([int]$allMethodsAfterShipOnly.Report.moduleOperationCount -eq 1) 'All-method mining filter should produce one restore operation after ship-only filtering.'
 
 $allMethodsRestore = Invoke-SCModPatch -LivePath $liveRoot -ScriptRoot $ProjectDir -SelectedOptionsByModule $allMethods -ReportDirectory $reports -BackupDirectory $backups
-Assert-True ($allMethodsRestore.Report.writeAttempted -eq $false) 'All-method legacy fallback should not write when already idempotent.'
+Assert-True ($allMethodsRestore.Report.writeSucceeded -eq $true) 'All-method mining filter should write the restored detailed recipe block.'
 $allRestored = [System.IO.File]::ReadAllText($globalIni, $encoding)
 Assert-True (-not $allRestored.Contains($legendPrefix)) 'All-method restore should keep the new legend-free mining format.'
 Assert-True ($allRestored.Contains('Наземная техника')) 'All-method restore should keep ground section.'
 Assert-True ($allRestored.Contains('Мультитул')) 'All-method restore should keep hand section.'
+Assert-True ($allRestored.Contains('- Demeco LMG: Hadanite')) 'All-method restore should bring back detailed multitool recipes when recipe map is available.'
 
 $refineryLive = Join-Path $tempRoot 'Refinery\LIVE'
 $refineryLoc = Join-Path $refineryLive 'data\Localization\korean_(south_korea)'
@@ -496,7 +607,7 @@ Assert-True ([int]$rawOreBuyApply.Report.conflictCount -eq 0) 'Raw ore buy apply
 Assert-True ([int]$rawOreBuyApply.Report.changedLines -eq 3) 'Raw ore buy apply should change linked station descriptions and clean legacy trade block.'
 $rawOreBuyPatched = [System.IO.File]::ReadAllText($rawOreBuyGlobalIni, $encoding)
 Assert-True ($rawOreBuyPatched.Contains($rawOreBuyLabel)) 'Raw ore buy apply should add UEX raw ore label.'
-Assert-True ($rawOreBuyPatched.Contains('RR_CRU_L1_desc=CRU-L1 test station card.\n\n<EM4>Переработка (UEX)</EM4>')) 'Raw ore buy apply should patch CRU-L1 station card after refinery block.'
+Assert-True ($rawOreBuyPatched.Contains('RR_CRU_L1_desc=CRU-L1 test station card.\n\n<EM4>Крафт-подсказка (SCMDB)</EM4>') -and $rawOreBuyPatched.Contains('Titanium 28.5%') -and $rawOreBuyPatched.Contains('<EM4>Переработка (UEX)</EM4>')) 'Raw ore buy apply should patch CRU-L1 station card with Lagrange resources before refinery block.'
 Assert-True ($rawOreBuyPatched.Contains('Agricium 1,04k')) 'Raw ore buy apply should add CRU-L1 raw ore buy list.'
 Assert-True ($rawOreBuyPatched.Contains('<EM4>Руда:</EM4> Quantainium 6,45k, Taranite 5,53k, Bexalite 5,21k')) 'Raw ore buy list should be sorted by price descending.'
 Assert-True ($rawOreBuyPatched.Contains('ui_pregame_port_Levski_desc=Levski pregame location card.\n\n<EM4>Переработка (UEX)</EM4>')) 'Combined refinery/raw ore apply should start Levski card with refinery block.'
@@ -570,7 +681,7 @@ $standardCraftFilter = Get-SCMiningCraftFilter -SelectedOptions $standardMiningC
 $emptyCraftFilter = Get-SCMiningCraftFilter -SelectedOptions @()
 
 $methodCombos = @(
-    @{ selected = @(); include = @('Фильтр: отключён, способы добычи не выбраны.', 'Корабль', 'Наземная техника', 'Мультитул', 'Copper, Iron', 'Beradon', 'Hadanite'); exclude = @('Фильтр: по выбранным галкам крафта; компоненты только Grade A.', 'Karna Rifle', 'AD Ballistic Gatlings', 'P6-LR Sniper Rifle', 'Coda Pistol', 'Palisade') },
+    @{ selected = @(); include = @('Фильтр: отключён, способы добычи не выбраны.', 'Корабль', 'Наземная техника', 'Мультитул', 'Copper', 'Iron', 'Beradon', 'Hadanite'); exclude = @('Фильтр: по выбранным галкам крафта; компоненты только Grade A.', 'Karna Rifle', 'AD Ballistic Gatlings', 'P6-LR Sniper Rifle', 'Coda Pistol', 'Palisade') },
     @{ selected = @($shipCode); include = @('Корабль', 'Karna Rifle', 'FR-86'); exclude = @('Наземная техника</EM4>\n<EM4>Корабельные орудия', 'Мультитул</EM4>\n<EM4>Оружие', 'Coda Pistol', 'Palisade') },
     @{ selected = @($groundCode); include = @('Наземная техника', 'AD Ballistic Gatlings'); exclude = @('Корабль</EM4>\n<EM4>Оружие', 'Мультитул</EM4>\n<EM4>Оружие', 'Coda Pistol', 'Palisade') },
     @{ selected = @($handCode); include = @('Мультитул', 'P6-LR Sniper Rifle'); exclude = @('Корабль</EM4>\n<EM4>Оружие', 'Наземная техника</EM4>\n<EM4>Корабельные орудия', 'Coda Pistol', 'Palisade') },
@@ -595,11 +706,11 @@ foreach ($combo in $methodCombos) {
     Assert-True (-not $blockText.Contains('Metamaterial Test')) 'Planet craft block should not show test metamaterial recipes.'
     if ($shipCode -in $combo.selected) {
         Assert-True ($blockText.Contains('- Karna Rifle: Iron')) 'Karna skins should be grouped into one Karna Rifle line when ship mining is selected.'
-        Assert-True ($blockText.Contains('Ресурсы: Copper, Iron')) 'Selected ship mining should still show the full raw resource list, not only resources used by filtered recipes.'
+        Assert-True ($blockText.Contains('Ресурсы:') -and $blockText.Contains('Copper') -and $blockText.Contains('Iron')) 'Selected ship mining should still show the full raw resource list, not only resources used by filtered recipes.'
     }
     else {
         Assert-True (-not $blockText.Contains('- Karna Rifle: Iron')) 'Unselected ship mining should show only resource reference, not detailed Karna recipe.'
-        Assert-True ($blockText.Contains('Copper, Iron')) 'Unselected ship mining should keep the full raw resource list.'
+        Assert-True ($blockText.Contains('Copper') -and $blockText.Contains('Iron')) 'Unselected ship mining should keep the full raw resource list.'
     }
     Assert-True (-not $blockText.Contains('Brimstone')) 'Karna skin variant name should not leak into grouped planet recipe output.'
     foreach ($needle in $combo.include) {
@@ -621,15 +732,16 @@ Assert-True ($pistolBlock.Contains('Coda Pistol')) 'FPS pistol filter should inc
 Assert-True (-not $pistolBlock.Contains('Karna Rifle')) 'FPS pistol filter should exclude rifles when rifles are not selected.'
 
 $noMethodBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods @() -CraftFilter $standardCraftFilter
-Assert-True ($noMethodBlock.Contains('Copper, Iron')) 'No mining methods selected should still show ship resources as reference.'
+Assert-True ($noMethodBlock.Contains('Copper') -and $noMethodBlock.Contains('Iron')) 'No mining methods selected should still show ship resources as reference.'
 Assert-True ($noMethodBlock.Contains('Beradon')) 'No mining methods selected should still show ground resources as reference.'
 Assert-True ($noMethodBlock.Contains('Hadanite')) 'No mining methods selected should still show hand resources as reference.'
 Assert-True (-not $noMethodBlock.Contains('- Karna Rifle')) 'No mining methods selected should not expand detailed recipes.'
 
 $emptyFilterBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods @($shipCode) -CraftFilter $emptyCraftFilter
-Assert-True ($emptyFilterBlock.Contains('Copper, Iron')) 'Empty craft filter should still show raw resources for selected mining methods.'
-Assert-True (-not $emptyFilterBlock.Contains('- Karna Rifle')) 'Empty craft filter should not expand default recipes.'
-Assert-True (-not $emptyFilterBlock.Contains('FR-86')) 'Empty craft filter should not include default military components.'
+$emptyFilterText = (($emptyFilterBlock | ForEach-Object { [string]$_ }) -join '')
+Assert-True ($emptyFilterText.Contains('Copper') -and $emptyFilterText.Contains('Iron')) 'Empty craft filter should still show raw resources for selected mining methods.'
+Assert-True (-not $emptyFilterText.Contains('- Karna Rifle')) 'Empty craft filter should not expand default recipes.'
+Assert-True (-not $emptyFilterText.Contains('FR-86')) 'Empty craft filter should not include default military components.'
 
 $craftHintValue = "Pulverizer LMG description\n\n$(Get-SCMiningItemCraftHintLabel) Lindinium | Nepherastatite | Iron"
 $craftHintCleaned = Remove-SCMiningItemCraftHint -Value $craftHintValue
@@ -646,6 +758,33 @@ $corruptPlanetValue = "Base text\n\n$(Get-SCMiningCraftHeader)\n$(Get-SCMiningPl
 $restoredPlanetValue = Update-SCMiningCraftBlockMethods -Value $corruptPlanetValue -SelectedMethods @($shipCode) -PlanetCraftMap $planetCraftMap -CraftFilter $standardCraftFilter -Inventory $methodInventory
 Assert-True ($restoredPlanetValue.Contains('- Karna Rifle: Iron')) 'Cached raw inventory should restore detailed recipes after a repeated apply.'
 Assert-True (-not $restoredPlanetValue.Contains('<EM4>Корабельные орудия</EM4>, <EM4>Энергетика:</EM4>')) 'Repeated apply should not keep EM headings as resource text.'
+
+$lorePlanetValue = "Лорная строка.\n\n$(Get-SCMiningCraftHeader)\n$(Get-SCMiningPlanetTextFilters -SelectedMethods @($shipCode))\n\n<EM4>Корабль</EM4>\nIron"
+$strippedPlanetLore = Remove-SCMiningLoreDescriptionPrefix -Value $lorePlanetValue
+Assert-True ($strippedPlanetLore.StartsWith((Get-SCMiningCraftHeader))) 'Lore strip should keep the planet craft block as the first text.'
+Assert-True (-not $strippedPlanetLore.Contains('Лорная строка')) 'Lore strip should remove lore before a mining craft block.'
+
+$loreRefineryValue = "Станционная реклама.\n\n<EM4>$(Get-SCMiningRefineryYieldHintLabel)</EM4>\n<EM4>$(Get-SCMiningRefineryBonusLabel)</EM4> Iron +8%"
+$strippedRefineryLore = Remove-SCMiningLoreDescriptionPrefix -Value $loreRefineryValue
+Assert-True ($strippedRefineryLore.StartsWith('<EM4>' + (Get-SCMiningRefineryYieldHintLabel) + '</EM4>')) 'Lore strip should keep refinery hints as the first text.'
+Assert-True (-not $strippedRefineryLore.Contains('Станционная реклама')) 'Lore strip should remove lore before a refinery block.'
+
+$plainLoreValue = 'Обычное описание без блоков лаунчера.'
+Assert-True ((Remove-SCMiningLoreDescriptionPrefix -Value $plainLoreValue) -eq $plainLoreValue) 'Lore strip should not touch plain descriptions without launcher blocks.'
+
+$stripOperation = [pscustomobject]@{
+    ModuleId = 'mining'
+    OptionId = 'methodFilter'
+    Key = 'Test_desc'
+    Operation = 'replaceValue'
+    OriginalValue = $lorePlanetValue
+    NewValue = $lorePlanetValue
+    OwnedMarkers = @('SCMDB_CRAFT_INTEL_BLOCK')
+}
+$stripPlan = Set-SCMiningLoreDescriptionStripOnOperations -Operations @($stripOperation)
+Assert-True ($stripPlan.Metadata.changedDescriptions -eq 1) 'Lore strip operation pass should report one changed description.'
+Assert-True ($stripPlan.Operations[0].OptionId.Contains('stripLoreDescriptions')) 'Lore strip operation pass should add the strip option id.'
+Assert-True ($stripPlan.Operations[0].OwnedMarkers -contains 'SC_LORE_DESCRIPTION_STRIP') 'Lore strip operation pass should add its owned marker.'
 
 Write-Host 'SC_Mod_Launcher scaffold tests passed.'
 Write-Host "Temp root: $tempRoot"

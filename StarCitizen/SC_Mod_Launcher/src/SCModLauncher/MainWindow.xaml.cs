@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.1";
+    private const string CurrentLauncherVersion = "2.1.2";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -1396,7 +1396,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             }
 
             var optionId = pair.Key.Split('|')[1];
-            if (optionId is "itemCraftHints" or "shipMining" or "groundVehicleMining" or "multitoolMining") {
+            if (optionId is "stripLoreDescriptions" or "shipMining" or "groundVehicleMining" or "multitoolMining") {
                 continue;
             }
 

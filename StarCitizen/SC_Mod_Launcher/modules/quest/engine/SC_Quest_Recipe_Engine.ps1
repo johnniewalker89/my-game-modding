@@ -1190,6 +1190,164 @@ function Test-ScripRewardContract {
     return $false
 }
 
+function New-ReputationDescriptionGroup {
+    param([string]$Key)
+
+    return @{
+        Key = $Key
+        Contracts = @{}
+        ReputationAmounts = @{}
+        SystemReputationAmounts = @{}
+        SystemReputationEntries = @{}
+        RiskReputationEntries = @{}
+        ReputationEntrySignatures = @{}
+        RiskReputationAmounts = @{}
+        ReputationSignatures = @{}
+    }
+}
+
+function Add-TitleDescriptionLink {
+    param(
+        [hashtable]$TitleDescriptionMap,
+        [string]$TitleKey,
+        [string]$DescriptionKey
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TitleKey) -or [string]::IsNullOrWhiteSpace($DescriptionKey)) {
+        return
+    }
+
+    if (-not $TitleDescriptionMap.ContainsKey($TitleKey)) {
+        $TitleDescriptionMap[$TitleKey] = @{}
+    }
+    $TitleDescriptionMap[$TitleKey][$DescriptionKey] = $true
+}
+
+function Add-ReputationGroupIntoGroup {
+    param(
+        [hashtable]$Target,
+        [hashtable]$Source
+    )
+
+    if ($null -eq $Target -or $null -eq $Source) {
+        return
+    }
+
+    foreach ($name in @('Contracts', 'ReputationAmounts', 'ReputationEntrySignatures', 'ReputationSignatures')) {
+        if (-not $Target.ContainsKey($name) -or $null -eq $Target[$name]) {
+            $Target[$name] = @{}
+        }
+        if ($Source.ContainsKey($name) -and $null -ne $Source[$name]) {
+            foreach ($key in @($Source[$name].Keys)) {
+                $Target[$name][$key] = $true
+            }
+        }
+    }
+
+    foreach ($name in @('SystemReputationAmounts', 'SystemReputationEntries', 'RiskReputationAmounts', 'RiskReputationEntries')) {
+        if (-not $Target.ContainsKey($name) -or $null -eq $Target[$name]) {
+            $Target[$name] = @{}
+        }
+        if (-not ($Source.ContainsKey($name)) -or $null -eq $Source[$name]) {
+            continue
+        }
+
+        foreach ($outerKey in @($Source[$name].Keys)) {
+            if (-not $Target[$name].ContainsKey($outerKey)) {
+                $Target[$name][$outerKey] = @{}
+            }
+            foreach ($innerKey in @($Source[$name][$outerKey].Keys)) {
+                $Target[$name][$outerKey][$innerKey] = $true
+            }
+        }
+    }
+}
+
+function Get-PossibleTitleKeysForDescription {
+    param([string]$DescriptionKey)
+
+    $normalizedDescriptionKey = Get-NormalizedIniKey -LineKey $DescriptionKey
+    $keys = New-Object System.Collections.Generic.List[string]
+    foreach ($pattern in @('_Desc_', '_desc_', '_DESC_')) {
+        if ($normalizedDescriptionKey.Contains($pattern)) {
+            $keys.Add($normalizedDescriptionKey.Replace($pattern, $pattern.Replace('Desc', 'Title').Replace('desc', 'title').Replace('DESC', 'TITLE')))
+            $keys.Add($normalizedDescriptionKey.Replace($pattern, $pattern.Replace('Desc', 'name').Replace('desc', 'name').Replace('DESC', 'name')))
+        }
+    }
+
+    if ($normalizedDescriptionKey -match '(?i)_desc(?:_\d+)?$') {
+        $keys.Add(([regex]::Replace($normalizedDescriptionKey, '_desc(?:_\d+)?$', '_title', 'IgnoreCase')))
+        $keys.Add(([regex]::Replace($normalizedDescriptionKey, '_desc(?:_\d+)?$', '_name', 'IgnoreCase')))
+    }
+    if ($normalizedDescriptionKey -match '(?i)_description(?:_\d+)?$') {
+        $keys.Add(([regex]::Replace($normalizedDescriptionKey, '_description(?:_\d+)?$', '_title', 'IgnoreCase')))
+        $keys.Add(([regex]::Replace($normalizedDescriptionKey, '_description(?:_\d+)?$', '_name', 'IgnoreCase')))
+    }
+
+    return @($keys.ToArray() | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+}
+
+function Add-InferredReputationDescriptionKeys {
+    param(
+        [Parameter(Mandatory = $true)]$RewardInfo,
+        [hashtable]$LineValues
+    )
+
+    if (
+        $null -eq $RewardInfo -or
+        $null -eq $RewardInfo.TitleDescriptionMap -or
+        $null -eq $RewardInfo.DescriptionReputationMap -or
+        $null -eq $LineValues
+    ) {
+        return
+    }
+
+    $mergedGroupsByTitle = @{}
+    foreach ($lineKey in @($LineValues.Keys)) {
+        $normalizedLineKey = Get-NormalizedIniKey -LineKey ([string]$lineKey)
+        if ($normalizedLineKey -notmatch '(?i)(^|_)(desc|description)(_|$)') {
+            continue
+        }
+
+        $possibleTitleKeys = @(Get-PossibleTitleKeysForDescription -DescriptionKey $normalizedLineKey)
+        if ($possibleTitleKeys.Count -eq 0) {
+            continue
+        }
+
+        foreach ($titleKey in $possibleTitleKeys) {
+            if (-not $RewardInfo.TitleDescriptionMap.ContainsKey($titleKey)) {
+                continue
+            }
+
+            $knownReputationKeys = @(
+                $RewardInfo.TitleDescriptionMap[$titleKey].Keys |
+                    Where-Object { $RewardInfo.DescriptionReputationMap.ContainsKey([string]$_) } |
+                    Sort-Object -Unique
+            )
+            if ($knownReputationKeys.Count -eq 0) {
+                continue
+            }
+
+            Add-TitleDescriptionLink -TitleDescriptionMap $RewardInfo.TitleDescriptionMap -TitleKey $titleKey -DescriptionKey $normalizedLineKey
+
+            if (-not $RewardInfo.DescriptionReputationMap.ContainsKey($normalizedLineKey)) {
+                $inferredGroup = New-ReputationDescriptionGroup -Key $normalizedLineKey
+                if (-not $mergedGroupsByTitle.ContainsKey($titleKey)) {
+                    $mergedGroup = New-ReputationDescriptionGroup -Key $titleKey
+                    foreach ($knownKey in $knownReputationKeys) {
+                        Add-ReputationGroupIntoGroup -Target $mergedGroup -Source $RewardInfo.DescriptionReputationMap[$knownKey]
+                    }
+                    $mergedGroupsByTitle[$titleKey] = $mergedGroup
+                }
+
+                $mergedGroup = $mergedGroupsByTitle[$titleKey]
+                Add-ReputationGroupIntoGroup -Target $inferredGroup -Source $mergedGroup
+                $RewardInfo.DescriptionReputationMap[$normalizedLineKey] = $inferredGroup
+            }
+        }
+    }
+}
+
 function New-RewardMap {
     param(
         [Parameter(Mandatory = $true)]$Scmdb,
@@ -1250,19 +1408,17 @@ function New-RewardMap {
         }
 
         $descKey = Get-ContractLocKey -Contract $contract -LocKeyProperty 'descriptionLocKey' -FallbackKeyProperty 'descriptionKey'
+        if (
+            -not [string]::IsNullOrWhiteSpace($titleKey) -and
+            -not [string]::IsNullOrWhiteSpace($descKey) -and
+            ($hasBlueprintRewards -or $hasAcePilot -or $hasScripReward -or $reputationRewardAmounts.Count -gt 0)
+        ) {
+            Add-TitleDescriptionLink -TitleDescriptionMap $titleDescriptionMap -TitleKey $titleKey -DescriptionKey $descKey
+        }
+
         if (-not [string]::IsNullOrWhiteSpace($descKey) -and $reputationRewardAmounts.Count -gt 0) {
             if (-not $descriptionReputationMap.ContainsKey($descKey)) {
-                $descriptionReputationMap[$descKey] = @{
-                    Key = $descKey
-                    Contracts = @{}
-                    ReputationAmounts = @{}
-                    SystemReputationAmounts = @{}
-                    SystemReputationEntries = @{}
-                    RiskReputationEntries = @{}
-                    ReputationEntrySignatures = @{}
-                    RiskReputationAmounts = @{}
-                    ReputationSignatures = @{}
-                }
+                $descriptionReputationMap[$descKey] = New-ReputationDescriptionGroup -Key $descKey
             }
 
             $reputationGroup = $descriptionReputationMap[$descKey]
@@ -1279,13 +1435,6 @@ function New-RewardMap {
 
         if ([string]::IsNullOrWhiteSpace($descKey)) {
             continue
-        }
-
-        if (-not [string]::IsNullOrWhiteSpace($titleKey)) {
-            if (-not $titleDescriptionMap.ContainsKey($titleKey)) {
-                $titleDescriptionMap[$titleKey] = @{}
-            }
-            $titleDescriptionMap[$titleKey][$descKey] = $true
         }
 
         if (-not $descriptionMap.ContainsKey($descKey)) {
@@ -3718,6 +3867,7 @@ $lineValues = New-LineValueMap -Lines $lines
 
 $scmdb = Get-ScmdbData
 $rewardInfo = New-RewardMap -Scmdb $scmdb -LocalizationMap $lineValues
+Add-InferredReputationDescriptionKeys -RewardInfo $rewardInfo -LineValues $lineValues
 $descriptionRewardMap = $rewardInfo.DescriptionMap
 $descriptionReputationMap = $rewardInfo.DescriptionReputationMap
 $titleRewardMap = $rewardInfo.TitleMap

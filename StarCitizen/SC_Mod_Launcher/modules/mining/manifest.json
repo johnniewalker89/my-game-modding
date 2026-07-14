@@ -7,10 +7,10 @@
   "planFunction": "Get-SCMiningPatchPlan",
   "options": [
     {
-      "id": "itemCraftHints",
-      "name": "Состав предметов",
-      "description": "Добавлять строку Крафт в описания предметов, если рецепт безопасно сопоставлен.",
-      "default": true,
+      "id": "stripLoreDescriptions",
+      "name": "Скрыть лор",
+      "description": "Оставлять только служебные блоки лаунчера в описаниях локаций, где добавлены подсказки ресурсов, переработки или скупки руды.",
+      "default": false,
       "group": "Крафт"
     },
     {

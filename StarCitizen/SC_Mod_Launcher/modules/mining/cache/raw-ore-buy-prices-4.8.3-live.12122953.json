@@ -1,6 +1,6 @@
 {
     "cacheKey":  "4.8.3-live.12122953",
-    "createdAt":  "2026-07-11T18:10:31.0465748+03:00",
+    "createdAt":  "2026-07-14T15:00:10.6977642+03:00",
     "source":  "UEX terminals + commodities_raw_prices_all",
     "sourceUrl":  "https://uexcorp.space/api/documentation",
     "apiUrls":  [
@@ -20,32 +20,24 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1035
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  1130
+                                              "commodity":  "Quantainium",
+                                              "price":  12145
                                           },
                                           {
                                               "commodity":  "Beryl",
                                               "price":  6600
                                           },
                                           {
+                                              "commodity":  "Taranite",
+                                              "price":  5527
+                                          },
+                                          {
                                               "commodity":  "Bexalite",
                                               "price":  5219
                                           },
                                           {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  1166
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  1209
+                                              "commodity":  "Tungsten",
+                                              "price":  3098
                                           },
                                           {
                                               "commodity":  "Gold",
@@ -56,52 +48,60 @@
                                               "price":  1572
                                           },
                                           {
-                                              "commodity":  "Ice",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  5
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  1000
+                                              "commodity":  "Borase",
+                                              "price":  1351
                                           },
                                           {
                                               "commodity":  "Laranite",
                                               "price":  1280
                                           },
                                           {
-                                              "commodity":  "Quantainium",
-                                              "price":  12145
+                                              "commodity":  "Corundum",
+                                              "price":  1209
                                           },
                                           {
-                                              "commodity":  "Quartz",
-                                              "price":  159
+                                              "commodity":  "Copper",
+                                              "price":  1166
                                           },
                                           {
-                                              "commodity":  "Silicon",
-                                              "price":  2
+                                              "commodity":  "Aluminum",
+                                              "price":  1130
                                           },
                                           {
-                                              "commodity":  "Stileron",
-                                              "price":  1
+                                              "commodity":  "Agricium",
+                                              "price":  1035
                                           },
                                           {
-                                              "commodity":  "Taranite",
-                                              "price":  5527
-                                          },
-                                          {
-                                              "commodity":  "Tin",
-                                              "price":  3
+                                              "commodity":  "Iron",
+                                              "price":  1000
                                           },
                                           {
                                               "commodity":  "Titanium",
                                               "price":  193
                                           },
                                           {
-                                              "commodity":  "Tungsten",
-                                              "price":  3098
+                                              "commodity":  "Quartz",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  5
+                                          },
+                                          {
+                                              "commodity":  "Tin",
+                                              "price":  3
+                                          },
+                                          {
+                                              "commodity":  "Silicon",
+                                              "price":  2
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Stileron",
+                                              "price":  1
                                           }
                                       ]
                       },
@@ -113,36 +113,32 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  2994
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  1130
-                                          },
-                                          {
-                                              "commodity":  "Aslarite",
-                                              "price":  32
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  6600
+                                              "commodity":  "Quantainium",
+                                              "price":  12145
                                           },
                                           {
                                               "commodity":  "Bexalite",
                                               "price":  10450
                                           },
                                           {
+                                              "commodity":  "Taranite",
+                                              "price":  8799
+                                          },
+                                          {
                                               "commodity":  "Borase",
                                               "price":  8300
                                           },
                                           {
-                                              "commodity":  "Copper",
-                                              "price":  1166
+                                              "commodity":  "Beryl",
+                                              "price":  6600
                                           },
                                           {
-                                              "commodity":  "Corundum",
-                                              "price":  1209
+                                              "commodity":  "Agricium",
+                                              "price":  2994
+                                          },
+                                          {
+                                              "commodity":  "Titanium",
+                                              "price":  2500
                                           },
                                           {
                                               "commodity":  "Gold",
@@ -153,32 +149,52 @@
                                               "price":  1571
                                           },
                                           {
-                                              "commodity":  "Ice",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  5
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  1000
+                                              "commodity":  "Quartz",
+                                              "price":  1429
                                           },
                                           {
                                               "commodity":  "Laranite",
                                               "price":  1280
                                           },
                                           {
-                                              "commodity":  "Quantainium",
-                                              "price":  12145
+                                              "commodity":  "Corundum",
+                                              "price":  1209
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  1166
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  1130
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  1000
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  259
+                                          },
+                                          {
+                                              "commodity":  "Aslarite",
+                                              "price":  32
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  5
+                                          },
+                                          {
+                                              "commodity":  "Tin",
+                                              "price":  3
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  1
                                           },
                                           {
                                               "commodity":  "Quantum Fuel",
                                               "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  1429
                                           },
                                           {
                                               "commodity":  "Silicon",
@@ -187,22 +203,6 @@
                                           {
                                               "commodity":  "Stileron",
                                               "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Taranite",
-                                              "price":  8799
-                                          },
-                                          {
-                                              "commodity":  "Tin",
-                                              "price":  3
-                                          },
-                                          {
-                                              "commodity":  "Titanium",
-                                              "price":  2500
-                                          },
-                                          {
-                                              "commodity":  "Tungsten",
-                                              "price":  259
                                           }
                                       ]
                       },
@@ -214,76 +214,76 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1035
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  395
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1148
+                                              "commodity":  "Taranite",
+                                              "price":  5527
                                           },
                                           {
                                               "commodity":  "Bexalite",
                                               "price":  5219
                                           },
                                           {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  420
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  441
-                                          },
-                                          {
                                               "commodity":  "Gold",
                                               "price":  2672
                                           },
                                           {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1044
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  159
+                                              "commodity":  "Borase",
+                                              "price":  1351
                                           },
                                           {
                                               "commodity":  "Laranite",
                                               "price":  1172
                                           },
                                           {
-                                              "commodity":  "Quartz",
-                                              "price":  159
+                                              "commodity":  "Beryl",
+                                              "price":  1148
                                           },
                                           {
-                                              "commodity":  "Stileron",
-                                              "price":  1
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1044
                                           },
                                           {
-                                              "commodity":  "Taranite",
-                                              "price":  5527
+                                              "commodity":  "Agricium",
+                                              "price":  1035
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  441
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  420
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  395
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  259
                                           },
                                           {
                                               "commodity":  "Titanium",
                                               "price":  193
                                           },
                                           {
-                                              "commodity":  "Tungsten",
-                                              "price":  259
+                                              "commodity":  "Iron",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Stileron",
+                                              "price":  1
                                           }
                                       ]
                       },
@@ -295,92 +295,92 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1035
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  127
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1229
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  3323
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  153
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  161
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  2672
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1122
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  636
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  493
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1172
-                                          },
-                                          {
                                               "commodity":  "Quantainium",
                                               "price":  14980
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  158
-                                          },
-                                          {
-                                              "commodity":  "Riccite",
-                                              "price":  5151
-                                          },
-                                          {
-                                              "commodity":  "Silicon",
-                                              "price":  285
                                           },
                                           {
                                               "commodity":  "Stileron",
                                               "price":  7932
                                           },
                                           {
+                                              "commodity":  "Riccite",
+                                              "price":  5151
+                                          },
+                                          {
                                               "commodity":  "Taranite",
                                               "price":  3969
+                                          },
+                                          {
+                                              "commodity":  "Bexalite",
+                                              "price":  3323
+                                          },
+                                          {
+                                              "commodity":  "Gold",
+                                              "price":  2672
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1351
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1229
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1172
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1122
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1035
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  636
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  562
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  493
                                           },
                                           {
                                               "commodity":  "Tin",
                                               "price":  400
                                           },
                                           {
+                                              "commodity":  "Silicon",
+                                              "price":  285
+                                          },
+                                          {
                                               "commodity":  "Titanium",
                                               "price":  193
                                           },
                                           {
-                                              "commodity":  "Tungsten",
-                                              "price":  562
+                                              "commodity":  "Corundum",
+                                              "price":  161
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  158
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  153
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  127
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
                                           }
                                       ]
                       },
@@ -392,80 +392,80 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1035
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  395
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1228
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  5210
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  418
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  1938
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1042
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  5
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  493
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1281
-                                          },
-                                          {
                                               "commodity":  "Quantainium",
                                               "price":  6450
-                                          },
-                                          {
-                                              "commodity":  "Quantum Fuel",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  159
-                                          },
-                                          {
-                                              "commodity":  "Stileron",
-                                              "price":  1
                                           },
                                           {
                                               "commodity":  "Taranite",
                                               "price":  5527
                                           },
                                           {
-                                              "commodity":  "Titanium",
-                                              "price":  190
+                                              "commodity":  "Bexalite",
+                                              "price":  5210
+                                          },
+                                          {
+                                              "commodity":  "Gold",
+                                              "price":  1938
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1351
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1281
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1228
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1042
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1035
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  493
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  418
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  395
                                           },
                                           {
                                               "commodity":  "Tungsten",
                                               "price":  259
+                                          },
+                                          {
+                                              "commodity":  "Titanium",
+                                              "price":  190
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  5
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Quantum Fuel",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Stileron",
+                                              "price":  1
                                           }
                                       ]
                       },
@@ -477,84 +477,84 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1035
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  127
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1148
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  5219
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  420
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  441
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  2672
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1044
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  159
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1172
-                                          },
-                                          {
                                               "commodity":  "Quantainium",
                                               "price":  12145
-                                          },
-                                          {
-                                              "commodity":  "Quantum Fuel",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  159
-                                          },
-                                          {
-                                              "commodity":  "Stileron",
-                                              "price":  1
                                           },
                                           {
                                               "commodity":  "Taranite",
                                               "price":  5527
                                           },
                                           {
-                                              "commodity":  "Titanium",
-                                              "price":  193
+                                              "commodity":  "Bexalite",
+                                              "price":  5219
+                                          },
+                                          {
+                                              "commodity":  "Gold",
+                                              "price":  2672
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1351
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1172
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1148
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1044
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1035
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  441
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  420
                                           },
                                           {
                                               "commodity":  "Tungsten",
                                               "price":  259
+                                          },
+                                          {
+                                              "commodity":  "Titanium",
+                                              "price":  193
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  127
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Quantum Fuel",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Stileron",
+                                              "price":  1
                                           }
                                       ]
                       },
@@ -566,76 +566,76 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  3149
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  1175
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1228
+                                              "commodity":  "Taranite",
+                                              "price":  5527
                                           },
                                           {
                                               "commodity":  "Bexalite",
                                               "price":  5218
                                           },
                                           {
-                                              "commodity":  "Borase",
-                                              "price":  1620
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  420
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  113
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  1938
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1042
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  493
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1281
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  159
-                                          },
-                                          {
-                                              "commodity":  "Stileron",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Taranite",
-                                              "price":  5527
+                                              "commodity":  "Agricium",
+                                              "price":  3149
                                           },
                                           {
                                               "commodity":  "Titanium",
                                               "price":  2612
                                           },
                                           {
+                                              "commodity":  "Gold",
+                                              "price":  1938
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1620
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1281
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1228
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  1175
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1042
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  493
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  420
+                                          },
+                                          {
                                               "commodity":  "Tungsten",
                                               "price":  259
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  113
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Stileron",
+                                              "price":  1
                                           }
                                       ]
                       },
@@ -646,52 +646,52 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  3000
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  1130
+                                              "commodity":  "Ouratite",
+                                              "price":  18300
                                           },
                                           {
                                               "commodity":  "Bexalite",
                                               "price":  5220
                                           },
                                           {
-                                              "commodity":  "Corundum",
-                                              "price":  1210
+                                              "commodity":  "Taranite",
+                                              "price":  4810
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  3000
+                                          },
+                                          {
+                                              "commodity":  "Torite",
+                                              "price":  2200
                                           },
                                           {
                                               "commodity":  "Gold",
                                               "price":  1939
                                           },
                                           {
-                                              "commodity":  "Ice",
-                                              "price":  636
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
+                                              "commodity":  "Corundum",
+                                              "price":  1210
                                           },
                                           {
                                               "commodity":  "Laranite",
                                               "price":  1183
                                           },
                                           {
-                                              "commodity":  "Ouratite",
-                                              "price":  18300
+                                              "commodity":  "Aluminum",
+                                              "price":  1130
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  636
                                           },
                                           {
                                               "commodity":  "Quartz",
                                               "price":  420
                                           },
                                           {
-                                              "commodity":  "Taranite",
-                                              "price":  4810
-                                          },
-                                          {
-                                              "commodity":  "Torite",
-                                              "price":  2200
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
                                           }
                                       ]
                       },
@@ -703,56 +703,72 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1018
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  395
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1229
+                                              "commodity":  "Taranite",
+                                              "price":  5527
                                           },
                                           {
                                               "commodity":  "Bexalite",
                                               "price":  5218
                                           },
                                           {
+                                              "commodity":  "Gold",
+                                              "price":  1938
+                                          },
+                                          {
                                               "commodity":  "Borase",
                                               "price":  1351
                                           },
                                           {
-                                              "commodity":  "Copper",
-                                              "price":  419
+                                              "commodity":  "Laranite",
+                                              "price":  1281
                                           },
                                           {
-                                              "commodity":  "Corundum",
-                                              "price":  440
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  1938
+                                              "commodity":  "Beryl",
+                                              "price":  1229
                                           },
                                           {
                                               "commodity":  "Hephaestanite",
                                               "price":  1042
                                           },
                                           {
-                                              "commodity":  "Ice",
-                                              "price":  1
+                                              "commodity":  "Agricium",
+                                              "price":  1018
                                           },
                                           {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
+                                              "commodity":  "Titanium",
+                                              "price":  526
                                           },
                                           {
                                               "commodity":  "Iron",
                                               "price":  493
                                           },
                                           {
-                                              "commodity":  "Laranite",
-                                              "price":  1281
+                                              "commodity":  "Corundum",
+                                              "price":  440
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  419
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  395
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  259
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  1
                                           },
                                           {
                                               "commodity":  "Quantainium",
@@ -763,24 +779,8 @@
                                               "price":  1
                                           },
                                           {
-                                              "commodity":  "Quartz",
-                                              "price":  159
-                                          },
-                                          {
                                               "commodity":  "Stileron",
                                               "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Taranite",
-                                              "price":  5527
-                                          },
-                                          {
-                                              "commodity":  "Titanium",
-                                              "price":  526
-                                          },
-                                          {
-                                              "commodity":  "Tungsten",
-                                              "price":  259
                                           }
                                       ]
                       },
@@ -792,88 +792,88 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1035
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  395
-                                          },
-                                          {
-                                              "commodity":  "Ammonia",
-                                              "price":  2851
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1229
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  5220
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  418
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  441
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  1939
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1042
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  493
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1281
-                                          },
-                                          {
                                               "commodity":  "Quantainium",
                                               "price":  12145
-                                          },
-                                          {
-                                              "commodity":  "Quantum Fuel",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  448
-                                          },
-                                          {
-                                              "commodity":  "Stileron",
-                                              "price":  1
                                           },
                                           {
                                               "commodity":  "Taranite",
                                               "price":  5648
                                           },
                                           {
+                                              "commodity":  "Bexalite",
+                                              "price":  5220
+                                          },
+                                          {
+                                              "commodity":  "Ammonia",
+                                              "price":  2851
+                                          },
+                                          {
+                                              "commodity":  "Gold",
+                                              "price":  1939
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1351
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1281
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1229
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1042
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1035
+                                          },
+                                          {
                                               "commodity":  "Titanium",
                                               "price":  526
                                           },
                                           {
+                                              "commodity":  "Iron",
+                                              "price":  493
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  448
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  441
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  418
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  395
+                                          },
+                                          {
                                               "commodity":  "Tungsten",
                                               "price":  259
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Quantum Fuel",
+                                              "price":  1
+                                          },
+                                          {
+                                              "commodity":  "Stileron",
+                                              "price":  1
                                           }
                                       ]
                       },
@@ -885,16 +885,12 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  3000
+                                              "commodity":  "Quantainium",
+                                              "price":  54996
                                           },
                                           {
-                                              "commodity":  "Aluminum",
-                                              "price":  125
-                                          },
-                                          {
-                                              "commodity":  "Aslarite",
-                                              "price":  1
+                                              "commodity":  "Taranite",
+                                              "price":  8800
                                           },
                                           {
                                               "commodity":  "Beryl",
@@ -905,64 +901,68 @@
                                               "price":  3323
                                           },
                                           {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  153
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  161
+                                              "commodity":  "Agricium",
+                                              "price":  3000
                                           },
                                           {
                                               "commodity":  "Gold",
                                               "price":  2672
                                           },
                                           {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1122
+                                              "commodity":  "Titanium",
+                                              "price":  2500
                                           },
                                           {
-                                              "commodity":  "Ice",
-                                              "price":  1
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  159
+                                              "commodity":  "Borase",
+                                              "price":  1351
                                           },
                                           {
                                               "commodity":  "Laranite",
                                               "price":  1172
                                           },
                                           {
-                                              "commodity":  "Quantainium",
-                                              "price":  54996
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1122
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  259
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  161
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  159
                                           },
                                           {
                                               "commodity":  "Quartz",
                                               "price":  159
                                           },
                                           {
-                                              "commodity":  "Stileron",
+                                              "commodity":  "Copper",
+                                              "price":  153
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  125
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
+                                          },
+                                          {
+                                              "commodity":  "Aslarite",
                                               "price":  1
                                           },
                                           {
-                                              "commodity":  "Taranite",
-                                              "price":  8800
+                                              "commodity":  "Ice",
+                                              "price":  1
                                           },
                                           {
-                                              "commodity":  "Titanium",
-                                              "price":  2500
-                                          },
-                                          {
-                                              "commodity":  "Tungsten",
-                                              "price":  259
+                                              "commodity":  "Stileron",
+                                              "price":  1
                                           }
                                       ]
                       },
@@ -973,28 +973,28 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Laranite",
-                                              "price":  1281
+                                              "commodity":  "Stileron",
+                                              "price":  43300
                                           },
                                           {
                                               "commodity":  "Riccite",
                                               "price":  21600
                                           },
                                           {
-                                              "commodity":  "Stileron",
-                                              "price":  43300
-                                          },
-                                          {
                                               "commodity":  "Taranite",
                                               "price":  8800
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  3100
                                           },
                                           {
                                               "commodity":  "Torite",
                                               "price":  2200
                                           },
                                           {
-                                              "commodity":  "Tungsten",
-                                              "price":  3100
+                                              "commodity":  "Laranite",
+                                              "price":  1281
                                           }
                                       ]
                       },
@@ -1005,76 +1005,8 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1018
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  125
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1229
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  5220
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1620
-                                          },
-                                          {
-                                              "commodity":  "Construction Material Rubble",
-                                              "price":  1979
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  420
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  161
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  1939
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1044
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  164
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  493
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1281
-                                          },
-                                          {
                                               "commodity":  "Quantainium",
                                               "price":  24200
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  158
-                                          },
-                                          {
-                                              "commodity":  "Riccite",
-                                              "price":  5151
-                                          },
-                                          {
-                                              "commodity":  "Silicon",
-                                              "price":  167
                                           },
                                           {
                                               "commodity":  "Stileron",
@@ -1085,12 +1017,80 @@
                                               "price":  5527
                                           },
                                           {
-                                              "commodity":  "Tin",
-                                              "price":  400
+                                              "commodity":  "Bexalite",
+                                              "price":  5220
+                                          },
+                                          {
+                                              "commodity":  "Riccite",
+                                              "price":  5151
+                                          },
+                                          {
+                                              "commodity":  "Construction Material Rubble",
+                                              "price":  1979
+                                          },
+                                          {
+                                              "commodity":  "Gold",
+                                              "price":  1939
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1620
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1281
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1229
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1044
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1018
                                           },
                                           {
                                               "commodity":  "Titanium",
                                               "price":  526
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  493
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  420
+                                          },
+                                          {
+                                              "commodity":  "Tin",
+                                              "price":  400
+                                          },
+                                          {
+                                              "commodity":  "Silicon",
+                                              "price":  167
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  164
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  161
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  158
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  125
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
                                           }
                                       ]
                       },
@@ -1114,88 +1114,88 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1035
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  127
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1148
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  3323
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  153
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  161
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  2672
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1122
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  159
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1172
-                                          },
-                                          {
                                               "commodity":  "Quantainium",
                                               "price":  12145
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  159
-                                          },
-                                          {
-                                              "commodity":  "Riccite",
-                                              "price":  5151
-                                          },
-                                          {
-                                              "commodity":  "Silicon",
-                                              "price":  167
                                           },
                                           {
                                               "commodity":  "Stileron",
                                               "price":  7932
                                           },
                                           {
+                                              "commodity":  "Riccite",
+                                              "price":  5151
+                                          },
+                                          {
                                               "commodity":  "Taranite",
                                               "price":  3969
                                           },
                                           {
-                                              "commodity":  "Tin",
-                                              "price":  149
+                                              "commodity":  "Bexalite",
+                                              "price":  3323
+                                          },
+                                          {
+                                              "commodity":  "Gold",
+                                              "price":  2672
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1351
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1172
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1148
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1122
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1035
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  259
                                           },
                                           {
                                               "commodity":  "Titanium",
                                               "price":  193
                                           },
                                           {
-                                              "commodity":  "Tungsten",
-                                              "price":  259
+                                              "commodity":  "Silicon",
+                                              "price":  167
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  161
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  153
+                                          },
+                                          {
+                                              "commodity":  "Tin",
+                                              "price":  149
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  127
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
                                           }
                                       ]
                       },
@@ -1206,92 +1206,92 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1018
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  125
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1229
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  5220
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Construction Material Salvage",
-                                              "price":  494
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  153
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  441
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  1939
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1044
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  164
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  493
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  410
+                                              "commodity":  "Stileron",
+                                              "price":  22207
                                           },
                                           {
                                               "commodity":  "Quantainium",
                                               "price":  12146
                                           },
                                           {
-                                              "commodity":  "Quartz",
-                                              "price":  448
+                                              "commodity":  "Taranite",
+                                              "price":  5527
+                                          },
+                                          {
+                                              "commodity":  "Bexalite",
+                                              "price":  5220
                                           },
                                           {
                                               "commodity":  "Riccite",
                                               "price":  5151
                                           },
                                           {
-                                              "commodity":  "Silicon",
-                                              "price":  285
+                                              "commodity":  "Gold",
+                                              "price":  1939
                                           },
                                           {
-                                              "commodity":  "Stileron",
-                                              "price":  22207
+                                              "commodity":  "Borase",
+                                              "price":  1351
                                           },
                                           {
-                                              "commodity":  "Taranite",
-                                              "price":  5527
+                                              "commodity":  "Beryl",
+                                              "price":  1229
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1044
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1018
+                                          },
+                                          {
+                                              "commodity":  "Titanium",
+                                              "price":  526
+                                          },
+                                          {
+                                              "commodity":  "Construction Material Salvage",
+                                              "price":  494
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  493
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  448
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  441
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  410
                                           },
                                           {
                                               "commodity":  "Tin",
                                               "price":  400
                                           },
                                           {
-                                              "commodity":  "Titanium",
-                                              "price":  526
+                                              "commodity":  "Silicon",
+                                              "price":  285
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  164
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  153
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  125
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
                                           }
                                       ]
                       },
@@ -1302,72 +1302,8 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1018
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  398
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1229
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  5220
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1620
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  420
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  441
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  1939
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1044
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  164
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  6
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  493
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1281
-                                          },
-                                          {
                                               "commodity":  "Quantainium",
                                               "price":  12145
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  158
-                                          },
-                                          {
-                                              "commodity":  "Riccite",
-                                              "price":  5151
-                                          },
-                                          {
-                                              "commodity":  "Silicon",
-                                              "price":  285
                                           },
                                           {
                                               "commodity":  "Stileron",
@@ -1378,16 +1314,80 @@
                                               "price":  5527
                                           },
                                           {
-                                              "commodity":  "Tin",
-                                              "price":  149
+                                              "commodity":  "Bexalite",
+                                              "price":  5220
+                                          },
+                                          {
+                                              "commodity":  "Riccite",
+                                              "price":  5151
+                                          },
+                                          {
+                                              "commodity":  "Gold",
+                                              "price":  1939
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1620
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1281
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1229
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1044
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1018
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  562
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  493
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  441
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  420
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  398
+                                          },
+                                          {
+                                              "commodity":  "Silicon",
+                                              "price":  285
                                           },
                                           {
                                               "commodity":  "Titanium",
                                               "price":  191
                                           },
                                           {
-                                              "commodity":  "Tungsten",
-                                              "price":  562
+                                              "commodity":  "Ice",
+                                              "price":  164
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  158
+                                          },
+                                          {
+                                              "commodity":  "Tin",
+                                              "price":  149
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  6
                                           }
                                       ]
                       },
@@ -1398,70 +1398,6 @@
                                       ],
                           "rawBuys":  [
                                           {
-                                              "commodity":  "Agricium",
-                                              "price":  1035
-                                          },
-                                          {
-                                              "commodity":  "Aluminum",
-                                              "price":  397
-                                          },
-                                          {
-                                              "commodity":  "Beryl",
-                                              "price":  1148
-                                          },
-                                          {
-                                              "commodity":  "Bexalite",
-                                              "price":  5220
-                                          },
-                                          {
-                                              "commodity":  "Borase",
-                                              "price":  1351
-                                          },
-                                          {
-                                              "commodity":  "Copper",
-                                              "price":  153
-                                          },
-                                          {
-                                              "commodity":  "Corundum",
-                                              "price":  161
-                                          },
-                                          {
-                                              "commodity":  "Gold",
-                                              "price":  1939
-                                          },
-                                          {
-                                              "commodity":  "Hephaestanite",
-                                              "price":  1044
-                                          },
-                                          {
-                                              "commodity":  "Ice",
-                                              "price":  164
-                                          },
-                                          {
-                                              "commodity":  "Inert Materials",
-                                              "price":  5
-                                          },
-                                          {
-                                              "commodity":  "Iron",
-                                              "price":  159
-                                          },
-                                          {
-                                              "commodity":  "Laranite",
-                                              "price":  1172
-                                          },
-                                          {
-                                              "commodity":  "Quartz",
-                                              "price":  159
-                                          },
-                                          {
-                                              "commodity":  "Riccite",
-                                              "price":  5151
-                                          },
-                                          {
-                                              "commodity":  "Silicon",
-                                              "price":  167
-                                          },
-                                          {
                                               "commodity":  "Stileron",
                                               "price":  7932
                                           },
@@ -1470,16 +1406,80 @@
                                               "price":  5527
                                           },
                                           {
-                                              "commodity":  "Tin",
-                                              "price":  149
+                                              "commodity":  "Bexalite",
+                                              "price":  5220
+                                          },
+                                          {
+                                              "commodity":  "Riccite",
+                                              "price":  5151
+                                          },
+                                          {
+                                              "commodity":  "Gold",
+                                              "price":  1939
+                                          },
+                                          {
+                                              "commodity":  "Borase",
+                                              "price":  1351
+                                          },
+                                          {
+                                              "commodity":  "Laranite",
+                                              "price":  1172
+                                          },
+                                          {
+                                              "commodity":  "Beryl",
+                                              "price":  1148
+                                          },
+                                          {
+                                              "commodity":  "Hephaestanite",
+                                              "price":  1044
+                                          },
+                                          {
+                                              "commodity":  "Agricium",
+                                              "price":  1035
+                                          },
+                                          {
+                                              "commodity":  "Aluminum",
+                                              "price":  397
+                                          },
+                                          {
+                                              "commodity":  "Tungsten",
+                                              "price":  259
                                           },
                                           {
                                               "commodity":  "Titanium",
                                               "price":  193
                                           },
                                           {
-                                              "commodity":  "Tungsten",
-                                              "price":  259
+                                              "commodity":  "Silicon",
+                                              "price":  167
+                                          },
+                                          {
+                                              "commodity":  "Ice",
+                                              "price":  164
+                                          },
+                                          {
+                                              "commodity":  "Corundum",
+                                              "price":  161
+                                          },
+                                          {
+                                              "commodity":  "Iron",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Quartz",
+                                              "price":  159
+                                          },
+                                          {
+                                              "commodity":  "Copper",
+                                              "price":  153
+                                          },
+                                          {
+                                              "commodity":  "Tin",
+                                              "price":  149
+                                          },
+                                          {
+                                              "commodity":  "Inert Materials",
+                                              "price":  5
                                           }
                                       ]
                       }

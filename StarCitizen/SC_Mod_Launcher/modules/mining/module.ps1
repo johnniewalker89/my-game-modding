@@ -5,9 +5,10 @@
     )
 
     $selectedMethods = Get-SCMiningSelectedMethods -SelectedOptions $SelectedOptions
-    $enableItemCraftHints = @($SelectedOptions) -contains 'itemCraftHints'
+    $enableItemCraftHints = $true
     $enableRefineryYieldHints = @($SelectedOptions) -contains 'refineryYieldHints'
     $enableLocationTradeHints = @($SelectedOptions) -contains 'rawOreBuyHints'
+    $enableStripLoreDescriptions = @($SelectedOptions) -contains 'stripLoreDescriptions'
     $craftFilter = Get-SCMiningCraftFilter -SelectedOptions $SelectedOptions
     $operations = @()
     $changedPlanetKeys = @()
@@ -45,6 +46,11 @@
         changedItemDescriptions = 0
         cleanedExistingBlocks = 0
     }
+    $stripLoreMetadata = @{
+        enabled = $enableStripLoreDescriptions
+        changedDescriptions = 0
+        changedKeysSample = @()
+    }
     $planetBlockCount = 0
     $recipeData = $null
     $planetBlueprints = @()
@@ -76,8 +82,17 @@
         if ($planetBlueprints.Count -gt 0) {
             $planetCraftMap = New-SCMiningPlanetCraftMap -Blueprints @($planetBlueprints)
         }
+        $miningLocationIndex = @{}
+        try {
+            $miningLocationIndex = (Get-SCMiningLocationInventoryIndex).ByKey
+        }
+        catch {
+            $recipeDataWarnings += "Mining location data unavailable: $($_.Exception.Message)"
+        }
         $planetInventoryCache = Get-SCMiningPlanetResourceInventoryCache
         $planetInventoryCacheChanged = $false
+        $planetCraftBlockCache = @{}
+        $planetCraftBlockOptionKey = (@($SelectedOptions | Sort-Object) -join '|')
 
         foreach ($key in @($Context.Values.Keys | Sort-Object)) {
             if ($key -notmatch '(?i)_desc(?:,|$)|_description(?:,|$)') {
@@ -85,21 +100,39 @@
             }
 
             $current = [string]$Context.Values[$key]
-            if (-not (Test-SCMiningHasCraftBlock -Value $current)) {
+            $hasCraftBlock = Test-SCMiningHasCraftBlock -Value $current
+            $miningLocationInventory = $null
+            $normalizedLocationKey = Get-SCMiningNormalizedIniKey -Key $key
+            if ($miningLocationIndex.ContainsKey($normalizedLocationKey)) {
+                $miningLocationInventory = $miningLocationIndex[$normalizedLocationKey]
+            }
+            if (-not $hasCraftBlock -and $null -eq $miningLocationInventory) {
                 continue
             }
 
             $planetBlockCount++
-            $inventory = Read-SCMiningResourceInventoryFromValue -Value $current
-            if ((Test-SCMiningCleanResourceSourceValue -Value $current) -and (Test-SCMiningResourceInventoryUsable -Inventory $inventory)) {
+            $inventory = if ($null -ne $miningLocationInventory) { $miningLocationInventory } else { Read-SCMiningResourceInventoryFromValue -Value $current }
+            if ($null -eq $miningLocationInventory -and (Test-SCMiningCleanResourceSourceValue -Value $current) -and (Test-SCMiningResourceInventoryUsable -Inventory $inventory)) {
                 $planetInventoryCache[$key] = ConvertTo-SCMiningPlanetResourceInventoryCacheRecord -Inventory $inventory
                 $planetInventoryCacheChanged = $true
             }
-            elseif ($planetInventoryCache.ContainsKey($key)) {
+            elseif ($null -eq $miningLocationInventory -and $planetInventoryCache.ContainsKey($key)) {
                 $inventory = ConvertFrom-SCMiningPlanetResourceInventoryCacheRecord -Record $planetInventoryCache[$key]
             }
+            if (-not (Test-SCMiningResourceInventoryUsable -Inventory $inventory)) {
+                continue
+            }
 
-            $filtered = Update-SCMiningCraftBlockMethods -Value $current -SelectedMethods $selectedMethods -PlanetCraftMap $planetCraftMap -CraftFilter $craftFilter -Inventory $inventory
+            $detailedCraftBlock = $null
+            if ($planetCraftMap.Count -gt 0) {
+                $cacheKey = $planetCraftBlockOptionKey + '::' + (Get-SCMiningInventorySignature -Inventory $inventory)
+                if (-not $planetCraftBlockCache.ContainsKey($cacheKey)) {
+                    $planetCraftBlockCache[$cacheKey] = Format-SCMiningPlanetCraftBlock -Inventory $inventory -PlanetCraftMap $planetCraftMap -SelectedMethods $selectedMethods -CraftFilter $craftFilter
+                }
+                $detailedCraftBlock = [string]$planetCraftBlockCache[$cacheKey]
+            }
+
+            $filtered = Update-SCMiningCraftBlockMethods -Value $current -SelectedMethods $selectedMethods -PlanetCraftMap $planetCraftMap -CraftFilter $craftFilter -Inventory $inventory -DetailedCraftBlock $detailedCraftBlock
             if ($filtered -ne $current) {
                 $operations += [pscustomobject]@{
                     ModuleId = 'mining'
@@ -123,15 +156,17 @@
     Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations $operations
     $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
 
+    $itemPassportPlan = New-SCMiningItemPassportOperations -Context $Context -Values $workingValues
+    $operations += @($itemPassportPlan.Operations)
+    $itemPassportWarnings += @($itemPassportPlan.Warnings)
+    $itemPassportMetadata = $itemPassportPlan.Metadata
+    Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($itemPassportPlan.Operations)
+    $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
+
     if ($enableItemCraftHints) {
         $itemPlan = New-SCMiningItemCraftHintOperations -Context $workingContext -RecipeData $recipeData
         $operations += @($itemPlan.Operations)
         $itemCraftWarnings += @($itemPlan.Warnings)
-        $itemCraftMetadata = $itemPlan.Metadata
-    }
-    else {
-        $itemPlan = Remove-SCMiningItemCraftHintOperations -Context $workingContext
-        $operations += @($itemPlan.Operations)
         $itemCraftMetadata = $itemPlan.Metadata
     }
     Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($itemPlan.Operations)
@@ -164,12 +199,12 @@
     }
     Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($locationTradePlan.Operations)
 
-    $itemPassportPlan = New-SCMiningItemPassportOperations -Context $Context -Values $workingValues
-    $operations += @($itemPassportPlan.Operations)
-    $itemPassportWarnings += @($itemPassportPlan.Warnings)
-    $itemPassportMetadata = $itemPassportPlan.Metadata
-
     $operations = Merge-SCMiningReplaceOperations -Operations $operations -BaseValues $Context.Values
+    if ($enableStripLoreDescriptions) {
+        $stripPlan = Set-SCMiningLoreDescriptionStripOnOperations -Operations @($operations)
+        $operations = Merge-SCMiningReplaceOperations -Operations @($stripPlan.Operations) -BaseValues $Context.Values
+        $stripLoreMetadata = $stripPlan.Metadata
+    }
 
     $metadata = @{
         source = 'existing SCMDB planet craft blocks + SCMDB/Wiki item craft hints + Erkul item passports'
@@ -183,6 +218,7 @@
         refineryYieldHints = $refineryYieldMetadata
         locationTradeHints = $locationTradeMetadata
         itemPassports = $itemPassportMetadata
+        stripLoreDescriptions = $stripLoreMetadata
     }
 
     return [pscustomobject]@{
@@ -859,6 +895,146 @@ function Merge-SCMiningReplaceOperations {
     return @($passthrough + $result)
 }
 
+function Set-SCMiningLoreDescriptionStripOnOperations {
+    param([object[]]$Operations)
+
+    $result = New-Object System.Collections.Generic.List[object]
+    $changedKeys = New-Object System.Collections.Generic.List[string]
+
+    foreach ($operation in @($Operations)) {
+        if ([string]$operation.Operation -ne 'replaceValue' -or -not (Test-SCMiningLoreStripTargetOperation -Operation $operation)) {
+            $result.Add($operation)
+            continue
+        }
+
+        $stripped = Remove-SCMiningLoreDescriptionPrefix -Value ([string]$operation.NewValue)
+        if ($stripped -eq [string]$operation.NewValue) {
+            $result.Add($operation)
+            continue
+        }
+
+        $result.Add([pscustomobject]@{
+            ModuleId = $operation.ModuleId
+            OptionId = Add-SCMiningOperationOptionId -OptionId ([string]$operation.OptionId) -AddedOptionId 'stripLoreDescriptions'
+            Key = $operation.Key
+            Operation = $operation.Operation
+            OriginalValue = $operation.OriginalValue
+            NewValue = $stripped
+            OwnedMarkers = @(Add-SCMiningOwnedMarker -Markers @($operation.OwnedMarkers) -AddedMarker 'SC_LORE_DESCRIPTION_STRIP')
+        })
+        $changedKeys.Add([string]$operation.Key)
+    }
+
+    return [pscustomobject]@{
+        Operations = @($result.ToArray())
+        Metadata = @{
+            enabled = $true
+            changedDescriptions = $changedKeys.Count
+            changedKeysSample = @($changedKeys | Select-Object -First 20)
+        }
+    }
+}
+
+function Test-SCMiningLoreStripTargetOperation {
+    param([object]$Operation)
+
+    foreach ($marker in @($Operation.OwnedMarkers)) {
+        if ([string]$marker -in @('SCMDB_CRAFT_INTEL_BLOCK', 'SC_REFINERY_YIELD_HINT_BLOCK', 'SC_LOCATION_TRADE_HINT_BLOCK')) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Add-SCMiningOperationOptionId {
+    param(
+        [AllowEmptyString()][string]$OptionId,
+        [Parameter(Mandatory = $true)][string]$AddedOptionId
+    )
+
+    $parts = @($OptionId -split '\+' | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($AddedOptionId -notin $parts) {
+        $parts += $AddedOptionId
+    }
+
+    return ($parts -join '+')
+}
+
+function Add-SCMiningOwnedMarker {
+    param(
+        [object[]]$Markers,
+        [Parameter(Mandatory = $true)][string]$AddedMarker
+    )
+
+    $result = New-Object System.Collections.Generic.List[string]
+    foreach ($marker in @($Markers)) {
+        $text = [string]$marker
+        if (-not [string]::IsNullOrWhiteSpace($text) -and -not $result.Contains($text)) {
+            $result.Add($text)
+        }
+    }
+    if (-not $result.Contains($AddedMarker)) {
+        $result.Add($AddedMarker)
+    }
+
+    return @($result.ToArray())
+}
+
+function Remove-SCMiningLoreDescriptionPrefix {
+    param([AllowEmptyString()][string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return [string]$Value
+    }
+
+    $indexes = New-Object System.Collections.Generic.List[int]
+
+    $rawIndex = Get-SCMiningRawResourceBlockIndex -Value $Value
+    if ($rawIndex -ge 0) {
+        $indexes.Add($rawIndex)
+    }
+
+    $craftIndex = ([string]$Value).IndexOf((Get-SCMiningCraftHeader), [System.StringComparison]::Ordinal)
+    if ($craftIndex -ge 0) {
+        $indexes.Add($craftIndex)
+    }
+
+    $utilityIndex = Get-SCMiningUtilityHintBlockIndex -Value $Value
+    if ($utilityIndex -ge 0) {
+        $indexes.Add($utilityIndex)
+    }
+
+    if ($indexes.Count -eq 0) {
+        return [string]$Value
+    }
+
+    $firstIndex = [int]($indexes | Sort-Object | Select-Object -First 1)
+    if ($firstIndex -le 0) {
+        return (Trim-SCMiningEncodedLeadingBreaks -Value ([string]$Value))
+    }
+
+    return (Trim-SCMiningEncodedLeadingBreaks -Value (([string]$Value).Substring($firstIndex)))
+}
+
+function Get-SCMiningUtilityHintBlockIndex {
+    param([AllowEmptyString()][string]$Value)
+
+    $labels = @(
+        (Get-SCMiningRefineryYieldHintLabel),
+        (Get-SCMiningLocationTradeHintLabel),
+        (Get-SCMiningLocationTradeLegacyHintLabel)
+    )
+    $labelPattern = (($labels | ForEach-Object { [regex]::Escape([string]$_) + ':?' }) -join '|')
+    $pattern = '<EM[1-5]>(?:' + $labelPattern + ')</EM[1-5]>'
+    $match = [regex]::Match([string]$Value, $pattern)
+    if ($match.Success) {
+        return $match.Index
+    }
+
+    return -1
+}
+
 function Get-SCMiningItemCraftRecipeData {
     $scmdbCache = Read-SCMiningScmdbCache
     $scmdb = $scmdbCache.Data
@@ -883,6 +1059,12 @@ function Get-SCMiningItemCraftRecipeData {
     }
 }
 
+function Get-SCMiningNormalizedIniKey {
+    param([string]$Key)
+
+    return (([string]$Key).Trim() -replace ',.*$', '')
+}
+
 function Get-SCMiningPlanetCraftBlueprints {
     $scmdbCache = Read-SCMiningScmdbCache
     $cached = Get-SCMiningCachedWikiBlueprints -CacheKey ([string]$scmdbCache.Version)
@@ -891,6 +1073,310 @@ function Get-SCMiningPlanetCraftBlueprints {
     }
 
     throw "Mining wiki blueprints cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
+}
+
+function Get-SCMiningCachedMiningData {
+    $scmdbCache = Read-SCMiningScmdbCache
+    $cachePath = Get-SCMiningMiningDataCachePath -CacheKey ([string]$scmdbCache.Version)
+    if (-not (Test-Path -LiteralPath $cachePath -PathType Leaf)) {
+        throw "Mining data cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
+    }
+
+    return (Get-Content -Raw -LiteralPath $cachePath | ConvertFrom-Json)
+}
+
+function Get-SCMiningMiningDataCachePath {
+    param([Parameter(Mandatory = $true)][string]$CacheKey)
+
+    $cacheDir = Get-SCMiningCacheDirectory
+    return (Join-Path $cacheDir ("mining-data-{0}.json" -f (Get-SCMiningSafeCacheKey -CacheKey $CacheKey)))
+}
+
+function Get-SCMiningLocationInventoryIndex {
+    $data = Get-SCMiningCachedMiningData
+    $locationByName = @{}
+    foreach ($location in @($data.locations)) {
+        $name = [string]$location.locationName
+        if (-not [string]::IsNullOrWhiteSpace($name)) {
+            $locationByName[$name.ToLowerInvariant()] = $location
+        }
+    }
+
+    $byKey = @{}
+    foreach ($pair in (Get-SCMiningLocationKeyMap).GetEnumerator()) {
+        $locations = New-Object System.Collections.Generic.List[object]
+        foreach ($locationName in @($pair.Value)) {
+            $lookupName = ([string]$locationName).ToLowerInvariant()
+            if ([string]::IsNullOrWhiteSpace($lookupName) -or -not $locationByName.ContainsKey($lookupName)) {
+                continue
+            }
+
+            $locations.Add($locationByName[$lookupName])
+        }
+
+        if ($locations.Count -eq 0) {
+            continue
+        }
+
+        $inventory = ConvertTo-SCMiningInventoryFromMiningDataLocations -Locations @($locations.ToArray()) -MiningData $data
+        if (Test-SCMiningResourceInventoryUsable -Inventory $inventory) {
+            $byKey[(Get-SCMiningNormalizedIniKey -Key ([string]$pair.Key))] = $inventory
+        }
+    }
+
+    return [pscustomobject]@{
+        ByKey = $byKey
+        SourceVersion = [string]$data.version
+    }
+}
+
+function Get-SCMiningLocationKeyMap {
+    $map = @{
+        'Stanton1_Desc' = 'Hurston'
+        'Stanton1a_Desc' = 'Arial'
+        'Stanton1b_Desc' = 'Aberdeen'
+        'Stanton1c_Desc' = 'Magda'
+        'Stanton1d_Desc' = 'Ita'
+        'Stanton2a_Desc' = 'Cellin'
+        'Stanton2b_Desc' = 'Daymar'
+        'Stanton2c_Desc' = 'Yela'
+        'Stanton3a_Desc' = 'Lyria'
+        'Stanton3b_Desc' = 'Wala'
+        'Stanton4_Desc' = 'microTech'
+        'Stanton4a_Desc' = 'Calliope'
+        'Stanton4b_Desc' = 'Clio'
+        'Stanton4c_Desc' = 'Euterpe'
+
+        'Pyro1_desc' = 'Pyro I'
+        'Pyro2_desc' = 'Pyro II (Monox)'
+        'Pyro3_desc' = 'Pyro III (Bloom)'
+        'Pyro4_desc' = 'Pyro IV'
+        'Pyro6_desc' = 'Pyro VI (Terminus)'
+        'Pyro5a_Ignis_desc' = 'Pyro V-a (Ignis)'
+        'Pyro5b_Vatra_desc' = 'Pyro V-b (Vatra)'
+        'Pyro5c_Adir_desc' = 'Pyro V-c (Adir)'
+        'Pyro5d_Fairo_desc' = 'Pyro V-d (Fairo)'
+        'Pyro5e_Fuego_desc' = 'Pyro V-e (Fuego)'
+        'Pyro5f_Vuur_desc' = 'Pyro V-f (Vuur)'
+
+        'asteroidfield_desc_Shared' = @('Asteroid Cluster (Low Yield)', 'Asteroid Cluster (Medium Yield)')
+        'AsteroidCluster_MiningBase_Desc' = 'Aaron Halo'
+        'Pyro_asteroidbeltA_desc' = @('Pyro Belt (Cool 1)', 'Pyro Belt (Cool 2)', 'Pyro Belt (Warm 1)', 'Pyro Belt (Warm 2)')
+        'pyro_asteroid_cluster_desc' = 'Pyro Deep Space Asteroids'
+        'AsteroidCluster_Pyro_Desc' = 'Pyro Deep Space Asteroids'
+        'AsteroidBase_P3_L4_desc' = 'Pyro Deep Space Asteroids'
+        'AsteroidBase_P3_L5_desc' = 'Pyro Deep Space Asteroids'
+        'ab_mine_pyro_desc' = 'Pyro Deep Space Asteroids'
+        'Nyx_AsteroidBelt1_Desc' = @('Glaciem Ring', 'Keeger Belt')
+        'Nyx_AsteroidBelt2_Desc' = @('Glaciem Ring', 'Keeger Belt')
+        'Nyx_RockCracker_Desc' = @('Keeger Belt', 'Breaker Stations Interior', 'Breaker Stations Large Geode')
+    }
+
+    Add-SCMiningSurfaceLocationKeyMap -Map $map
+    Add-SCMiningStantonLagrangeLocationKeyMap -Map $map
+    return $map
+}
+
+function Add-SCMiningSurfaceLocationKeyMap {
+    param([hashtable]$Map)
+
+    $surfaceProfiles = @{
+        'Stanton1' = 'Hurston'
+        'Stanton1a' = 'Arial'
+        'Stanton1b' = 'Aberdeen'
+        'Stanton1c' = 'Magda'
+        'Stanton1d' = 'Ita'
+        'Stanton2a' = 'Cellin'
+        'Stanton2b' = 'Daymar'
+        'Stanton2c' = 'Yela'
+        'Stanton3a' = 'Lyria'
+        'Stanton3b' = 'Wala'
+        'Stanton4' = 'microTech'
+        'Stanton4a' = 'Calliope'
+        'Stanton4b' = 'Clio'
+        'Stanton4c' = 'Euterpe'
+        'Pyro1' = 'Pyro I'
+        'Pyro2' = 'Pyro II (Monox)'
+        'Pyro3' = 'Pyro III (Bloom)'
+        'Pyro4' = 'Pyro IV'
+        'Pyro6' = 'Pyro VI (Terminus)'
+        'Pyro5a' = 'Pyro V-a (Ignis)'
+        'Pyro5b' = 'Pyro V-b (Vatra)'
+        'Pyro5c' = 'Pyro V-c (Adir)'
+        'Pyro5d' = 'Pyro V-d (Fairo)'
+        'Pyro5e' = 'Pyro V-e (Fuego)'
+        'Pyro5f' = 'Pyro V-f (Vuur)'
+    }
+
+    foreach ($entry in $surfaceProfiles.GetEnumerator()) {
+        $prefix = [string]$entry.Key
+        $profile = [string]$entry.Value
+
+        foreach ($i in 1..10) {
+            $Map[('{0}_ASD_Delving_Facility_{1:000}_desc' -f $prefix, $i)] = $profile
+        }
+
+        foreach ($i in 1..6) {
+            $Map[('{0}_HurDyn_{1:000}_desc' -f $prefix, $i)] = $profile
+        }
+
+        foreach ($i in 1..2) {
+            $Map[('{0}_IndyMine_{1:000}_desc' -f $prefix, $i)] = $profile
+        }
+
+        $Map[('{0}_Cave_Aband_01_desc' -f $prefix)] = $profile
+
+        foreach ($set in 1..2) {
+            foreach ($suffix in @('a', 'b', 'c', 'd')) {
+                $Map[('{0}_MiningCompound_drlct_{1:000}_{2}_desc' -f $prefix, $set, $suffix)] = $profile
+            }
+        }
+    }
+
+    $Map['Pyro1_Outpost_col_s_mng_indy_001_desc'] = 'Pyro I'
+    $Map['Pyro2_Outpost_col_m_mng_otlw_002_desc'] = 'Pyro II (Monox)'
+    $Map['Pyro2_Outpost_col_s_mng_indy_001_desc'] = 'Pyro II (Monox)'
+    $Map['Pyro2_Outpost_col_s_mng_otlw_001_desc'] = 'Pyro II (Monox)'
+    $Map['Pyro3_Outpost_col_m_mng_indy_001_desc'] = 'Pyro III (Bloom)'
+    $Map['Pyro3_Outpost_col_s_mng_otlw_001_desc'] = 'Pyro III (Bloom)'
+}
+
+function Add-SCMiningStantonLagrangeLocationKeyMap {
+    param([hashtable]$Map)
+
+    $profileByStation = @{
+        'HUR-L1' = 'Lagrange A'
+        'HUR-L2' = 'Lagrange F'
+        'HUR-L3' = 'Lagrange E'
+        'HUR-L4' = 'Lagrange A'
+        'HUR-L5' = 'Lagrange C'
+        'CRU-L1' = 'Lagrange E'
+        'CRU-L2' = 'Lagrange E'
+        'CRU-L3' = 'Lagrange C'
+        'CRU-L4' = 'Lagrange B'
+        'CRU-L5' = 'Lagrange D'
+        'ARC-L1' = 'Lagrange F'
+        'ARC-L2' = 'Lagrange F'
+        'ARC-L3' = 'Lagrange D'
+        'ARC-L4' = 'Lagrange F'
+        'ARC-L5' = 'Lagrange B'
+        'MIC-L1' = 'Lagrange C'
+        'MIC-L2' = 'Lagrange C'
+        'MIC-L3' = 'Lagrange B'
+        'MIC-L4' = 'Lagrange D'
+        'MIC-L5' = 'Lagrange C'
+    }
+
+    $systemPrefixes = @{
+        'HUR' = 'Stanton1'
+        'CRU' = 'Stanton2'
+        'ARC' = 'Stanton3'
+        'MIC' = 'Stanton4'
+    }
+
+    foreach ($station in @($profileByStation.Keys)) {
+        $profile = $profileByStation[$station]
+        $parts = $station -split '-L'
+        $systemCode = $parts[0]
+        $point = [int]$parts[1]
+        $prefix = $systemPrefixes[$systemCode]
+        if ([string]::IsNullOrWhiteSpace($prefix)) {
+            continue
+        }
+
+        $Map[('{0}_L{1}_desc' -f $prefix, $point)] = $profile
+        foreach ($i in 1..4) {
+            $Map[('{0}_L{1}_{2:00}_desc' -f $prefix, $point, $i)] = $profile
+        }
+        $Map[('RR_{0}_L{1}_desc' -f $systemCode, $point)] = $profile
+    }
+}
+
+function ConvertTo-SCMiningInventoryFromMiningDataLocations {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Locations,
+        [Parameter(Mandatory = $true)]$MiningData
+    )
+
+    $merged = New-SCMiningEmptyResourceInventory
+    foreach ($location in @($Locations)) {
+        $inventory = ConvertTo-SCMiningInventoryFromMiningDataLocation -Location $location -MiningData $MiningData
+        foreach ($method in Get-SCMiningMethodOrder) {
+            foreach ($entry in Expand-SCMiningResourceEntries -Entries $inventory.ResourcesByMethod[$method]) {
+                $merged.ResourcesByMethod[$method].Add($entry)
+            }
+        }
+        foreach ($entry in Expand-SCMiningResourceEntries -Entries $inventory.CollectableResources) {
+            $merged.CollectableResources.Add($entry)
+        }
+        foreach ($entry in Expand-SCMiningResourceEntries -Entries $inventory.CreatureResources) {
+            $merged.CreatureResources.Add($entry)
+        }
+    }
+
+    return Normalize-SCMiningResourceInventory -Inventory $merged
+}
+
+function ConvertTo-SCMiningInventoryFromMiningDataLocation {
+    param(
+        [Parameter(Mandatory = $true)]$Location,
+        [Parameter(Mandatory = $true)]$MiningData
+    )
+
+    $inventory = New-SCMiningEmptyResourceInventory
+    $methodByGroup = @{
+        SpaceShip_Mineables = (Get-SCMiningShipCode)
+        GroundVehicle_Mineables = (Get-SCMiningGroundCode)
+        FPS_Mineables = (Get-SCMiningHandCode)
+    }
+
+    foreach ($group in @($Location.groups)) {
+        $groupName = [string]$group.groupName
+        if (-not $methodByGroup.ContainsKey($groupName)) {
+            continue
+        }
+
+        $method = $methodByGroup[$groupName]
+        foreach ($deposit in @($group.deposits | Sort-Object -Property @{ Expression = { -[double]$_.relativeProbability } }, @{ Expression = { [int]$_.flatIndex } })) {
+            $composition = $MiningData.compositions.PSObject.Properties[[string]$deposit.compositionGuid].Value
+            if ($null -eq $composition) {
+                continue
+            }
+
+            $name = Get-SCMiningDisplayMaterialName -Name ([string]$composition.name)
+            if ([string]::IsNullOrWhiteSpace($name)) {
+                continue
+            }
+
+            $inventory.ResourcesByMethod[$method].Add(("{0} {1}%" -f $name, (Format-SCMiningSpawnPercent -Value ([double]$deposit.relativeProbability))))
+        }
+    }
+
+    return Normalize-SCMiningResourceInventory -Inventory $inventory
+}
+
+function Get-SCMiningDisplayMaterialName {
+    param([AllowEmptyString()][string]$Name)
+
+    $clean = ([string]$Name).Trim()
+    $clean = $clean -replace '\s*\((?:Raw|Ore|R)\)\s*$', ''
+    if ($clean -eq 'Raw Ice') {
+        return 'Ice'
+    }
+    if ($clean -eq 'Raw Silicon') {
+        return 'Silicon'
+    }
+    if ($clean -eq 'Aluminium') {
+        return 'Aluminum'
+    }
+
+    return $clean
+}
+
+function Format-SCMiningSpawnPercent {
+    param([double]$Value)
+
+    return (([math]::Round($Value, 1)).ToString('0.#', [System.Globalization.CultureInfo]::InvariantCulture))
 }
 
 function Invoke-SCMiningRemoteJson {
@@ -1894,7 +2380,7 @@ function Format-SCMiningPlanetCraftBlock {
             $body.Add('')
         }
         $body.Add('<EM4>' + (Get-SCMiningReferenceLabel -Method $method) + '</EM4>')
-        $resourceText = ($methodResources -join ', ')
+        $resourceText = Format-SCMiningResourceEntriesForDisplay -Entries $Inventory.ResourcesByMethod[$method]
 
         if ($method -in $SelectedMethods) {
             $methodLines = @(Format-SCMiningPlanetMethodRecipeLines -Method $method -Inventory $Inventory -PlanetCraftMap $PlanetCraftMap -CraftFilter $CraftFilter)
@@ -2051,15 +2537,54 @@ function Normalize-SCMiningResourceName {
         return $null
     }
 
-    $clean = (($Name -replace '\\n', ' ') -replace '\s*\([^)]*\)\s*$', '').Trim()
+    $clean = (($Name -replace '\\n', ' ') -replace '\s+\d+(?:[\.,]\d+)?%$', '' -replace '\s*\([^)]*\)\s*$', '').Trim()
     $aliases = @{
         'Alumium' = 'Aluminum'
+        'Aluminium' = 'Aluminum'
+        'Raw Ice' = 'Ice'
+        'Raw Silicon' = 'Silicon'
     }
     if ($aliases.ContainsKey($clean)) {
         return $aliases[$clean]
     }
 
     return $clean
+}
+
+function Format-SCMiningResourceEntriesForDisplay {
+    param($Entries)
+
+    $seen = @{}
+    $display = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in Expand-SCMiningResourceEntries -Entries $Entries) {
+        $normalized = Normalize-SCMiningResourceName -Name $entry
+        if ([string]::IsNullOrWhiteSpace($normalized) -or $seen.ContainsKey($normalized)) {
+            continue
+        }
+
+        $seen[$normalized] = $true
+        $display.Add(([string]$entry).Trim())
+    }
+
+    return (($display.ToArray()) -join ', ')
+}
+
+function Get-SCMiningInventorySignature {
+    param([object]$Inventory)
+
+    if ($null -eq $Inventory) {
+        return ''
+    }
+
+    $parts = New-Object System.Collections.Generic.List[string]
+    foreach ($method in Get-SCMiningMethodOrder) {
+        $entries = @(Expand-SCMiningResourceEntries -Entries $Inventory.ResourcesByMethod[$method] | Sort-Object)
+        $parts.Add($method + '=' + ($entries -join ','))
+    }
+    $parts.Add('collect=' + (@(Expand-SCMiningResourceEntries -Entries $Inventory.CollectableResources | Sort-Object) -join ','))
+    $parts.Add('creature=' + (@(Expand-SCMiningResourceEntries -Entries $Inventory.CreatureResources | Sort-Object) -join ','))
+
+    return ($parts.ToArray() -join ';')
 }
 
 function Get-SCMiningPlanetCategoryOrder {
@@ -3754,7 +4279,8 @@ function Set-SCMiningItemCraftHint {
 
     $clean = Remove-SCMiningItemCraftHint -Value $Value
     $wikeloBlock = Get-SCMiningWikeloItemHintBlock -Value $clean
-    $base = Trim-SCMiningEncodedTrailingBreaks -Value (Remove-SCMiningWikeloItemHintBlock -Value $clean)
+    $passportBlock = Get-SCMiningItemPassportBlock -Value $clean
+    $base = Trim-SCMiningEncodedTrailingBreaks -Value (Remove-SCMiningItemPassportBlock -Value (Remove-SCMiningWikeloItemHintBlock -Value $clean))
     $resourceText = (@($Resources | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ' | ')
     if ([string]::IsNullOrWhiteSpace($resourceText)) {
         return $base
@@ -3768,8 +4294,24 @@ function Set-SCMiningItemCraftHint {
         $sections.Add($wikeloBlock)
     }
     $sections.Add((Get-SCMiningItemCraftHintLine -ResourcesText $resourceText))
+    if (-not [string]::IsNullOrWhiteSpace($passportBlock)) {
+        $sections.Add($passportBlock)
+    }
 
     return (($sections.ToArray()) -join '\n\n').TrimEnd()
+}
+
+function Get-SCMiningItemPassportBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    $labelPattern = '(?:' + [regex]::Escape((Get-SCMiningItemPassportLabel)) + '|' + [regex]::Escape((Get-SCMiningLegacyItemPassportLabel)) + ')'
+    $pattern = '(?s)(?<block>\\n\\n(?:<EM[1-5]>)?' + $labelPattern + '(?:</EM[1-5]>)?(?:\\n(?!\\n).*){0,4})(?=\\n\\n|$)'
+    $match = [regex]::Match([string]$Value, $pattern)
+    if (-not $match.Success) {
+        return ''
+    }
+
+    return (Trim-SCMiningEncodedLeadingBreaks -Value ([string]$match.Groups['block'].Value))
 }
 
 function Get-SCMiningWikeloItemHintBlock {
@@ -4931,12 +5473,16 @@ function Update-SCMiningCraftBlockMethods {
         [string[]]$SelectedMethods,
         [hashtable]$PlanetCraftMap,
         [object]$CraftFilter,
-        [object]$Inventory
+        [object]$Inventory,
+        [AllowNull()][string]$DetailedCraftBlock
     )
 
     $inventory = if ($null -ne $Inventory) { $Inventory } else { Read-SCMiningResourceInventoryFromValue -Value $Value }
     $detailedBlock = ''
-    if ($PlanetCraftMap -and $PlanetCraftMap.Count -gt 0) {
+    if ($PSBoundParameters.ContainsKey('DetailedCraftBlock')) {
+        $detailedBlock = [string]$DetailedCraftBlock
+    }
+    elseif ($PlanetCraftMap -and $PlanetCraftMap.Count -gt 0) {
         $detailedBlock = Format-SCMiningPlanetCraftBlock -Inventory $inventory -PlanetCraftMap $PlanetCraftMap -SelectedMethods $SelectedMethods -CraftFilter $CraftFilter
     }
     else {
