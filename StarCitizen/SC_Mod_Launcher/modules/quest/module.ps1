@@ -941,6 +941,15 @@ function Get-SCQuestSelectedFamilyOptionIds {
         )) {
             $expanded.Add('questCraftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall')
         }
+        if ($value -eq 'questCraftFamily|Броня/одежда|Тяжёлая броня|armor:BUL-H4') {
+            $expanded.Add('questCraftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4')
+        }
+        if ($value -eq 'questCraftFamily|Броня/одежда|Андерсьюты/костюмы|armor:BUL-H4') {
+            $expanded.Add('questCraftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4')
+        }
+        if ($value -eq 'questCraftFamily|Оружие|Пулемёты|variant:Vendetta HMG') {
+            $expanded.Add('questCraftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG')
+        }
         if ($migrationMap.ContainsKey($value)) {
             foreach ($targetOptionId in @($migrationMap[$value].ToArray())) {
                 $expanded.Add([string]$targetOptionId)
@@ -1275,6 +1284,9 @@ function Select-SCQuestRewardBlockCategories {
                 }
             }
             else {
+                if ($line -match '^<EM\d>.+?</EM\d>$') {
+                    $pendingCategoryLines.Clear()
+                }
                 $pendingCategoryLines.Add($line)
             }
         }
@@ -1784,11 +1796,11 @@ function Update-SCQuestBlueprintTitleMarkerVisibility {
                 }
             }
 
-            if ($markerState -eq 'exact' -and -not $hasExactBlueprintMarker) {
+            if ($markerState -eq 'exact' -and (-not $hasExactBlueprintMarker -or $hasMixedBlueprintMarker)) {
                 $Values[$key] = Add-SCQuestBlueprintTitleMarker -Value $value
                 $stats.Added++
             }
-            elseif ($markerState -eq 'mixed' -and -not $hasMixedBlueprintMarker) {
+            elseif ($markerState -eq 'mixed' -and (-not $hasMixedBlueprintMarker -or $hasExactBlueprintMarker)) {
                 $Values[$key] = Add-SCQuestMixedBlueprintTitleMarker -Value $value
                 $stats.Mixed++
             }

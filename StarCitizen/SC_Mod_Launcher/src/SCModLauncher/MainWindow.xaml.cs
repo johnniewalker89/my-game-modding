@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.2";
+    private const string CurrentLauncherVersion = "2.1.3";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -191,7 +191,7 @@ public partial class MainWindow : Window
 
         var selectedByModule = selectedOptions.ToDictionary(
             pair => pair.Key,
-            pair => (pair.Value ?? new List<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase),
+            pair => ExpandSavedOptionAliases(pair.Value).ToHashSet(StringComparer.OrdinalIgnoreCase),
             StringComparer.OrdinalIgnoreCase);
 
         foreach (var pair in _optionChecks)
@@ -208,6 +208,38 @@ public partial class MainWindow : Window
         foreach (var section in _miningCraftFamilySections.Concat(_questCraftFamilySections))
         {
             UpdateRecipeFamilyCounter(section);
+        }
+    }
+
+    private static IEnumerable<string> ExpandSavedOptionAliases(IEnumerable<string>? values)
+    {
+        foreach (var value in values ?? Enumerable.Empty<string>())
+        {
+            yield return value;
+            if (value.Equals("craftFamily|Броня/одежда|Тяжёлая броня|armor:BUL-H4", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return "craftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4";
+            }
+            else if (value.Equals("questCraftFamily|Броня/одежда|Тяжёлая броня|armor:BUL-H4", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return "questCraftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4";
+            }
+            else if (value.Equals("craftFamily|Броня/одежда|Андерсьюты/костюмы|armor:BUL-H4", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return "craftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4";
+            }
+            else if (value.Equals("questCraftFamily|Броня/одежда|Андерсьюты/костюмы|armor:BUL-H4", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return "questCraftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4";
+            }
+            else if (value.Equals("craftFamily|Оружие|Пулемёты|variant:Vendetta HMG", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return "craftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG";
+            }
+            else if (value.Equals("questCraftFamily|Оружие|Пулемёты|variant:Vendetta HMG", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return "questCraftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG";
+            }
         }
     }
 

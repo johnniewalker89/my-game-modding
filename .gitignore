@@ -5,9 +5,7 @@ cache/
 !StarCitizen/SC_Mod_Launcher/modules/scmdb/cache/
 !StarCitizen/SC_Mod_Launcher/modules/scmdb/cache/*.json
 !StarCitizen/SC_Mod_Launcher/modules/mining/cache/
-!StarCitizen/SC_Mod_Launcher/modules/mining/cache/wiki-blueprints-4.8.1-live.11952564.json
-!StarCitizen/SC_Mod_Launcher/modules/mining/cache/craft-family-index-4.8.1-live.11952564.json
-!StarCitizen/SC_Mod_Launcher/modules/mining/cache/refinery-yields-4.8.1-live.11952564.json
+!StarCitizen/SC_Mod_Launcher/modules/mining/cache/*.json
 StarCitizen/SC_Mod_Launcher/modules/mining/cache/planet-resource-inventory-cache.json
 !StarCitizen/SC_Mod_Launcher/modules/quest/engine/cache/
 !StarCitizen/SC_Mod_Launcher/modules/quest/engine/cache/wiki-items-cache.json
@@ -24,6 +22,10 @@ StarCitizen/SC_Mod_Launcher/ui/assets/hologram-work/
 **/bin/
 **/obj/
 *.bak
+!StarCitizen/SC_Mod_Launcher/backups/
+StarCitizen/SC_Mod_Launcher/backups/*
+!StarCitizen/SC_Mod_Launcher/backups/global.ini.20260716-210753.starter-clean.bak
+!StarCitizen/SC_Mod_Launcher/backups/global.ini.20260716-210753.starter-clean.bak.meta.json
 
 # Local test/staging files
 *.test.ini

@@ -1,7 +1,7 @@
 {
   "id": "mining",
   "name": "Майнинг и крафт",
-  "description": "Подсказки в описаниях планет, лун и предметов.",
+  "description": "Поиск, переработка руды и крафт.",
   "version": "1.0.0",
   "script": "module.ps1",
   "planFunction": "Get-SCMiningPatchPlan",

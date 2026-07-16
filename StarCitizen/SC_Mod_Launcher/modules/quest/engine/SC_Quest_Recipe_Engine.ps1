@@ -289,7 +289,7 @@ function Repair-EmphasisTags {
         $closeCount = ([regex]::Matches($repaired, "</$tag>")).Count
 
         while ($closeCount -gt $openCount) {
-            $updated = [regex]::Replace($repaired, "</$tag>", '', 1)
+            $updated = ([regex]::new("</$tag>")).Replace($repaired, '', 1)
             if ($updated -eq $repaired) {
                 break
             }
@@ -316,7 +316,7 @@ function Remove-TitleMarker {
         '^\s*<EM\d>\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]</EM\d>\s*',
         '^\s*<EM\d>\[РЕП\]</EM\d>\s*',
         '^\s*<EM\d>\[BP\]</EM\d>\s*',
-        '^\s*<EM\d>\[Ч\]</EM\d>\s*',
+        '^\s*<EM\d>\[Ч\??\]</EM\d>\s*',
         '^\s*<EM\d>\[ЧЕРТ\]</EM\d>\s*',
         '^\s*<EM\d>\[ЧЕРТЕЖ\]</EM\d>\s*',
         '^\s*<EM\d>\[ЧЕРТЁЖ\]</EM\d>\s*',
@@ -327,7 +327,7 @@ function Remove-TitleMarker {
         '^\s*\[[^\]]*:\d+(?:\.\d+)?K?(?:/[^\]]+)*\]\s*',
         '^\s*\[РЕП\]\s*',
         '^\s*\[BP\]\s*',
-        '^\s*\[Ч\]\s*',
+        '^\s*\[Ч\??\]\s*',
         '^\s*\[ЧЕРТ\]\s*',
         '^\s*\[ЧЕРТЕЖ\]\s*',
         '^\s*\[ЧЕРТЁЖ\]\s*',
@@ -3482,35 +3482,7 @@ function Format-BlueprintLine {
         [switch]$OmitType
     )
 
-    $info = $script:BlueprintEnrichment[$Name]
-    if ($null -eq $info -or -not $info.found) {
-        return "- $(Format-DisplayName -Name $Name)"
-    }
-
-    $details = New-Object System.Collections.Generic.List[string]
-    if (-not $OmitType -and -not [string]::IsNullOrWhiteSpace($info.type)) {
-        $details.Add((ConvertTo-RussianItemType -Value ([string]$info.type)))
-    }
-    if (-not [string]::IsNullOrWhiteSpace($info.slot)) {
-        $details.Add([string]$info.slot)
-    }
-    $includeShipStats = $info.category -eq 'Корабельные компоненты' -or $info.category -eq 'Корабельные орудия' -or $info.category -eq 'Добывающие лазеры'
-
-    if ($includeShipStats -and -not [string]::IsNullOrWhiteSpace($info.size)) {
-        $details.Add("S$($info.size)")
-    }
-    if ($includeShipStats -and -not [string]::IsNullOrWhiteSpace($info.grade)) {
-        $details.Add("Grade $($info.grade)")
-    }
-    if ($includeShipStats -and -not [string]::IsNullOrWhiteSpace($info.class)) {
-        $details.Add([string]$info.class)
-    }
-
-    if ($details.Count -eq 0) {
-        return "- $(Format-DisplayName -Name $Name)"
-    }
-
-    return "- $(Format-DisplayName -Name $Name) — " + ($details -join ', ')
+    return "- $(Format-DisplayName -Name $Name)"
 }
 
 function Get-ReputationAmountList {
@@ -4086,13 +4058,14 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
     if ($titleRewardMap.ContainsKey($key)) {
         $seenTitleKeys[$key] = $true
         $titleInfo = $titleRewardMap[$key]
-        $cleanTitle = Remove-ReputationTitleMarker -Value (Remove-TitleMarker -Value $currentValue)
+        $cleanTitle = (Remove-ReputationTitleMarker -Value (Remove-TitleMarker -Value $currentValue)).Trim()
         $titleMarkers = Format-TitleMarkers -TitleInfo $titleInfo
         $reputationMarker = Format-ReputationTitleMarker -TitleInfo $titleInfo
         $newTitle = if ([string]::IsNullOrWhiteSpace($titleMarkers)) { $cleanTitle } else { "$titleMarkers $cleanTitle" }
         if (-not [string]::IsNullOrWhiteSpace($reputationMarker)) {
             $newTitle = "$newTitle $reputationMarker"
         }
+        $newTitle = $newTitle.Trim()
 
         if ($newTitle -ne $currentValue) {
             $lines[$i] = $rawKey + '=' + $newTitle

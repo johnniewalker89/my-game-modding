@@ -1167,8 +1167,9 @@ function Get-SCMiningLocationKeyMap {
         'AsteroidBase_P3_L4_desc' = 'Pyro Deep Space Asteroids'
         'AsteroidBase_P3_L5_desc' = 'Pyro Deep Space Asteroids'
         'ab_mine_pyro_desc' = 'Pyro Deep Space Asteroids'
-        'Nyx_AsteroidBelt1_Desc' = @('Glaciem Ring', 'Keeger Belt')
-        'Nyx_AsteroidBelt2_Desc' = @('Glaciem Ring', 'Keeger Belt')
+        'Nyx_AsteroidBelt1_Desc' = 'Glaciem Ring'
+        'Nyx_AsteroidBelt2_Desc' = 'Keeger Belt'
+        'nyx_transit_Glaciem_gen_desc' = 'Glaciem Ring'
         'Nyx_RockCracker_Desc' = @('Keeger Belt', 'Breaker Stations Interior', 'Breaker Stations Large Geode')
     }
 
@@ -2613,6 +2614,9 @@ function Get-SCMiningPlanetBlueprintCategory {
     if ($type -match '\(Armor\)$' -or $type -eq 'Undersuit (Armor)' -or $type -eq 'Backpack (Armor)') {
         return (Get-SCMiningPlanetCategoryArmor)
     }
+    if ($type -in @('Jacket', 'Shirt', 'Legs', 'Shoes', 'Clothing')) {
+        return (Get-SCMiningPlanetCategoryArmor)
+    }
     if ($type -eq 'FPS Weapon') {
         return (Get-SCMiningPlanetCategoryWeapons)
     }
@@ -2627,6 +2631,7 @@ function Get-SCMiningPlanetBlueprintSubcategory {
 
     $type = Get-SCMiningBlueprintOutputType -Blueprint $Blueprint
     $name = Get-SCMiningBlueprintOutputName -Blueprint $Blueprint -Reward $null
+    $outputClass = Get-SCMiningBlueprintOutputClass -Blueprint $Blueprint -Reward $null
     if ($Category -eq (Get-SCMiningPlanetCategoryShipComponents)) {
         $map = @{
             'Shield' = (Get-SCMiningPlanetSubcategoryShields)
@@ -2647,17 +2652,25 @@ function Get-SCMiningPlanetBlueprintSubcategory {
         return (Get-SCMiningPlanetSubcategoryMiningLasers)
     }
     if ($Category -eq (Get-SCMiningPlanetCategoryArmor)) {
+        if ($outputClass -match '(?i)(?:^|_)superheavy(?:_|$)') {
+            return (Get-SCMiningPlanetSubcategorySuperHeavyArmor)
+        }
         if ($type -eq 'Helmet (Armor)' -or $type -eq 'Torso (Armor)' -or $type -eq 'Arms (Armor)' -or $type -eq 'Legs (Armor)' -or $type -eq 'Backpack (Armor)') {
+            if ($outputClass -match '(?i)(?:^|_)heavy(?:_|$)') { return (Get-SCMiningPlanetSubcategoryHeavyArmor) }
+            if ($outputClass -match '(?i)(?:^|_)medium(?:_|$)') { return (Get-SCMiningPlanetSubcategoryMediumArmor) }
+            if ($outputClass -match '(?i)(?:^|_)light(?:_|$)') { return (Get-SCMiningPlanetSubcategoryLightArmor) }
             if ($name -match '(?i)heavy|morozov|citadel|adp|antium|pembroke|overlord|palatino|stirling|defiance|dust devil|manticore|fortifier|balor') { return (Get-SCMiningPlanetSubcategoryHeavyArmor) }
             if ($name -match '(?i)medium|orc|artimex|aril|inquisitor|testudo|strata|aves|dustup|g-2|morningstar') { return (Get-SCMiningPlanetSubcategoryMediumArmor) }
             return (Get-SCMiningPlanetSubcategoryLightArmor)
         }
         if ($type -eq 'Undersuit (Armor)') { return (Get-SCMiningPlanetSubcategoryUndersuits) }
+        if ($type -in @('Jacket', 'Shirt', 'Legs', 'Shoes', 'Clothing')) { return (Get-SCMiningPlanetSubcategoryUndersuits) }
         return (Get-SCMiningPlanetTextOther)
     }
     if ($Category -eq (Get-SCMiningPlanetCategoryWeapons)) {
         if ($name -match '(?i)sniper|arrowhead|a03|p6-lr|scalpel|atzkav|zenith') { return (Get-SCMiningPlanetSubcategorySniperRifles) }
         if ($name -match '(?i)\bsmg\b|custodian|lumin|p8-sc|ripper|c54') { return (Get-SCMiningPlanetSubcategorySmgs) }
+        if ($name -match '(?i)\bhmg\b') { return (Get-SCMiningPlanetSubcategoryHmgs) }
         if ($name -match '(?i)\blmg\b|f55|fs-9|fresnel|pulverizer') { return (Get-SCMiningPlanetSubcategoryLmgs) }
         if ($name -match '(?i)pistol|salvo|coda|lh86|s-38|pulse') { return (Get-SCMiningPlanetSubcategoryPistols) }
         if ($name -match '(?i)shotgun|br-2|ravager|devastator') { return (Get-SCMiningPlanetSubcategoryShotguns) }
@@ -2677,8 +2690,8 @@ function Get-SCMiningPlanetSubcategoryRank {
         (Get-SCMiningPlanetCategoryShipComponents) = @((Get-SCMiningPlanetSubcategoryShields), (Get-SCMiningPlanetSubcategoryQuantumDrives), (Get-SCMiningPlanetSubcategoryPowerPlants), (Get-SCMiningPlanetSubcategoryCoolers), (Get-SCMiningPlanetSubcategoryRadars), (Get-SCMiningPlanetTextOther))
         (Get-SCMiningPlanetCategoryShipWeapons) = @((Get-SCMiningPlanetSubcategoryEnergy), (Get-SCMiningPlanetSubcategoryBallistics), (Get-SCMiningPlanetSubcategoryHybrid), (Get-SCMiningPlanetSubcategoryMiningLasers), (Get-SCMiningPlanetTextOther))
         (Get-SCMiningPlanetCategoryMiningLasers) = @((Get-SCMiningPlanetSubcategoryMiningLasers), (Get-SCMiningPlanetTextOther))
-        (Get-SCMiningPlanetCategoryArmor) = @((Get-SCMiningPlanetSubcategoryHeavyArmor), (Get-SCMiningPlanetSubcategoryMediumArmor), (Get-SCMiningPlanetSubcategoryLightArmor), (Get-SCMiningPlanetSubcategoryUndersuits), (Get-SCMiningPlanetTextOther))
-        (Get-SCMiningPlanetCategoryWeapons) = @((Get-SCMiningPlanetSubcategoryRifles), (Get-SCMiningPlanetSubcategorySniperRifles), (Get-SCMiningPlanetSubcategorySmgs), (Get-SCMiningPlanetSubcategoryLmgs), (Get-SCMiningPlanetSubcategoryPistols), (Get-SCMiningPlanetSubcategoryShotguns), (Get-SCMiningPlanetTextOther))
+        (Get-SCMiningPlanetCategoryArmor) = @((Get-SCMiningPlanetSubcategorySuperHeavyArmor), (Get-SCMiningPlanetSubcategoryHeavyArmor), (Get-SCMiningPlanetSubcategoryMediumArmor), (Get-SCMiningPlanetSubcategoryLightArmor), (Get-SCMiningPlanetSubcategoryUndersuits), (Get-SCMiningPlanetTextOther))
+        (Get-SCMiningPlanetCategoryWeapons) = @((Get-SCMiningPlanetSubcategoryRifles), (Get-SCMiningPlanetSubcategorySniperRifles), (Get-SCMiningPlanetSubcategorySmgs), (Get-SCMiningPlanetSubcategoryLmgs), (Get-SCMiningPlanetSubcategoryHmgs), (Get-SCMiningPlanetSubcategoryPistols), (Get-SCMiningPlanetSubcategoryShotguns), (Get-SCMiningPlanetTextOther))
     }
     if (-not $orders.ContainsKey($Category)) {
         return 999
@@ -2700,6 +2713,7 @@ function Get-SCMiningAllCraftFilterOptionIds {
         'shipWeaponBallistic',
         'shipWeaponHybrid',
         'shipWeaponMiningLaser',
+        'armorSuperHeavy',
         'armorHeavy',
         'armorMedium',
         'armorLight',
@@ -2708,6 +2722,7 @@ function Get-SCMiningAllCraftFilterOptionIds {
         'fpsSniperRifles',
         'fpsSmgs',
         'fpsLmgs',
+        'fpsHmgs',
         'fpsPistols',
         'fpsShotguns'
     )
@@ -2843,6 +2858,15 @@ function Expand-SCMiningCraftFamilyOptionIds {
         )) {
             $expanded.Add('craftFamily|Корабельные компоненты|Охладители|component:SnowBlind-NightFall')
         }
+        if ($value -eq 'craftFamily|Броня/одежда|Тяжёлая броня|armor:BUL-H4') {
+            $expanded.Add('craftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4')
+        }
+        if ($value -eq 'craftFamily|Броня/одежда|Андерсьюты/костюмы|armor:BUL-H4') {
+            $expanded.Add('craftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4')
+        }
+        if ($value -eq 'craftFamily|Оружие|Пулемёты|variant:Vendetta HMG') {
+            $expanded.Add('craftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG')
+        }
         if ($migrationMap.ContainsKey($value)) {
             foreach ($targetOptionId in @($migrationMap[$value].ToArray())) {
                 $expanded.Add([string]$targetOptionId)
@@ -2886,6 +2910,7 @@ function Get-SCMiningCraftFilter {
 
     $armorSubcategories = New-Object System.Collections.Generic.List[string]
     $armorMap = @{
+        armorSuperHeavy = (Get-SCMiningPlanetSubcategorySuperHeavyArmor)
         armorHeavy = (Get-SCMiningPlanetSubcategoryHeavyArmor)
         armorMedium = (Get-SCMiningPlanetSubcategoryMediumArmor)
         armorLight = (Get-SCMiningPlanetSubcategoryLightArmor)
@@ -2901,6 +2926,7 @@ function Get-SCMiningCraftFilter {
         fpsSniperRifles = (Get-SCMiningPlanetSubcategorySniperRifles)
         fpsSmgs = (Get-SCMiningPlanetSubcategorySmgs)
         fpsLmgs = (Get-SCMiningPlanetSubcategoryLmgs)
+        fpsHmgs = (Get-SCMiningPlanetSubcategoryHmgs)
         fpsPistols = (Get-SCMiningPlanetSubcategoryPistols)
         fpsShotguns = (Get-SCMiningPlanetSubcategoryShotguns)
     }
@@ -3031,6 +3057,12 @@ function Get-SCMiningPlanetRecipeFamily {
 
     $label = ([string]$Name).Trim()
     if ($Category -eq (Get-SCMiningPlanetCategoryArmor)) {
+        if ($label -match '^(?:BUL-H4\s+(?:Armor|Helmet)|H4-PBF\s+Ammo\s+Carrier)$') {
+            return [pscustomobject]@{ Key = 'armor:BUL-H4'; Label = 'BUL-H4 / H4-PBF'; Family = 'armor'; Token = $null }
+        }
+        if ($label -match '^(?:Bellator\s+(?:Jacket|Shirt and Waistcoat|Trousers)|Spettro\s+Shoes)$') {
+            return [pscustomobject]@{ Key = 'armor:Bellator-Spettro'; Label = 'Bellator / Spettro'; Family = 'armor'; Token = $null }
+        }
         if ($label -match '^Aves(?:\s+(Shrike|Talon))?\s+(Arms|Core|Helmet|Legs)\b') {
             return [pscustomobject]@{ Key = 'armor:Aves'; Label = 'Aves / Aves Shrike / Aves Talon'; Family = 'armor-variant-set'; Token = $null }
         }
@@ -3186,7 +3218,7 @@ function Get-SCMiningPlanetRecipeFamily {
         $base = ($Matches[1] + ' ' + $Matches[2]).Trim()
         return [pscustomobject]@{ Key = "variant:$base"; Label = "$base variants"; Family = 'variant'; Token = $null }
     }
-    if ($Category -eq (Get-SCMiningPlanetCategoryWeapons) -and $label -match '^(.+?)\s+(Energy Assault Rifle|Laser Sniper Rifle|Laser Shotgun|Sniper Rifle|Twin Shotgun|Energy LMG|Pistol|SMG|Rifle|Shotgun|Crossbow|LMG)$') {
+    if ($Category -eq (Get-SCMiningPlanetCategoryWeapons) -and $label -match '^(.+?)\s+(Energy Assault Rifle|Laser Sniper Rifle|Laser Shotgun|Sniper Rifle|Twin Shotgun|Energy LMG|Pistol|SMG|Rifle|Shotgun|Crossbow|LMG|HMG)$') {
         return [pscustomobject]@{ Key = "variant:$label"; Label = "$label variants"; Family = 'variant'; Token = $null }
     }
     if ($label -match '^(Abrade|Cinch|Trawler)\s+Scraper Module$') {
@@ -3633,12 +3665,12 @@ function Resolve-SCMiningCraftDescriptionKey {
         return $direct
     }
 
-    $byName = Resolve-SCMiningNamePairDescriptionKey -OutputName $outputName -Lookup $Lookup
-    if ($byName) {
-        return $byName
+    $armorFamily = Resolve-SCMiningArmorFamilyDescriptionKey -OutputClass $outputClass -OutputType $outputType -Lookup $Lookup
+    if ($armorFamily) {
+        return $armorFamily
     }
 
-    return Resolve-SCMiningArmorFamilyDescriptionKey -OutputClass $outputClass -OutputType $outputType -Lookup $Lookup
+    return Resolve-SCMiningNamePairDescriptionKey -OutputName $outputName -Lookup $Lookup
 }
 
 function Resolve-SCMiningDirectDescriptionKey {
@@ -3677,7 +3709,7 @@ function Resolve-SCMiningNamePairDescriptionKey {
         return $null
     }
 
-    foreach ($nameKey in @($Lookup.KeysByValue[$OutputName])) {
+    foreach ($nameKey in @($Lookup.KeysByValue[$OutputName] | Sort-Object)) {
         $candidates = New-Object System.Collections.Generic.List[string]
         if ($nameKey -match '(.+)_Name$') {
             $base = $Matches[1]
@@ -4499,7 +4531,7 @@ function ConvertTo-SCMiningRefineryYieldCachePayload {
         source = 'UEX refineries_yields'
         sourceUrl = 'https://uexcorp.space/mining/refineries'
         apiUrl = 'https://api.uexcorp.uk/2.0/refineries_yields'
-        gameVersion = '4.8.1'
+        gameVersion = [string]$CacheKey
         values = 'value_month'
         records = @($Records).Count
         stations = @($stations | Sort-Object name)
@@ -6552,6 +6584,10 @@ function Get-SCMiningPlanetSubcategoryHeavyArmor {
     return (ConvertFrom-SCCodePoints -CodePoints @(0x0422, 0x044F, 0x0436, 0x0451, 0x043B, 0x0430, 0x044F, 0x0020, 0x0431, 0x0440, 0x043E, 0x043D, 0x044F))
 }
 
+function Get-SCMiningPlanetSubcategorySuperHeavyArmor {
+    return (ConvertFrom-SCCodePoints -CodePoints @(0x0421, 0x0432, 0x0435, 0x0440, 0x0445, 0x0442, 0x044F, 0x0436, 0x0451, 0x043B, 0x0430, 0x044F, 0x0020, 0x0431, 0x0440, 0x043E, 0x043D, 0x044F))
+}
+
 function Get-SCMiningPlanetSubcategoryMediumArmor {
     return (ConvertFrom-SCCodePoints -CodePoints @(0x0421, 0x0440, 0x0435, 0x0434, 0x043D, 0x044F, 0x044F, 0x0020, 0x0431, 0x0440, 0x043E, 0x043D, 0x044F))
 }
@@ -6574,6 +6610,10 @@ function Get-SCMiningPlanetSubcategorySmgs {
 
 function Get-SCMiningPlanetSubcategoryLmgs {
     return (ConvertFrom-SCCodePoints -CodePoints @(0x041F, 0x0443, 0x043B, 0x0435, 0x043C, 0x0451, 0x0442, 0x044B))
+}
+
+function Get-SCMiningPlanetSubcategoryHmgs {
+    return (ConvertFrom-SCCodePoints -CodePoints @(0x0422, 0x044F, 0x0436, 0x0451, 0x043B, 0x044B, 0x0435, 0x0020, 0x043F, 0x0443, 0x043B, 0x0435, 0x043C, 0x0451, 0x0442, 0x044B))
 }
 
 function Get-SCMiningPlanetSubcategoryPistols {

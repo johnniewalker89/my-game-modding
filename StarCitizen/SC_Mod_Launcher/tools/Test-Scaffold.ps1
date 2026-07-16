@@ -118,6 +118,17 @@ $refineryYieldLabel = 'Переработка (UEX)'
 $refineryBonusLabel = 'бонусы:'
 $refineryPenaltyLabel = 'штрафы:'
 
+$refineryVersionProbe = ConvertTo-SCMiningRefineryYieldCachePayload -CacheKey '4.9.0-live.12232306' -Records @(
+    [pscustomobject]@{
+        space_station_name = 'Test Refinery'
+        outpost_name = ''
+        terminal_name = 'Test Refinery Terminal'
+        commodity_name = 'Iron (Ore)'
+        value_month = 5
+    }
+)
+Assert-True ([string]$refineryVersionProbe.gameVersion -eq '4.9.0-live.12232306') 'Refinery cache metadata should use the active cache key instead of a stale hardcoded game version.'
+
 $highlightedScripTitle = Set-SCQuestTitleHighlight -Value '[С] ОТВЕТНЫЙ УДАР' -Enabled $true -Tag 'EM4'
 Assert-True ($highlightedScripTitle -eq '[С] <EM4>ОТВЕТНЫЙ УДАР</EM4>') 'High-value scrip highlight should wrap title text after markers.'
 Assert-True ((Set-SCQuestTitleHighlight -Value $highlightedScripTitle -Enabled $true -Tag 'EM4') -eq $highlightedScripTitle) 'High-value scrip highlight should be idempotent.'
@@ -140,7 +151,11 @@ Import-TestQuestEngineFunctions -EngineScript $questEngineScript -FunctionNames 
     'Format-ReputationTitleMarker',
     'Format-ReputationTitleAmount',
     'Format-ReputationAmountList',
-    'Format-ReputationRankAmount'
+    'Format-ReputationRankAmount',
+    'Format-DisplayName',
+    'Format-BlueprintLine',
+    'Remove-TitleMarker',
+    'Repair-EmphasisTags'
 )
 $NoReputationIntel = $false
 $TitleMarker = '[Ч]'
@@ -185,6 +200,15 @@ Assert-True ($questPowerFamilyKept.Contains('QuadraCell MX')) 'Selected MIL-A po
 $questPowerFamilyDropped = Select-SCQuestRewardBlockCategories -Value $questPowerFamilyBlock -SelectedCategoryNames @('Корабельные компоненты') -SelectedFamilyOptionIds @($civPowerOptionId) -FamilyIndex $questFamilyIndex
 Assert-True (-not $questPowerFamilyDropped.Contains('JS-300')) 'Neighbor power family should not keep JS-300.'
 Assert-True (-not $questPowerFamilyDropped.Contains('QuadraCell MX')) 'Neighbor power family should not keep QuadraCell MX.'
+$milQuantumFamily = $familyLabels['MIL-A: TS-2/VK-00/XL-1']
+$milQuantumOptionId = 'questCraftFamily|' + (Get-SCQuestFamilyOptionSuffix -OptionId ([string]$milQuantumFamily.optionId))
+$questMixedSubcategoryBlock = 'Quest\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n<EM4>Щиты:</EM4>\n- FR-86\n<EM4>Квантовые двигатели:</EM4>\n- TS-2\n- VK-00 — S1, Grade A, Military\n- XL-1'
+$questQuantumOnly = Select-SCQuestRewardBlockCategories -Value $questMixedSubcategoryBlock -SelectedCategoryNames @('Корабельные компоненты') -SelectedFamilyOptionIds @($milQuantumOptionId) -FamilyIndex $questFamilyIndex
+Assert-True (-not $questQuantumOnly.Contains('Щиты:')) 'Quest family filtering should not leave an empty subcategory heading.'
+Assert-True ($questQuantumOnly.Contains('Квантовые двигатели:') -and $questQuantumOnly.Contains('TS-2')) 'Quest family filtering should preserve the selected subcategory and its recipes.'
+Assert-True ((Format-BlueprintLine -Name 'VK-00') -eq '- VK-00') 'Quest blueprint lists should show every blueprint in the same name-only format.'
+Assert-True ((Remove-TitleMarker -Value '[Ч?] TEST TITLE') -eq 'TEST TITLE') 'Quest engine should remove a mixed blueprint marker before rebuilding title markers.'
+Assert-True ((Repair-EmphasisTags -Value 'A</EM4> B <EM4>C</EM4>') -eq 'A B <EM4>C</EM4>') 'Emphasis repair should remove only the unmatched closing tag.'
 $frontlineMiningOptions = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Frontline')
 Assert-True (@($frontlineMiningOptions | Where-Object { $_ -like '*component:capital-a:frontline' }).Count -gt 0) 'Mining family filters should migrate old Frontline selection to CAP-A.'
 $frontlineQuestOptions = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Корабельные компоненты|Квантовые двигатели|exact:Frontline')
@@ -216,6 +240,44 @@ Assert-True ($pyroBeltShipResources.Contains('Silicon 26.7%') -and $pyroBeltShip
 Assert-True ($miningLocationIndex.ContainsKey('Nyx_RockCracker_Desc')) 'Mining location index should map Nyx breaker stations to mining data.'
 $rockCrackerHandResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Nyx_RockCracker_Desc'].ResourcesByMethod[(Get-SCMiningHandCode)]
 Assert-True ($rockCrackerHandResources.Contains('Sadaryx 1%')) 'Breaker station interior should expose Sadaryx hand-mining data.'
+Assert-True ($miningLocationIndex.ContainsKey('nyx_transit_Glaciem_gen_desc')) 'Mining location index should map Glaciem transit points to Glaciem Ring data.'
+$glaciemTransitResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['nyx_transit_Glaciem_gen_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($glaciemTransitResources.Contains('Torite 28.5%') -and $glaciemTransitResources.Contains('Iron 20.8%')) 'Glaciem transit points should expose the Glaciem Ring ship-mining profile.'
+$glaciemBeltResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Nyx_AsteroidBelt1_Desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+$keegerBeltResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Nyx_AsteroidBelt2_Desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
+Assert-True ($glaciemBeltResources.Contains('Iron 20.8%') -and -not $glaciemBeltResources.Contains('Aluminum 20.8%')) 'Glaciem Ring should not be merged with the Keeger Belt profile.'
+Assert-True ($keegerBeltResources.Contains('Aluminum 20.8%') -and -not $keegerBeltResources.Contains('Iron 20.8%')) 'Keeger Belt should keep its own mining profile.'
+$argusBlueprint = @(Get-SCMiningPlanetCraftBlueprints | Where-Object { [string]$_.output_name -eq 'Argus Helmet' } | Select-Object -First 1)[0]
+$argusLookup = New-SCMiningLocalizationLookup -Context ([pscustomobject]@{ Values = @{
+    'item_Name_adv_agent_helmet_01' = 'Argus Helmet'
+    'item_Desc_adv_agent_helmet_01' = 'Legacy Argus description'
+    'item_Desc_vgl_advocacy_lightarmor_helmet_01' = 'Class-matched Argus description'
+} })
+$argusDescriptionKey = Resolve-SCMiningCraftDescriptionKey -Blueprint $argusBlueprint -Reward $null -Lookup $argusLookup
+Assert-True ($argusDescriptionKey -eq 'item_Desc_vgl_advocacy_lightarmor_helmet_01') 'Armor craft hints should prefer the class-matched description over an ambiguous display-name pair.'
+$craftFamilyIndex = Get-SCMiningCraftFamilyIndex
+$bellatorFamily = @($craftFamilyIndex.families | Where-Object { @($_.names) -contains 'Bellator Jacket' })[0]
+Assert-True ($null -ne $bellatorFamily -and @($bellatorFamily.names) -contains 'Spettro Shoes') 'Bellator clothing and Spettro shoes should be grouped into one outfit family.'
+$bulHeavyFamily = @($craftFamilyIndex.families | Where-Object { @($_.names) -contains 'BUL-H4 Helmet' })[0]
+Assert-True ($null -ne $bulHeavyFamily -and [string]$bulHeavyFamily.subcategory -eq (Get-SCMiningPlanetSubcategorySuperHeavyArmor)) 'BUL-H4 helmet should be classified as super-heavy armor from its output class.'
+Assert-True (@($bulHeavyFamily.names) -contains 'H4-PBF Ammo Carrier') 'BUL-H4 helmet and H4-PBF carrier should share one super-heavy armor family.'
+Assert-True (@($bulHeavyFamily.names) -contains 'BUL-H4 Armor') 'BUL-H4 armor suit should remain in the same super-heavy family as its helmet and carrier.'
+Assert-True (@($craftFamilyIndex.families | Where-Object { [string]$_.familyKey -eq 'armor:BUL-H4' }).Count -eq 1) 'BUL-H4 should produce exactly one family option.'
+$vendettaFamily = @($craftFamilyIndex.families | Where-Object { @($_.names) -contains 'Vendetta HMG' })[0]
+Assert-True ($null -ne $vendettaFamily -and @($vendettaFamily.names) -contains 'Vendetta "Snow Camo" HMG') 'Vendetta base and Snow Camo blueprints should share one variant family.'
+Assert-True ([string]$vendettaFamily.subcategory -eq (Get-SCMiningPlanetSubcategoryHmgs)) 'Vendetta HMG family should be placed under heavy machine guns.'
+$bulMiningMigration = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Броня/одежда|Тяжёлая броня|armor:BUL-H4')
+Assert-True ($bulMiningMigration -contains 'craftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4') 'Mining filters should migrate the old BUL-H4 heavy-armor path.'
+$bulSuitMiningMigration = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Броня/одежда|Андерсьюты/костюмы|armor:BUL-H4')
+Assert-True ($bulSuitMiningMigration -contains 'craftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4') 'Mining filters should migrate the old BUL-H4 suit path.'
+$vendettaMiningMigration = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Оружие|Пулемёты|variant:Vendetta HMG')
+Assert-True ($vendettaMiningMigration -contains 'craftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG') 'Mining filters should migrate the old Vendetta machine-gun path.'
+$bulQuestMigration = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Броня/одежда|Тяжёлая броня|armor:BUL-H4')
+Assert-True ($bulQuestMigration -contains 'questCraftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4') 'Quest filters should migrate the old BUL-H4 heavy-armor path.'
+$bulSuitQuestMigration = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Броня/одежда|Андерсьюты/костюмы|armor:BUL-H4')
+Assert-True ($bulSuitQuestMigration -contains 'questCraftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4') 'Quest filters should migrate the old BUL-H4 suit path.'
+$vendettaQuestMigration = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Оружие|Пулемёты|variant:Vendetta HMG')
+Assert-True ($vendettaQuestMigration -contains 'questCraftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG') 'Quest filters should migrate the old Vendetta machine-gun path.'
 Assert-True ($miningLocationIndex.ContainsKey('RR_HUR_L1_desc')) 'Mining location index should map other Stanton R&R Lagrange stations, not only MIC-L5.'
 $hurL1ShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['RR_HUR_L1_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
 Assert-True ($hurL1ShipResources.Contains('Laranite 28.5%') -and $hurL1ShipResources.Contains('Corundum 17.8%')) 'HUR-L1 should receive the Lagrange A mining profile.'
@@ -241,6 +303,10 @@ $mixedMarkerStats = Update-SCQuestBlueprintTitleMarkerVisibility -Values $mixedC
 Assert-True (-not (Test-SCQuestHasBlueprintTitleMarker -Value $mixedCargoTitleValues['Covalex_HaulCargo_AToB_title'])) 'Quest blueprint marker cleanup should remove exact [CH] from mixed shared cargo titles.'
 Assert-True (Test-SCQuestHasMixedBlueprintTitleMarker -Value $mixedCargoTitleValues['Covalex_HaulCargo_AToB_title']) 'Quest blueprint marker cleanup should add [CH?] to mixed shared cargo titles.'
 Assert-True ([int]$mixedMarkerStats.Mixed -eq 1) 'Quest blueprint marker cleanup should report mixed shared cargo titles.'
+$mixedCargoTitleValues['Covalex_HaulCargo_AToB_title'] = '[Ч] [Ч?] РАНГ: ~mission(ReputationRank) - ПРЯМАЯ ГРУЗОПЕРЕВОЗКА'
+$null = Update-SCQuestBlueprintTitleMarkerVisibility -Values $mixedCargoTitleValues -TitleDescriptionMap $mixedCargoTitleMap -TitleVisibility @{}
+Assert-True (-not (Test-SCQuestHasBlueprintTitleMarker -Value $mixedCargoTitleValues['Covalex_HaulCargo_AToB_title'])) 'Mixed shared titles should remove a stale exact marker on repeat apply.'
+Assert-True (Test-SCQuestHasMixedBlueprintTitleMarker -Value $mixedCargoTitleValues['Covalex_HaulCargo_AToB_title']) 'Mixed shared titles should retain one mixed marker on repeat apply.'
 $allRewardCargoTitleValues = @{
     'Covalex_HaulCargo_AToB_title' = '[Ч] РАНГ: ~mission(ReputationRank) - ПРЯМАЯ ГРУЗОПЕРЕВОЗКА ~mission(CargoGradeToken) ГРУЗА'
     'Covalex_HaulCargo_AToB_desc_01' = "Обычная доставка\n\n<EM4>Доступные чертежи</EM4>\n<EM4>Корабельные компоненты</EM4>\n- XL-1"
@@ -289,6 +355,16 @@ Assert-True ($sharedMergeResult.Count -eq 1) 'Shared Wikelo merge should compose
 Assert-True (-not ([string]$sharedMergeResult[0].NewValue).Contains('Wikelo заказы')) 'Shared Wikelo merge should remove only the Wikelo block when quest cleanup is disabled.'
 Assert-True (([string]$sharedMergeResult[0].NewValue).Contains('Крафт: Titanium | Copper')) 'Shared Wikelo merge should preserve mining craft hints after Wikelo cleanup.'
 Assert-True (([string]$sharedMergeResult[0].NewValue).Contains('Базовые ТТХ (Erkul)')) 'Shared Wikelo merge should preserve Erkul passport hints after Wikelo cleanup.'
+$noOpMergeResult = @(Merge-SCPatchOperations -SharedOperations @() -ModuleOperations @([pscustomobject]@{
+    ModuleId = 'mining+quest'
+    OptionId = 'itemCraftHints+questRewards'
+    Key = 'item_NoOp_Desc'
+    Operation = 'replaceValue'
+    OriginalValue = 'unchanged'
+    NewValue = 'unchanged'
+    OwnedMarkers = @()
+}))
+Assert-True ($noOpMergeResult.Count -eq 0) 'Final patch merge should discard composed replace operations that do not change the value.'
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-test-" + [guid]::NewGuid().ToString('N'))
 $liveRoot = Join-Path $tempRoot 'LIVE'

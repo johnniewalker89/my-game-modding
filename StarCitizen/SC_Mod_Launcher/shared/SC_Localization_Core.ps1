@@ -451,7 +451,13 @@ function Merge-SCPatchOperations {
     }
 
     $merged += @($moduleOperations)
-    return @($merged)
+    return @(
+        $merged |
+            Where-Object {
+                $_.Operation -ne 'replaceValue' -or
+                [string]$_.OriginalValue -ne [string]$_.NewValue
+            }
+    )
 }
 
 function Apply-SCPatchOperationsToLines {

@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Installer = Join-Path $ScriptDir 'Install-ScModLauncherUpdate.ps1'
-$ReleaseCacheBuild = '4.8.3-live.12122953'
+$ReleaseCacheBuild = '4.9.0-live.12232306'
 
 function Assert-True {
     param(
@@ -78,8 +78,8 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'update-manifest.json') -PathType Leaf) 'Installed manifest should exist.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.keep.bak') -PathType Leaf) 'User backups should be preserved.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'config\launcher-state.json') -PathType Leaf) 'Launcher local state should be preserved.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260618-180558.starter-clean.bak') -PathType Leaf) 'Starter clean backup should be installed.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260618-180558.starter-clean.bak.meta.json') -PathType Leaf) 'Starter clean backup metadata should be installed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260716-210753.starter-clean.bak') -PathType Leaf) 'Starter clean backup should be installed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20260716-210753.starter-clean.bak.meta.json') -PathType Leaf) 'Starter clean backup metadata should be installed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -PathType Leaf)) 'Old mining cache should be replaced by release cache.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\wiki-blueprints-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed mining blueprints cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\craft-family-index-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed mining recipe family cache should be installed.'
