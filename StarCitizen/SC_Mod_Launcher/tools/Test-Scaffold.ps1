@@ -240,9 +240,19 @@ Assert-True ($pyroBeltShipResources.Contains('Silicon 26.7%') -and $pyroBeltShip
 Assert-True ($miningLocationIndex.ContainsKey('Nyx_RockCracker_Desc')) 'Mining location index should map Nyx breaker stations to mining data.'
 $rockCrackerHandResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Nyx_RockCracker_Desc'].ResourcesByMethod[(Get-SCMiningHandCode)]
 Assert-True ($rockCrackerHandResources.Contains('Sadaryx 1%')) 'Breaker station interior should expose Sadaryx hand-mining data.'
-Assert-True ($miningLocationIndex.ContainsKey('nyx_transit_Glaciem_gen_desc')) 'Mining location index should map Glaciem transit points to Glaciem Ring data.'
-$glaciemTransitResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['nyx_transit_Glaciem_gen_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
-Assert-True ($glaciemTransitResources.Contains('Torite 28.5%') -and $glaciemTransitResources.Contains('Iron 20.8%')) 'Glaciem transit points should expose the Glaciem Ring ship-mining profile.'
+Assert-True (-not $miningLocationIndex.ContainsKey('nyx_transit_Glaciem_gen_desc')) 'Glaciem transit navigation points should not inherit the Glaciem Ring mining profile.'
+$glaciemTransitBase = Get-SCMiningRetiredLocationBaseDescription -Key 'nyx_transit_Glaciem_gen_desc'
+Assert-True ($glaciemTransitBase -eq 'Транзитная точка для облёта Glaciem Ring.') 'Retired Glaciem transit mining mapping should retain the original navigation description.'
+$glaciemTransitLegacyBlock = (Get-SCMiningCraftHeader) + '\nФильтр: тест\n\n<EM4>Корабль</EM4>\nРесурсы: Torite 28.5%'
+Assert-True ((Remove-SCMiningRetiredLocationCraftBlock -Value $glaciemTransitLegacyBlock -BaseDescription $glaciemTransitBase) -eq $glaciemTransitBase) 'Retired Glaciem transit cleanup should restore the base description after lore stripping.'
+$glaciemTransitLegacyWithLore = $glaciemTransitBase + '\n\n' + $glaciemTransitLegacyBlock
+Assert-True ((Remove-SCMiningRetiredLocationCraftBlock -Value $glaciemTransitLegacyWithLore -BaseDescription $glaciemTransitBase) -eq $glaciemTransitBase) 'Retired Glaciem transit cleanup should remove a stale mining block while preserving existing base text.'
+$glaciemTransitCleanupOperation = [pscustomobject]@{
+    ModuleId = 'mining'; OptionId = 'locationCleanup'; Key = 'nyx_transit_Glaciem_gen_desc'; Operation = 'replaceValue'
+    OriginalValue = $glaciemTransitLegacyBlock; NewValue = $glaciemTransitBase; OwnedMarkers = @('SCMDB_CRAFT_INTEL_CLEANUP')
+}
+$glaciemTransitStripPlan = Set-SCMiningLoreDescriptionStripOnOperations -Operations @($glaciemTransitCleanupOperation)
+Assert-True ([string]$glaciemTransitStripPlan.Operations[0].NewValue -eq $glaciemTransitBase) 'Lore stripping should not remove the restored base text from a retired-location cleanup operation.'
 $glaciemBeltResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Nyx_AsteroidBelt1_Desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
 $keegerBeltResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['Nyx_AsteroidBelt2_Desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
 Assert-True ($glaciemBeltResources.Contains('Iron 20.8%') -and -not $glaciemBeltResources.Contains('Aluminum 20.8%')) 'Glaciem Ring should not be merged with the Keeger Belt profile.'

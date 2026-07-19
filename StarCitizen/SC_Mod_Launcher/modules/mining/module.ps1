@@ -103,6 +103,24 @@
             $hasCraftBlock = Test-SCMiningHasCraftBlock -Value $current
             $miningLocationInventory = $null
             $normalizedLocationKey = Get-SCMiningNormalizedIniKey -Key $key
+            $retiredLocationDescription = Get-SCMiningRetiredLocationBaseDescription -Key $normalizedLocationKey
+            if (-not [string]::IsNullOrWhiteSpace($retiredLocationDescription)) {
+                $filtered = Remove-SCMiningRetiredLocationCraftBlock -Value $current -BaseDescription $retiredLocationDescription
+                if ($filtered -ne $current) {
+                    $operations += [pscustomobject]@{
+                        ModuleId = 'mining'
+                        OptionId = 'locationCleanup'
+                        Key = $key
+                        Operation = 'replaceValue'
+                        OriginalValue = $current
+                        NewValue = $filtered
+                        OwnedMarkers = @('SCMDB_CRAFT_INTEL_CLEANUP')
+                    }
+                    $changedPlanetKeys += $key
+                    $planetBlockCount++
+                }
+                continue
+            }
             if ($miningLocationIndex.ContainsKey($normalizedLocationKey)) {
                 $miningLocationInventory = $miningLocationIndex[$normalizedLocationKey]
             }
@@ -1130,6 +1148,35 @@ function Get-SCMiningLocationInventoryIndex {
     }
 }
 
+function Get-SCMiningRetiredLocationBaseDescription {
+    param([string]$Key)
+
+    if ([string]$Key -ne 'nyx_transit_Glaciem_gen_desc') {
+        return ''
+    }
+
+    $prefix = ConvertFrom-SCCodePoints -CodePoints @(0x0422, 0x0440, 0x0430, 0x043D, 0x0437, 0x0438, 0x0442, 0x043D, 0x0430, 0x044F, 0x0020, 0x0442, 0x043E, 0x0447, 0x043A, 0x0430, 0x0020, 0x0434, 0x043B, 0x044F, 0x0020, 0x043E, 0x0431, 0x043B, 0x0451, 0x0442, 0x0430)
+    return ($prefix + ' Glaciem Ring.')
+}
+
+function Remove-SCMiningRetiredLocationCraftBlock {
+    param(
+        [AllowEmptyString()][string]$Value,
+        [string]$BaseDescription
+    )
+
+    if (-not (Test-SCMiningHasCraftBlock -Value $Value)) {
+        return [string]$Value
+    }
+
+    $clean = Get-SCMiningBaseDescriptionPrefix -Value $Value
+    if ([string]::IsNullOrWhiteSpace($clean)) {
+        return [string]$BaseDescription
+    }
+
+    return [string]$clean
+}
+
 function Get-SCMiningLocationKeyMap {
     $map = @{
         'Stanton1_Desc' = 'Hurston'
@@ -1169,7 +1216,6 @@ function Get-SCMiningLocationKeyMap {
         'ab_mine_pyro_desc' = 'Pyro Deep Space Asteroids'
         'Nyx_AsteroidBelt1_Desc' = 'Glaciem Ring'
         'Nyx_AsteroidBelt2_Desc' = 'Keeger Belt'
-        'nyx_transit_Glaciem_gen_desc' = 'Glaciem Ring'
         'Nyx_RockCracker_Desc' = @('Keeger Belt', 'Breaker Stations Interior', 'Breaker Stations Large Geode')
     }
 

@@ -1,5 +1,21 @@
 # SC Mod Launcher Releases
 
+## 2.1.4
+
+### Что нового
+
+- Исправлены описания транзитных точек Glaciem Alpha, Bravo и Charlie: они больше не показывают ресурсы Glaciem Ring, которых рядом с точками нет.
+- Уже добавленная майнинг-подсказка удаляется автоматически, а исходное описание транзитной точки восстанавливается даже с включённой опцией `Скрыть лор`.
+- Настоящий пояс Glaciem Ring сохраняет свой состав руды и крафт-подсказки.
+- В релиз включены свежие кэши для Star Citizen `4.9.0-LIVE.12248363`.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.1.4.zip`
+- SHA-256: `7CC1DF842C683E3183C04CA3AFBD817843B338F7F02EF4AF49D3FEAA4B1FE0B1`
+- Сборка: `tools\Build-ReleaseZip.ps1 -Version 2.1.4`
+- Проверено: полный прогрев и preflight кэшей, scaffold backend, WPF build/smoke, update installer и аудит содержимого release ZIP.
+
 ## 2.1.3
 
 ### Что нового

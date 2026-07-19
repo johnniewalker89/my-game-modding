@@ -6,7 +6,7 @@ on:
       tag:
         description: Release tag to announce
         required: true
-        default: sc-mod-launcher-v2.1.3
+        default: sc-mod-launcher-v2.1.4
       webhook_kind:
         description: Discord webhook target
         required: true
