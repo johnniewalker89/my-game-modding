@@ -44,6 +44,14 @@
 
 Если не открывается `api.github.com`, RuSC можно скачать вручную как ZIP со страницы StarCitizenRu и установить кнопкой `Из ZIP` на вкладке `Русификатор`.
 
+## Лицензия и статус проекта
+
+Исходный код SC Mod Launcher распространяется по лицензии `GPL-3.0-only`: его можно изучать и изменять, а при распространении изменённых версий нужно сохранить лицензию и предоставить соответствующий исходный код.
+
+Логотип и оформление SCM, игровые скриншоты, RuSC и кэши сторонних сервисов в GPL не входят. Подробности: [LICENSE-SCOPE.md](LICENSE-SCOPE.md), [BRANDING.md](BRANDING.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) и [SOURCE.md](SOURCE.md).
+
+This is an unofficial Star Citizen fan project, not affiliated with the Cloud Imperium group of companies. All content not authored by the project is property of its respective owners. [Official Star Citizen website](https://robertsspaceindustries.com/).
+
 ## Как выглядит в игре
 
 ### Майнинг и переработка

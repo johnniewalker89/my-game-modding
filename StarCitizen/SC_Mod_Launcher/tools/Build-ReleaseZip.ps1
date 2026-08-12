@@ -15,6 +15,11 @@ $SeedSnapshotRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launche
 $packageItems = @(
     'SC_Mod_Launcher.ps1',
     'SC_Mod_Launcher.exe',
+    'LICENSE',
+    'LICENSE-SCOPE.md',
+    'BRANDING.md',
+    'THIRD_PARTY_NOTICES.md',
+    'SOURCE.md',
     'README.md',
     'RELEASES.md',
     'docs',

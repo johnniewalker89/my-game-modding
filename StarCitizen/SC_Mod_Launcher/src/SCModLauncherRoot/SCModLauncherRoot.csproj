@@ -6,6 +6,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>SC_Mod_Launcher</AssemblyName>
     <RootNamespace>SCModLauncherRoot</RootNamespace>
+    <Authors>johnniewalker89</Authors>
+    <Copyright>Copyright (C) 2026 johnniewalker89</Copyright>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
     <ApplicationIcon>..\SCModLauncher\Assets\scm-launcher.ico</ApplicationIcon>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>

@@ -33,6 +33,10 @@ SHA-256 релиза `2.1.4`:
 
 Подробности: [SC_Mod_Launcher/README.md](SC_Mod_Launcher/README.md).
 
+Лицензия исходного кода лаунчера: [GNU GPL v3 only](SC_Mod_Launcher/LICENSE-SCOPE.md). Брендинг SCM и сторонние материалы имеют отдельные условия.
+
+This is an unofficial Star Citizen fan project, not affiliated with the Cloud Imperium group of companies. All content not authored by the project is property of its respective owners. [Official Star Citizen website](https://robertsspaceindustries.com/).
+
 ## Как выглядит SC Mod Launcher в игре
 
 ### Квесты и рецепты
