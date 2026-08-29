@@ -3,14 +3,59 @@ param(
     [Parameter(Mandatory = $true)][string]$TargetRoot,
     [Parameter(Mandatory = $true)][string]$ExpectedSha256,
     [string]$RestartExe,
-    [int]$LauncherProcessId = 0
+    [int]$LauncherProcessId = 0,
+    [string]$LogPath
 )
 
 $ErrorActionPreference = 'Stop'
 
+function Write-UpdateLog {
+    param([Parameter(Mandatory = $true)][string]$Message)
+
+    if ([string]::IsNullOrWhiteSpace($LogPath)) {
+        return
+    }
+
+    $logDirectory = Split-Path -Parent $LogPath
+    if (-not [string]::IsNullOrWhiteSpace($logDirectory)) {
+        New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+    }
+    Add-Content -LiteralPath $LogPath -Encoding UTF8 -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $Message"
+}
+
+trap {
+    Write-UpdateLog -Message ("ERROR: " + ($_ | Out-String).Trim())
+    exit 1
+}
+
+Write-UpdateLog -Message "Installer started. PID=$PID; launcher PID=$LauncherProcessId."
+
+$utilityModule = Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1'
+if (Test-Path -LiteralPath $utilityModule -PathType Leaf) {
+    Import-Module -Name $utilityModule -Force
+}
+
 function Resolve-FullPath {
     param([Parameter(Mandatory = $true)][string]$Path)
     return [System.IO.Path]::GetFullPath($Path)
+}
+
+function Get-Sha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            return ([System.BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '')
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
 }
 
 function Assert-PathInside {
@@ -251,10 +296,11 @@ if (-not (Test-Path -LiteralPath $target -PathType Container)) {
     throw "Target launcher folder not found: $target"
 }
 
-$actualHash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
+$actualHash = Get-Sha256 -Path $package
 if (-not $actualHash.Equals($ExpectedSha256, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "SHA-256 mismatch. Expected $ExpectedSha256, got $actualHash"
 }
+Write-UpdateLog -Message "Package hash verified."
 
 if ($LauncherProcessId -gt 0) {
     try {
@@ -275,6 +321,7 @@ $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) "sc-mod-launcher-updat
 
 Assert-PathInside -ChildPath $backupDir -ParentPath $target
 New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+Write-UpdateLog -Message "Backup directory created: $backupDir"
 
 if (Test-Path -LiteralPath $extractDir) {
     Remove-Item -LiteralPath $extractDir -Recurse -Force
@@ -282,7 +329,8 @@ if (Test-Path -LiteralPath $extractDir) {
 New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
 
 try {
-    Expand-Archive -LiteralPath $package -DestinationPath $extractDir -Force
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($package, $extractDir)
 
     $packageRoot = Resolve-PackageRoot -ExtractRoot $extractDir
     $manifestPath = Join-Path $packageRoot 'update-manifest.json'
@@ -335,6 +383,7 @@ try {
     if (Test-Path -LiteralPath $downloadsRoot -PathType Container) {
         Remove-Item -LiteralPath $downloadsRoot -Recurse -Force
     }
+    Write-UpdateLog -Message "Launcher files updated."
 }
 finally {
     if (Test-Path -LiteralPath $extractDir) {
@@ -346,5 +395,6 @@ if (-not [string]::IsNullOrWhiteSpace($RestartExe)) {
     $restartPath = Resolve-FullPath -Path $RestartExe
     if (Test-Path -LiteralPath $restartPath -PathType Leaf) {
         Start-Process -FilePath $restartPath -WorkingDirectory (Split-Path -Parent $restartPath)
+        Write-UpdateLog -Message "Launcher restarted: $restartPath"
     }
 }

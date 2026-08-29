@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.1.5'
+    [string]$Version = '2.1.6'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -156,6 +156,7 @@ function ConvertTo-PackageRelativePath {
 try {
     Save-ReleaseSeedSnapshot
     & (Join-Path $ScriptDir 'Test-Scaffold.ps1') | Out-Host
+    & (Join-Path $ScriptDir 'Test-UpdateTransport.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Build-WpfLauncher.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-WpfLauncher.ps1') | Out-Host
     Restore-ReleaseSeedSnapshot

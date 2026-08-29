@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.5";
+    private const string CurrentLauncherVersion = "2.1.6";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -4595,14 +4595,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
             SetJournalState("Скачиваю обновление лаунчера.");
             AddLog("Обновления: скачивание " + _latestLauncherRelease.AssetName);
 
-            using var response = await DownloadHttpClient.GetAsync(_latestLauncherRelease.AssetDownloadUrl);
-            response.EnsureSuccessStatusCode();
-
-            await using (var source = await response.Content.ReadAsStreamAsync())
-            await using (var destination = File.Create(packagePath))
-            {
-                await source.CopyToAsync(destination);
-            }
+            await UpdatePackageDownloader.DownloadAsync(
+                DownloadHttpClient,
+                _latestLauncherRelease.AssetDownloadUrl,
+                packagePath,
+                _latestLauncherRelease.AssetSize,
+                AddLog);
 
             var actualSha = ComputeSha256(packagePath);
             if (string.IsNullOrWhiteSpace(_latestLauncherRelease.ExpectedSha256))
@@ -4689,28 +4687,47 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
 
         var restartExe = Path.Combine(_rootPath, "app", "SCModLauncher.exe");
-        var args = new StringBuilder();
-        args.Append("-NoProfile -ExecutionPolicy Bypass -File ");
-        args.Append(Quote(helper));
-        args.Append(" -PackagePath ");
-        args.Append(Quote(_verifiedUpdatePackagePath));
-        args.Append(" -TargetRoot ");
-        args.Append(Quote(_rootPath));
-        args.Append(" -ExpectedSha256 ");
-        args.Append(Quote(_verifiedUpdateSha256));
-        args.Append(" -RestartExe ");
-        args.Append(Quote(restartExe));
-        args.Append(" -LauncherProcessId ");
-        args.Append(Process.GetCurrentProcess().Id);
-
-        Process.Start(new ProcessStartInfo
+        var windowsPowerShell = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.System),
+            "WindowsPowerShell",
+            "v1.0",
+            "powershell.exe");
+        var startInfo = new ProcessStartInfo
         {
-            FileName = "powershell.exe",
-            Arguments = args.ToString(),
+            FileName = File.Exists(windowsPowerShell) ? windowsPowerShell : "powershell.exe",
             UseShellExecute = false,
-            CreateNoWindow = true
-        });
-        Close();
+            CreateNoWindow = true,
+            WorkingDirectory = _rootPath
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-ExecutionPolicy");
+        startInfo.ArgumentList.Add("Bypass");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(helper);
+        startInfo.ArgumentList.Add("-PackagePath");
+        startInfo.ArgumentList.Add(_verifiedUpdatePackagePath);
+        startInfo.ArgumentList.Add("-TargetRoot");
+        startInfo.ArgumentList.Add(_rootPath);
+        startInfo.ArgumentList.Add("-ExpectedSha256");
+        startInfo.ArgumentList.Add(_verifiedUpdateSha256);
+        startInfo.ArgumentList.Add("-RestartExe");
+        startInfo.ArgumentList.Add(restartExe);
+        startInfo.ArgumentList.Add("-LauncherProcessId");
+        startInfo.ArgumentList.Add(Process.GetCurrentProcess().Id.ToString());
+        startInfo.ArgumentList.Add("-LogPath");
+        startInfo.ArgumentList.Add(Path.Combine(_rootPath, "updates", "launcher-update.log"));
+
+        try
+        {
+            var installer = Process.Start(startInfo) ??
+                throw new InvalidOperationException("Не удалось запустить установщик обновления.");
+            AddLog($"Обновления: установщик запущен, PID {installer.Id}.");
+            Close();
+        }
+        catch (Exception ex)
+        {
+            AddError("Не удалось запустить установщик обновления: " + ShortError(ex));
+        }
     }
 
     private static string ComputeSha256(string path)

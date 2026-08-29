@@ -15,4 +15,7 @@
   <ItemGroup>
     <Resource Include="Assets\scm-launcher.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="SCModLauncher.TransportTests" />
+  </ItemGroup>
 </Project>
