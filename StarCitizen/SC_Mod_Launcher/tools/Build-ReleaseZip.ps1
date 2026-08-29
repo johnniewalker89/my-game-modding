@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.1.4'
+    [string]$Version = '2.1.5'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,16 +31,16 @@ $packageItems = @(
 )
 
 $releaseSeedItems = @(
-    'backups\global.ini.20260716-210753.starter-clean.bak',
-    'backups\global.ini.20260716-210753.starter-clean.bak.meta.json',
-    'modules\scmdb\cache\scmdb-4.9.0-live.12248363.json',
-    'modules\scmdb\cache\scmdb-4.9.0-live.12248363.json.meta.json',
-    'modules\mining\cache\wiki-blueprints-4.9.0-live.12248363.json',
-    'modules\mining\cache\craft-family-index-4.9.0-live.12248363.json',
-    'modules\mining\cache\mining-data-4.9.0-live.12248363.json',
-    'modules\mining\cache\refinery-yields-4.9.0-live.12248363.json',
-    'modules\mining\cache\raw-ore-buy-prices-4.9.0-live.12248363.json',
-    'modules\mining\cache\erkul-item-passports-4.9.0-live.12248363.json',
+    'backups\global.ini.20260829-134552.starter-clean.bak',
+    'backups\global.ini.20260829-134552.starter-clean.bak.meta.json',
+    'modules\scmdb\cache\scmdb-4.10.0-live.12519617.json',
+    'modules\scmdb\cache\scmdb-4.10.0-live.12519617.json.meta.json',
+    'modules\mining\cache\wiki-blueprints-4.10.0-live.12519617.json',
+    'modules\mining\cache\craft-family-index-4.10.0-live.12519617.json',
+    'modules\mining\cache\mining-data-4.10.0-live.12519617.json',
+    'modules\mining\cache\refinery-yields-4.10.0-live.12519617.json',
+    'modules\mining\cache\raw-ore-buy-prices-4.10.0-live.12519617.json',
+    'modules\mining\cache\wiki-item-passports-4.10.0-live.12519617.json',
     'modules\quest\engine\cache\wiki-items-cache.json',
     'modules\quest\engine\cache\wiki-items-cache.json.meta.json'
 )

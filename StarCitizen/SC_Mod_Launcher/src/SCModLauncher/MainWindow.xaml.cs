@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.4";
+    private const string CurrentLauncherVersion = "2.1.5";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -239,6 +239,14 @@ public partial class MainWindow : Window
             else if (value.Equals("questCraftFamily|Оружие|Пулемёты|variant:Vendetta HMG", StringComparison.OrdinalIgnoreCase))
             {
                 yield return "questCraftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG";
+            }
+            else if (value.StartsWith("craftFamily|Добывающие лазеры|Добывающие лазеры|", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return value.Replace("craftFamily|Добывающие лазеры|", "craftFamily|Горное оборудование|", StringComparison.OrdinalIgnoreCase);
+            }
+            else if (value.StartsWith("questCraftFamily|Добывающие лазеры|Добывающие лазеры|", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return value.Replace("questCraftFamily|Добывающие лазеры|", "questCraftFamily|Горное оборудование|", StringComparison.OrdinalIgnoreCase);
             }
         }
     }
@@ -852,7 +860,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var order = new[] { "Корабельные компоненты", "Корабельные орудия", "Броня/одежда", "FPS-оружие" };
+        var order = new[] { "Корабельные компоненты", "Корабельные орудия", "Добывающие лазеры", "Горное оборудование", "Броня/одежда", "FPS-оружие" };
         var groups = index.Families
             .Where(entry => !string.IsNullOrWhiteSpace(entry.OptionId))
             .GroupBy(GetRecipeFamilyDisplayCategory)

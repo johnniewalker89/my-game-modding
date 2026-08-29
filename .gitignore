@@ -24,8 +24,8 @@ StarCitizen/SC_Mod_Launcher/ui/assets/hologram-work/
 *.bak
 !StarCitizen/SC_Mod_Launcher/backups/
 StarCitizen/SC_Mod_Launcher/backups/*
-!StarCitizen/SC_Mod_Launcher/backups/global.ini.20260716-210753.starter-clean.bak
-!StarCitizen/SC_Mod_Launcher/backups/global.ini.20260716-210753.starter-clean.bak.meta.json
+!StarCitizen/SC_Mod_Launcher/backups/global.ini.20260829-134552.starter-clean.bak
+!StarCitizen/SC_Mod_Launcher/backups/global.ini.20260829-134552.starter-clean.bak.meta.json
 
 # Local test/staging files
 *.test.ini

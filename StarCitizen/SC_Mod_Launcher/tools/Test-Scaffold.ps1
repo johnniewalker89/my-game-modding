@@ -272,7 +272,27 @@ $bulHeavyFamily = @($craftFamilyIndex.families | Where-Object { @($_.names) -con
 Assert-True ($null -ne $bulHeavyFamily -and [string]$bulHeavyFamily.subcategory -eq (Get-SCMiningPlanetSubcategorySuperHeavyArmor)) 'BUL-H4 helmet should be classified as super-heavy armor from its output class.'
 Assert-True (@($bulHeavyFamily.names) -contains 'H4-PBF Ammo Carrier') 'BUL-H4 helmet and H4-PBF carrier should share one super-heavy armor family.'
 Assert-True (@($bulHeavyFamily.names) -contains 'BUL-H4 Armor') 'BUL-H4 armor suit should remain in the same super-heavy family as its helmet and carrier.'
+Assert-True (@($bulHeavyFamily.names) -contains 'BUL-H4 Helmet Snow Camo') 'BUL-H4 Snow Camo helmet should remain in the shared super-heavy family.'
+Assert-True (@($bulHeavyFamily.names) -contains 'BUL-H4 Armor Snow Camo') 'BUL-H4 Snow Camo armor should remain in the shared super-heavy family.'
+Assert-True (@($bulHeavyFamily.names) -contains 'H4-PBF Ammo Carrier Snow Camo') 'H4-PBF Snow Camo carrier should remain in the shared super-heavy family.'
 Assert-True (@($craftFamilyIndex.families | Where-Object { [string]$_.familyKey -eq 'armor:BUL-H4' }).Count -eq 1) 'BUL-H4 should produce exactly one family option.'
+$clearcutFamily = @($craftFamilyIndex.families | Where-Object { @($_.names) -contains 'Clearcut Module' })[0]
+Assert-True ($null -ne $clearcutFamily -and [string]$clearcutFamily.category -eq (Get-SCMiningPlanetCategoryMiningEquipment)) 'Mining modules should be available under mining equipment.'
+Assert-True ([string]$clearcutFamily.subcategory -eq (Get-SCMiningPlanetSubcategoryMiningModules)) 'Mining modules should use the mining modules subcategory.'
+$golemPodFamily = @($craftFamilyIndex.families | Where-Object { @($_.names) -contains 'GOLEM MC-4 Ore Pod' })[0]
+Assert-True ($null -ne $golemPodFamily -and [string]$golemPodFamily.subcategory -eq (Get-SCMiningPlanetSubcategoryOrePods)) 'Ore pod blueprints should use the ore pod subcategory.'
+$golemPodLookup = New-SCMiningLocalizationLookup -Context ([pscustomobject]@{ Values = @{
+    'item_Cargo_ShipMining_Pod_Golem_BTGL_Desc' = 'GOLEM ore pod description'
+} })
+$golemPodBlueprint = @(Get-SCMiningPlanetCraftBlueprints | Where-Object { [string]$_.output_name -eq 'GOLEM MC-4 Ore Pod' } | Select-Object -First 1)[0]
+Assert-True ((Resolve-SCMiningCraftDescriptionKey -Blueprint $golemPodBlueprint -Reward $null -Lookup $golemPodLookup) -eq 'item_Cargo_ShipMining_Pod_Golem_BTGL_Desc') 'Ore pod craft hints should resolve item_<class>_Desc localization keys.'
+$miscPodLookup = New-SCMiningLocalizationLookup -Context ([pscustomobject]@{ Values = @{
+    'Cargo_ShipMining_Pod_MoleProspector_BTGL_Desc' = 'MISC enhanced ore pod description'
+} })
+$miscPodBlueprint = @(Get-SCMiningPlanetCraftBlueprints | Where-Object { [string]$_.output_name -eq 'MISC Enhanced Ore Pod' } | Select-Object -First 1)[0]
+Assert-True ((Resolve-SCMiningCraftDescriptionKey -Blueprint $miscPodBlueprint -Reward $null -Lookup $miscPodLookup) -eq 'Cargo_ShipMining_Pod_MoleProspector_BTGL_Desc') 'Ore pod craft hints should resolve <class>_Desc localization keys without an item prefix.'
+$miningLaserFamily = @($craftFamilyIndex.families | Where-Object { [string]$_.subcategory -eq (Get-SCMiningPlanetSubcategoryMiningLasers) } | Select-Object -First 1)[0]
+Assert-True ($null -ne $miningLaserFamily -and [string]$miningLaserFamily.category -eq (Get-SCMiningPlanetCategoryMiningEquipment)) 'Mining lasers should be grouped under mining equipment.'
 $vendettaFamily = @($craftFamilyIndex.families | Where-Object { @($_.names) -contains 'Vendetta HMG' })[0]
 Assert-True ($null -ne $vendettaFamily -and @($vendettaFamily.names) -contains 'Vendetta "Snow Camo" HMG') 'Vendetta base and Snow Camo blueprints should share one variant family.'
 Assert-True ([string]$vendettaFamily.subcategory -eq (Get-SCMiningPlanetSubcategoryHmgs)) 'Vendetta HMG family should be placed under heavy machine guns.'
@@ -282,12 +302,16 @@ $bulSuitMiningMigration = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craf
 Assert-True ($bulSuitMiningMigration -contains 'craftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4') 'Mining filters should migrate the old BUL-H4 suit path.'
 $vendettaMiningMigration = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Оружие|Пулемёты|variant:Vendetta HMG')
 Assert-True ($vendettaMiningMigration -contains 'craftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG') 'Mining filters should migrate the old Vendetta machine-gun path.'
+$miningLaserMigration = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Добывающие лазеры|Добывающие лазеры|weapon:Arbor Mining Laser')
+Assert-True ($miningLaserMigration -contains 'craftFamily|Горное оборудование|Добывающие лазеры|weapon:Arbor Mining Laser') 'Mining filters should migrate old mining-laser family paths.'
 $bulQuestMigration = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Броня/одежда|Тяжёлая броня|armor:BUL-H4')
 Assert-True ($bulQuestMigration -contains 'questCraftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4') 'Quest filters should migrate the old BUL-H4 heavy-armor path.'
 $bulSuitQuestMigration = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Броня/одежда|Андерсьюты/костюмы|armor:BUL-H4')
 Assert-True ($bulSuitQuestMigration -contains 'questCraftFamily|Броня/одежда|Сверхтяжёлая броня|armor:BUL-H4') 'Quest filters should migrate the old BUL-H4 suit path.'
 $vendettaQuestMigration = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Оружие|Пулемёты|variant:Vendetta HMG')
 Assert-True ($vendettaQuestMigration -contains 'questCraftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG') 'Quest filters should migrate the old Vendetta machine-gun path.'
+$miningLaserQuestMigration = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Добывающие лазеры|Добывающие лазеры|weapon:Arbor Mining Laser')
+Assert-True ($miningLaserQuestMigration -contains 'questCraftFamily|Горное оборудование|Добывающие лазеры|weapon:Arbor Mining Laser') 'Quest filters should migrate old mining-laser family paths.'
 Assert-True ($miningLocationIndex.ContainsKey('RR_HUR_L1_desc')) 'Mining location index should map other Stanton R&R Lagrange stations, not only MIC-L5.'
 $hurL1ShipResources = Format-SCMiningResourceEntriesForDisplay -Entries $miningLocationIndex['RR_HUR_L1_desc'].ResourcesByMethod[(Get-SCMiningShipCode)]
 Assert-True ($hurL1ShipResources.Contains('Laranite 28.5%') -and $hurL1ShipResources.Contains('Corundum 17.8%')) 'HUR-L1 should receive the Lagrange A mining profile.'
@@ -295,6 +319,10 @@ $questCoolerFamilyBlock = "Quest\n\n<EM4>Доступные чертежи</EM4>
 $questCoolerFiltered = Select-SCQuestRewardBlockCategories -Value $questCoolerFamilyBlock -SelectedCategoryNames @('Корабельные компоненты') -SelectedFamilyOptionIds $snowBlindMergedQuestOptions -FamilyIndex $questFamilyIndex
 Assert-True ($questCoolerFiltered.Contains('NightFall')) 'Merged cooler family should keep NightFall when old SnowBlind option is selected.'
 Assert-True ($questCoolerFiltered.Contains('SnowBlind')) 'Merged cooler family should keep SnowBlind when old SnowBlind option is selected.'
+$questMiningFamilyBlock = "Quest\n\n<EM4>Доступные чертежи</EM4>\nВсего: 1 | Горное оборудование: 1\n\n<EM4>Горное оборудование</EM4>\n<EM4>Модули добычи:</EM4>\n- Clearcut Module"
+$questMiningOption = 'questCraftFamily|' + (Get-SCQuestFamilyOptionSuffix -OptionId ([string]$clearcutFamily.optionId))
+$questMiningFiltered = Select-SCQuestRewardBlockCategories -Value $questMiningFamilyBlock -SelectedCategoryNames @('Горное оборудование') -SelectedFamilyOptionIds @($questMiningOption) -FamilyIndex $questFamilyIndex
+Assert-True ($questMiningFiltered.Contains('Clearcut Module')) 'Quest filters should preserve selected mining equipment blueprints.'
 Assert-True ((Get-SCQuestPossibleTitleKeys -DescriptionKey 'Foxwell_destroyprobe_M_desc_001') -contains 'Foxwell_destroyprobe_M_name_001') 'Quest blueprint marker cleanup should link _desc keys to _name keys.'
 Assert-True (Test-SCQuestLooksLikeTitleKey -Key 'Foxwell_destroyprobe_M_name_001') 'Quest blueprint marker cleanup should treat _name keys as title-like keys.'
 Assert-True ((Remove-SCQuestBlueprintTitleMarker -Value '[Ч] КОНТРАКТ ОРАНЖЕВОГО УРОВНЯ') -eq 'КОНТРАКТ ОРАНЖЕВОГО УРОВНЯ') 'Quest blueprint marker cleanup should remove [CH] marker from name values.'
@@ -341,14 +369,44 @@ $itemPassOne = Set-SCMiningItemCraftHint -Value $itemPassOne -Resources @('Titan
 $itemPassTwo = Set-SCMiningItemPassportBlock -Value $itemPassOne -Record $passportRecord
 $itemPassTwo = Set-SCMiningItemCraftHint -Value $itemPassTwo -Resources @('Titanium', 'Copper')
 Assert-True ($itemPassTwo -eq $itemPassOne) 'Mining item Wikelo/craft/passport blocks should be idempotent across repeated passes.'
-Assert-True (($itemPassOne -split [regex]::Escape('Базовые ТТХ (Erkul)')).Count -eq 2) 'Mining item passport block should appear only once after craft hint normalization.'
+Assert-True (($itemPassOne -split [regex]::Escape('Базовые ТТХ')).Count -eq 2) 'Mining item passport block should appear only once after craft hint normalization.'
+Assert-True (-not $itemPassOne.Contains('Базовые ТТХ (Erkul)')) 'Mining item passport normalization should migrate the legacy Erkul label.'
+$wikiWeaponEntry = [pscustomobject]@{
+    class_name = 'KBAR_BallisticCannon_S2'
+    name = '10-Series Greatsword Cannon'
+    vehicle_weapon = [pscustomobject]@{
+        damage = [pscustomobject]@{ alpha_total = 72.99 }
+        rpm = 250
+        capacity = 492
+        capacitor = $null
+    }
+    ammunition = [pscustomobject]@{
+        speed = 1196
+        penetration = [pscustomobject]@{ base_distance = 1.275 }
+    }
+}
+$wikiWeaponRecord = ConvertTo-SCMiningWikiItemPassportRecord -Entry $wikiWeaponEntry -Kind 'weapon'
+Assert-True ([string]$wikiWeaponRecord.blockLines[0] -eq 'DPS 304.13 | урон 73') 'Wiki weapon passports should preserve precise damage-derived DPS while using the launcher display rounding.'
+Assert-True ([string]$wikiWeaponRecord.blockLines[1] -eq 'темп 250/мин | скорость 1196 м/с | пробитие 1.28 м | боекомплект 492') 'Wiki weapon passports should include fire rate, speed, penetration, and ammunition.'
+$wikiShieldLines = @(Format-SCMiningWikiItemPassportLines -Kind 'shield' -Entry ([pscustomobject]@{ shield = [pscustomobject]@{ max_shield_health = 100000; max_shield_regen = 19000 }; emission = [pscustomobject]@{ em_max = 1800 } }))
+Assert-True ([string]$wikiShieldLines[0] -eq 'прочность 100K | реген 19K/с | EM 1.8K') 'Wiki shield passports should map health, regeneration, and EM.'
+$wikiPowerLines = @(Format-SCMiningWikiItemPassportLines -Kind 'powerPlant' -Entry ([pscustomobject]@{ power_plant = [pscustomobject]@{ power_segment_generation = 20 }; durability = [pscustomobject]@{ health = 860 }; emission = [pscustomobject]@{ em_max = 9900 } }))
+Assert-True ([string]$wikiPowerLines[0] -eq 'энергия 20 | HP 860 | EM 9.9K') 'Wiki power-plant passports should map generation, health, and EM.'
+$wikiCoolerLines = @(Format-SCMiningWikiItemPassportLines -Kind 'cooler' -Entry ([pscustomobject]@{ cooler = [pscustomobject]@{ coolant_segment_generation = 46 }; emission = [pscustomobject]@{ ir = 7850; em_max = 1230 } }))
+Assert-True ([string]$wikiCoolerLines[0] -eq 'охлаждение 46 | IR 7.85K | EM 1.23K') 'Wiki cooler passports should map cooling, IR, and EM.'
+$wikiDriveLines = @(Format-SCMiningWikiItemPassportLines -Kind 'qdrive' -Entry ([pscustomobject]@{ quantum_drive = [pscustomobject]@{ quantum_fuel_requirement = 0.007546; standard_jump = [pscustomobject]@{ drive_speed = 259054500; spool_up_time = 4.2; cooldown_time = 7.6 } } }))
+Assert-True ([string]$wikiDriveLines[0] -eq 'скорость 259.05K км/с | разгон 4.2 с | откат 7.6 с | топливо 0.00755') 'Wiki quantum-drive passports should map current standard-jump values.'
+$wikiEmpLines = @(Format-SCMiningWikiItemPassportLines -Kind 'emp' -Entry ([pscustomobject]@{ emp = [pscustomobject]@{ distortion_damage = 3300; emp_radius = 1100; charge_duration = 22; cooldown_duration = 16 } }))
+Assert-True ([string]$wikiEmpLines[0] -eq 'дисторшн 3.3K | радиус 1.1K м | заряд 22 с | откат 16 с') 'Wiki EMP passports should map distortion, radius, charge, and cooldown.'
+$wikiQedLines = @(Format-SCMiningWikiItemPassportLines -Kind 'qed' -Entry ([pscustomobject]@{ quantum_interdiction_generator = [pscustomobject]@{ jammer_range = 12000; charge_duration = 90; discharge_duration = 30; pulse = [pscustomobject]@{ green_zone_check_range = 30000 } } }))
+Assert-True ([string]$wikiQedLines[0] -eq 'подавление 12K м | перехват 30K м | заряд 90 с | разряд 30 с') 'Wiki QED passports should map jammer and interdiction ranges.'
 $sharedMergeBaseOperation = [pscustomobject]@{
     ModuleId = 'mining'
     OptionId = 'itemPassports'
     Key = 'item_Test_Desc'
     Operation = 'replaceValue'
     OriginalValue = 'Описание'
-    NewValue = "Описание\n\n<EM4>Wikelo заказы:</EM4>\n- 1 на тест\n\nКрафт: Titanium | Copper\n\nБазовые ТТХ (Erkul)\nDPS 10"
+    NewValue = "Описание\n\n<EM4>Wikelo заказы:</EM4>\n- 1 на тест\n\nКрафт: Titanium | Copper\n\nБазовые ТТХ\nDPS 10"
     OwnedMarkers = @('SC_ITEM_PASSPORT_BLOCK')
 }
 $sharedMergeWikeloCleanup = [pscustomobject]@{
@@ -364,7 +422,7 @@ $sharedMergeResult = @(Merge-SCComposableModuleOperations -Operations @($sharedM
 Assert-True ($sharedMergeResult.Count -eq 1) 'Shared Wikelo merge should compose mining and quest item operations.'
 Assert-True (-not ([string]$sharedMergeResult[0].NewValue).Contains('Wikelo заказы')) 'Shared Wikelo merge should remove only the Wikelo block when quest cleanup is disabled.'
 Assert-True (([string]$sharedMergeResult[0].NewValue).Contains('Крафт: Titanium | Copper')) 'Shared Wikelo merge should preserve mining craft hints after Wikelo cleanup.'
-Assert-True (([string]$sharedMergeResult[0].NewValue).Contains('Базовые ТТХ (Erkul)')) 'Shared Wikelo merge should preserve Erkul passport hints after Wikelo cleanup.'
+Assert-True (([string]$sharedMergeResult[0].NewValue).Contains('Базовые ТТХ')) 'Shared Wikelo merge should preserve item passport hints after Wikelo cleanup.'
 $noOpMergeResult = @(Merge-SCPatchOperations -SharedOperations @() -ModuleOperations @([pscustomobject]@{
     ModuleId = 'mining+quest'
     OptionId = 'itemCraftHints+questRewards'
@@ -472,6 +530,41 @@ $reputationRiskLine = [System.IO.File]::ReadAllLines($reputationRiskGlobal, $enc
     Select-Object -First 1
 Assert-True ($reputationRiskLine.Contains('очень низкая 500 / низкая 1K / умеренная 2K / высокая 2K / очень высокая 8K / экстремальная 16K')) 'BHG risk-split reputation block should use Russian risk labels.'
 Assert-True (-not $reputationRiskLine.Contains('Low 1K')) 'BHG risk-split reputation block should not use English Low label.'
+
+$reputationFallbackLive = Join-Path $tempRoot 'RepFallback\LIVE'
+$reputationFallbackLoc = Join-Path $reputationFallbackLive 'data\Localization\korean_(south_korea)'
+$reputationFallbackGlobal = Join-Path $reputationFallbackLoc 'global.ini'
+$reputationFallbackReport = Join-Path $tempRoot 'rep-fallback-report.json'
+New-Item -ItemType Directory -Force -Path $reputationFallbackLoc | Out-Null
+[System.IO.File]::WriteAllLines($reputationFallbackGlobal, @(
+    'RepScope_ShipCombat_HeadHunters_Name=Корабельный бой',
+    'RepStanding_Rank0=КАНДИДАТ',
+    'RepStanding_Rank1=РАНГ I',
+    'RepStanding_Rank2=РАНГ II',
+    'RepStanding_Rank3=РАНГ III',
+    'RepStanding_Rank4=РАНГ IV',
+    'RepStanding_Rank5=РАНГ V',
+    'RepStanding_Rank6=РАНГ VI',
+    'RepScope_Emergency_Name=ЭКСТРЕННАЯ ПОМОЩЬ',
+    'RepStanding_Emergency_Rank0=КАНДИДАТ',
+    'RepStanding_Emergency_Rank1=НАЧИНАЮЩИЙ СПАСАТЕЛЬ',
+    'RepStanding_Emergency_Rank2=СПАСАТЕЛЬ',
+    'RepStanding_Emergency_Rank3=ОПЫТНЫЙ СПАСАТЕЛЬ'
+), $encoding)
+& $questEngineScript -GlobalIniPath $reputationFallbackGlobal -NoBackup -NoCraftIntel -ReportPath $reputationFallbackReport | Out-Null
+$reputationFallbackLines = [System.IO.File]::ReadAllLines($reputationFallbackGlobal, $encoding)
+Assert-True ($reputationFallbackLines.Contains('RepStanding_Rank0=[0-1] КАНДИДАТ')) 'Headhunters ship-combat applicant fallback should show its exact range.'
+Assert-True ($reputationFallbackLines.Contains('RepStanding_Rank5=[200K-480K] РАНГ V')) 'Headhunters ship-combat rank V fallback should show its exact range.'
+Assert-True ($reputationFallbackLines.Contains('RepStanding_Rank6=[480K+] РАНГ VI')) 'Headhunters ship-combat final rank fallback should remain open ended.'
+Assert-True ($reputationFallbackLines.Contains('RepStanding_Emergency_Rank0=[0-5K] КАНДИДАТ')) 'CDF emergency applicant fallback should show its exact range.'
+Assert-True ($reputationFallbackLines.Contains('RepStanding_Emergency_Rank2=[20K-80K] СПАСАТЕЛЬ')) 'CDF emergency responder fallback should show its exact range.'
+Assert-True ($reputationFallbackLines.Contains('RepStanding_Emergency_Rank3=[80K+] ОПЫТНЫЙ СПАСАТЕЛЬ')) 'CDF emergency final rank fallback should remain open ended.'
+& $questEngineScript -GlobalIniPath $reputationFallbackGlobal -NoBackup -NoCraftIntel -ReportPath $reputationFallbackReport | Out-Null
+Assert-True (([System.IO.File]::ReadAllLines($reputationFallbackGlobal, $encoding) -join "`n") -eq ($reputationFallbackLines -join "`n")) 'Known reputation fallback ranges should be idempotent.'
+& $questEngineScript -GlobalIniPath $reputationFallbackGlobal -NoBackup -NoCraftIntel -NoReputationIntel -ReportPath $reputationFallbackReport | Out-Null
+$reputationFallbackRemoved = [System.IO.File]::ReadAllLines($reputationFallbackGlobal, $encoding)
+Assert-True ($reputationFallbackRemoved.Contains('RepStanding_Rank5=РАНГ V')) 'Disabled reputation hints should remove Headhunters fallback ranges.'
+Assert-True ($reputationFallbackRemoved.Contains('RepStanding_Emergency_Rank2=СПАСАТЕЛЬ')) 'Disabled reputation hints should remove CDF fallback ranges.'
 
 $reputationToggleLive = Join-Path $tempRoot 'RepToggle\LIVE'
 $reputationToggleLoc = Join-Path $reputationToggleLive 'data\Localization\korean_(south_korea)'

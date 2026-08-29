@@ -6,10 +6,10 @@
 
 ## Как установить
 
-1. Скачайте релизный архив `SC_Mod_Launcher_2.1.4.zip`.
+1. Скачайте релизный архив `SC_Mod_Launcher_2.1.5.zip`.
 2. Откройте архив и извлеките из него папку `SC_Mod_Launcher` в удобное место.
 3. Запускайте `SC_Mod_Launcher.exe` из этой папки.
-4. Если Windows создала внешнюю папку вроде `SC_Mod_Launcher_2.1.4`, не используйте её как рабочее имя установки. Рабочая папка должна быть именно `SC_Mod_Launcher`.
+4. Если Windows создала внешнюю папку вроде `SC_Mod_Launcher_2.1.5`, не используйте её как рабочее имя установки. Рабочая папка должна быть именно `SC_Mod_Launcher`.
 
 ## Первый запуск
 
@@ -62,6 +62,6 @@ This is an unofficial Star Citizen fan project, not affiliated with the Cloud Im
 
 ### Подсказки предметов
 
-![ТТХ оружия Erkul в инвентаре](docs/images/sc-mod-launcher-erkul-weapon-passport.png)
+![ТТХ оружия в инвентаре](docs/images/sc-mod-launcher-erkul-weapon-passport.png)
 
-![ТТХ компонентов Erkul на корабле](docs/images/sc-mod-launcher-erkul-component-passport.png)
+![ТТХ компонентов на корабле](docs/images/sc-mod-launcher-erkul-component-passport.png)

@@ -1,5 +1,21 @@
 # SC Mod Launcher Releases
 
+## 2.1.5
+
+### Что нового
+
+- Поддержка Star Citizen `4.10.0-LIVE.12519617` и RuSC `4.10.0-v125` со свежими кэшами.
+- Добавлены 15 новых чертежей и единый раздел `Горное оборудование` для лазеров, модулей добычи и рудных контейнеров.
+- Обновлены награды Рекко Баттальи, Wikelo и «Осады Orison»; комплекты BUL-H4/H4-PBF правильно сгруппированы.
+- Восстановлены пороги репутации Headhunters и Civilian Defense Force в новом mobiGlas.
+- ТТХ оружия и корабельных компонентов переведены на публичный API Star Citizen Wiki.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.1.5.zip`
+- SHA-256: `D252BF64E2FF6B3C7B98FFDBCCD0B49F9A6FCB97AF47B51A611E43DB16CFCFFF`
+- Проверено: свежий cache preflight, scaffold backend, WPF build/smoke, update installer и аудит содержимого ZIP.
+
 ## 2.1.4
 
 ### Что нового

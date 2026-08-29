@@ -19,8 +19,8 @@ relicensed by the SC Mod Launcher GPL license:
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 - `backups/**`: localization backups containing game and/or RuSC material.
 - `modules/scmdb/cache/**`: cached SCMDB data.
-- `modules/mining/cache/**`: cached Star Citizen Wiki, SCMDB, UEX, Erkul, and
-  derived game data.
+- `modules/mining/cache/**`: cached Star Citizen Wiki, SCMDB, UEX, and derived
+  game data, including legacy caches retained for compatibility.
 - `modules/quest/engine/cache/**`: cached Star Citizen Wiki data.
 - `config/**` and `reports/**`: local runtime state and reports that can contain
   user or game-derived data.

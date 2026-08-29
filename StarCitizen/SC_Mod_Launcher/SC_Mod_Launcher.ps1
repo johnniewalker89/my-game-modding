@@ -761,7 +761,7 @@ function Write-ConsoleRemoteSourceSummary {
     [void](Test-SCWikiItemsSource -Headers $headers)
     [void](Test-SCRefineryYieldsSource -Headers $headers)
     [void](Test-SCLocationTradeSource -Headers $headers)
-    [void](Test-SCErkulItemPassportSource -Headers $headers)
+    [void](Test-SCWikiItemPassportSource -Headers $headers)
 }
 
 function Test-SCWikiBlueprintSource {
@@ -820,29 +820,22 @@ function Test-SCLocationTradeSource {
     }
 }
 
-function Test-SCErkulItemPassportSource {
+function Test-SCWikiItemPassportSource {
     param([hashtable]$Headers)
 
     try {
-        $requestHeaders = @{}
-        foreach ($key in @($Headers.Keys)) {
-            $requestHeaders[$key] = $Headers[$key]
-        }
-        $requestHeaders['Accept'] = 'application/json,text/plain,*/*'
-        $requestHeaders['Origin'] = 'https://www.erkul.games'
-        $requestHeaders['Referer'] = 'https://www.erkul.games/'
-        $result = Get-SCRemoteJson -Name 'Erkul item passports' -Uri 'https://server.erkul.games/live/weapons' -Headers $requestHeaders -TimeoutSec $script:SourceCheckTimeoutSec
+        $result = Get-SCRemoteJson -Name 'Wiki item passports' -Uri 'https://api.star-citizen.wiki/api/items?filter%5Btype%5D=WeaponGun&page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec $script:SourceCheckTimeoutSec
         if ($null -eq $result) {
             return $false
         }
-        if (@($result).Count -eq 0) {
+        if (@($result.data).Count -eq 0) {
             throw 'empty response'
         }
 
         return $true
     }
     catch {
-        Write-Host "Source Erkul item passports: FAIL; $($_.Exception.Message)"
+        Write-Host "Source Wiki item passports: FAIL; $($_.Exception.Message)"
         return $false
     }
 }
@@ -1015,17 +1008,17 @@ function Write-ConsoleWarmCacheSummary {
     $itemPassportPath = Get-SCMiningItemPassportCachePath -CacheKey ([string]$version.version)
     try {
         $itemPassportPath = Write-SCMiningItemPassportCache -CacheKey ([string]$version.version) -Headers $headers
-        Write-Host 'Source Erkul item passports: OK'
+        Write-Host 'Source Wiki item passports: OK'
         $itemPassportCache = Get-Content -LiteralPath $itemPassportPath -Encoding UTF8 -Raw | ConvertFrom-Json
-        Write-Host "Erkul item passports: $(@($itemPassportCache.records).Count)"
+        Write-Host "Wiki item passports: $(@($itemPassportCache.records).Count)"
         Write-SCRefreshedCacheLine -Name 'mining item passports' -Path $itemPassportPath
     }
     catch {
         $reason = $_.Exception.Message
-        Write-Host "Source Erkul item passports: FALLBACK; $reason"
+        Write-Host "Source Wiki item passports: FALLBACK; $reason"
         $fallbackPath = Write-SCMiningItemPassportFallbackCache -CacheKey ([string]$version.version)
         if ([string]::IsNullOrWhiteSpace($fallbackPath)) {
-            throw "Erkul item passport source is unavailable and no fallback cache exists: $reason"
+            throw "Wiki item passport source is unavailable and no fallback cache exists: $reason"
         }
 
         Write-SCFallbackCacheLine -Name 'mining item passports' -Path $fallbackPath -Reason 'source unavailable'

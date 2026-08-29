@@ -414,7 +414,7 @@ function Remove-SCQuestWikeloItemHintBlock {
 
     return [regex]::Replace(
         [string]$Value,
-        '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*?(?=(?:\\n\\n(?:<EM[1-5]>)?(?:Крафт:|Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\)))|$)',
+        '\\n\\n<EM\d>Wikelo(?:-| )заказы:?</EM\d>.*?(?=(?:\\n\\n(?:<EM[1-5]>)?(?:Крафт:|Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\)|Базовые ТТХ))|$)',
         '',
         [System.Text.RegularExpressions.RegexOptions]::Singleline)
 }
@@ -434,7 +434,7 @@ function Trim-SCQuestEncodedLeadingBreaks {
 function Get-SCQuestItemPassportBlock {
     param([AllowEmptyString()][string]$Value)
 
-    $labelPattern = '(?:Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\))'
+    $labelPattern = '(?:Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\)|Базовые ТТХ)'
     $pattern = '(?s)(?<block>(?:\\n\\n)?(?:<EM[1-5]>)?' + $labelPattern + '(?:</EM[1-5]>)?(?:\\n(?!\\n)[^\\]*){0,4})$'
     $match = [regex]::Match([string]$Value, $pattern)
     if (-not $match.Success) {
@@ -447,7 +447,7 @@ function Get-SCQuestItemPassportBlock {
 function Remove-SCQuestItemPassportBlock {
     param([AllowEmptyString()][string]$Value)
 
-    $labelPattern = '(?:Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\))'
+    $labelPattern = '(?:Базовые ТТХ \(Erkul\)|ТТХ \(Erkul\)|Базовые ТТХ)'
     $pattern = '(?s)(?:\\n\\n)?(?:<EM[1-5]>)?' + $labelPattern + '(?:</EM[1-5]>)?(?:\\n(?!\\n)[^\\]*){0,4}$'
     return (Trim-SCQuestEncodedTrailingBreaks -Value ([regex]::Replace([string]$Value, $pattern, '')))
 }
@@ -950,6 +950,9 @@ function Get-SCQuestSelectedFamilyOptionIds {
         if ($value -eq 'questCraftFamily|Оружие|Пулемёты|variant:Vendetta HMG') {
             $expanded.Add('questCraftFamily|Оружие|Тяжёлые пулемёты|variant:Vendetta HMG')
         }
+        if ($value.StartsWith('questCraftFamily|Добывающие лазеры|Добывающие лазеры|', [System.StringComparison]::OrdinalIgnoreCase)) {
+            $expanded.Add(($value -replace '^questCraftFamily\|Добывающие лазеры\|', 'questCraftFamily|Горное оборудование|'))
+        }
         if ($migrationMap.ContainsKey($value)) {
             foreach ($targetOptionId in @($migrationMap[$value].ToArray())) {
                 $expanded.Add([string]$targetOptionId)
@@ -1128,6 +1131,7 @@ function Get-SCQuestKnownCategoryNames {
         'Корабельные компоненты',
         'Корабельные орудия',
         'Добывающие лазеры',
+        'Горное оборудование',
         'Броня/одежда',
         'Оружие',
         'Снаряжение/расходники',
@@ -1140,7 +1144,7 @@ function Get-SCQuestSelectableCategoryNames {
     return @(
         'Корабельные компоненты',
         'Корабельные орудия',
-        'Добывающие лазеры',
+        'Горное оборудование',
         'Броня/одежда',
         'Оружие'
     )

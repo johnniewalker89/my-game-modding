@@ -11,10 +11,9 @@ the following independent projects and services:
 - [StarCitizenRu](https://github.com/n1ghter/StarCitizenRu): Russian
   localization installed or updated by the launcher.
 - [SCMDB](https://scmdb.net/): game-version, mission, recipe, and mining data.
-- [The Star Citizen Wiki API](https://api.star-citizen.wiki/): blueprint and
-  item data.
+- [The Star Citizen Wiki API](https://api.star-citizen.wiki/): blueprint,
+  item, weapon, and ship-component data.
 - [UEX Corp](https://uexcorp.space/): refinery and commodity-market data.
-- [Erkul Games](https://www.erkul.games/): weapon and ship-component data.
 
 Cached responses, derived data, localization backups, and game screenshots are
 distributed for launcher functionality and documentation. They are not

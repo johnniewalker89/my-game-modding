@@ -41,7 +41,7 @@ $LocalizationRelativePath = 'data\Localization\korean_(south_korea)\global.ini'
 $CategoryOrder = @(
     'Корабельные компоненты',
     'Корабельные орудия',
-    'Добывающие лазеры',
+    'Горное оборудование',
     'Броня/одежда',
     'Оружие',
     'Снаряжение/расходники',
@@ -49,6 +49,7 @@ $CategoryOrder = @(
 )
 
 $ArmorSubcategoryOrder = @(
+    'Сверхтяжёлая броня',
     'Тяжёлая броня',
     'Средняя броня',
     'Лёгкая броня',
@@ -888,6 +889,71 @@ function Add-ReputationRankThresholdsFromScopes {
 
 }
 
+function Add-KnownReputationRankThresholdFallbacks {
+    param(
+        [hashtable]$Thresholds,
+        [hashtable]$LocalizationMap
+    )
+
+    if ($NoReputationIntel -or $null -eq $LocalizationMap) {
+        return
+    }
+
+    $fallbackScopes = @(
+        [pscustomobject]@{
+            RequiredKeys = @('RepScope_ShipCombat_HeadHunters_Name', 'RepStanding_Rank0')
+            ScopeName = 'ShipCombat_HeadHunters'
+            ScopeGuid = '3792e4c6-665e-44e9-9410-40389182f918'
+            Ranks = @(
+                @{ Key = 'RepStanding_Rank0'; Min = 0 }
+                @{ Key = 'RepStanding_Rank1'; Min = 1 }
+                @{ Key = 'RepStanding_Rank2'; Min = 3000 }
+                @{ Key = 'RepStanding_Rank3'; Min = 10000 }
+                @{ Key = 'RepStanding_Rank4'; Min = 40000 }
+                @{ Key = 'RepStanding_Rank5'; Min = 200000 }
+                @{ Key = 'RepStanding_Rank6'; Min = 480000 }
+            )
+        }
+        [pscustomobject]@{
+            RequiredKeys = @('RepScope_Emergency_Name', 'RepStanding_Emergency_Rank0')
+            ScopeName = 'Emergency'
+            ScopeGuid = 'known-emergency-scope'
+            Ranks = @(
+                @{ Key = 'RepStanding_Emergency_Rank0'; Min = 0 }
+                @{ Key = 'RepStanding_Emergency_Rank1'; Min = 5000 }
+                @{ Key = 'RepStanding_Emergency_Rank2'; Min = 20000 }
+                @{ Key = 'RepStanding_Emergency_Rank3'; Min = 80000 }
+            )
+        }
+    )
+
+    foreach ($scope in $fallbackScopes) {
+        $hasScope = $true
+        foreach ($requiredKey in $scope.RequiredKeys) {
+            if (-not $LocalizationMap.ContainsKey($requiredKey)) {
+                $hasScope = $false
+                break
+            }
+        }
+        if (-not $hasScope) {
+            continue
+        }
+
+        foreach ($rank in $scope.Ranks) {
+            $key = [string]$rank.Key
+            if (-not $LocalizationMap.ContainsKey($key) -or $Thresholds.ContainsKey($key)) {
+                continue
+            }
+
+            $Thresholds[$key] = @{
+                Min = [int]$rank.Min
+                ScopeName = [string]$scope.ScopeName
+                ScopeGuid = [string]$scope.ScopeGuid
+            }
+        }
+    }
+}
+
 function Remove-ReputationRankThreshold {
     param([AllowEmptyString()][string]$Value)
 
@@ -1499,6 +1565,8 @@ function New-RewardMap {
         }
     }
 
+    Add-KnownReputationRankThresholdFallbacks -Thresholds $reputationRankThresholds -LocalizationMap $LocalizationMap
+
     return [pscustomobject]@{
         DescriptionMap = $descriptionMap
         DescriptionReputationMap = $descriptionReputationMap
@@ -1651,7 +1719,7 @@ function Get-CategoryFromWikiItem {
     }
 
     if ($itemType -match 'Mining Laser' -or $type -match 'WeaponMining') {
-        return 'Добывающие лазеры'
+        return 'Горное оборудование'
     }
 
     if ($itemType -match 'Cannon|Repeater|Gatling|Scattergun|Missile|Bomb|Mass Driver' -or $type -match 'WeaponGun|Missile|Bomb') {
@@ -1729,7 +1797,7 @@ function Get-PatternEnrichment {
     elseif ($Name -match '(?i)\b(LMG)\b') { $category = 'Оружие'; $type = 'пулемёт' }
     elseif ($Name -match '(?i)\b(SMG)\b') { $category = 'Оружие'; $type = 'пистолет-пулемёт' }
     elseif ($Name -match '(?i)\b(Rifle)\b') { $category = 'Оружие'; $type = 'винтовка' }
-    elseif ($Name -match '(?i)\b(Mining Laser|Helix|Hofstede|Klein|Lancet|Arbor|Pitman|Lawson)\b') { $category = 'Добывающие лазеры'; $type = 'добывающий лазер' }
+    elseif ($Name -match '(?i)\b(Mining Laser|Helix|Hofstede|Klein|Lancet|Arbor|Pitman|Lawson)\b') { $category = 'Горное оборудование'; $type = 'добывающий лазер' }
     elseif ($Name -match '(?i)\b(Cannon|Repeater|Gatling|Scattergun|Missile|Torpedo)\b') { $category = 'Корабельные орудия'; $type = 'корабельное орудие' }
     elseif ($Name -match '(?i)\b(Shield|Cooler|Power|Quantum|Radar)\b') { $category = 'Корабельные компоненты'; $type = 'корабельный компонент' }
     elseif ($Name -match '(?i)\b(Magazine|Ammo|Battery|MedPen|Medgun|Multi-Tool|Tool|Module|Attachment|Scope|Barrel|Suppressor)\b') { $category = 'Снаряжение/расходники'; $type = 'снаряжение' }
@@ -1840,6 +1908,9 @@ function ConvertTo-QuestFamilyEnrichmentType {
         'Баллистика' { return 'корабельное орудие' }
         'Гибрид' { return 'корабельное орудие' }
         'Добывающие лазеры' { return 'добывающий лазер' }
+        'Модули добычи' { return 'модуль добычи' }
+        'Рудные контейнеры' { return 'рудный контейнер' }
+        'Сверхтяжёлая броня' { return 'сверхтяжёлая броня' }
         'Тяжёлая броня' { return 'тяжёлая броня' }
         'Средняя броня' { return 'средняя броня' }
         'Лёгкая броня' { return 'лёгкая броня' }
@@ -2018,10 +2089,16 @@ function Normalize-EnrichmentCategory {
 
     if (Test-MiningLaserEnrichment -Name $Name -Info $Info) {
         if (-not $Info.PSObject.Properties['category']) {
-            $Info | Add-Member -NotePropertyName 'category' -NotePropertyValue 'Добывающие лазеры'
+            $Info | Add-Member -NotePropertyName 'category' -NotePropertyValue 'Горное оборудование'
         }
         else {
-            $Info.category = 'Добывающие лазеры'
+            $Info.category = 'Горное оборудование'
+        }
+        if (-not $Info.PSObject.Properties['subcategory']) {
+            $Info | Add-Member -NotePropertyName 'subcategory' -NotePropertyValue 'Добывающие лазеры'
+        }
+        else {
+            $Info.subcategory = 'Добывающие лазеры'
         }
     }
 
@@ -3222,6 +3299,12 @@ function Get-BlueprintSubcategory {
         return 'Добывающие лазеры'
     }
 
+    if ($Category -eq 'Горное оборудование') {
+        if ($Name -match '(?i)\b(Mining Laser|Helix|Hofstede|Klein|Lancet|Arbor|Pitman|Lawson)\b') { return 'Добывающие лазеры' }
+        if ($Name -match '(?i)\bOre\s+Pod$') { return 'Рудные контейнеры' }
+        return 'Модули добычи'
+    }
+
     if ($Category -eq 'Броня/одежда') {
         return Get-ArmorSubcategory -Name $Name -CraftInfo $CraftInfo
     }
@@ -3251,6 +3334,13 @@ function Get-BlueprintSubcategoryRank {
         return 0
     }
 
+    if ($Category -eq 'Горное оборудование') {
+        if ($Subcategory -eq 'Добывающие лазеры') { return 0 }
+        if ($Subcategory -eq 'Модули добычи') { return 1 }
+        if ($Subcategory -eq 'Рудные контейнеры') { return 2 }
+        return 999
+    }
+
     if ($Category -eq 'Броня/одежда') {
         return Get-ArmorSubcategoryRank -Subcategory $Subcategory
     }
@@ -3265,7 +3355,7 @@ function Get-BlueprintSubcategoryRank {
 function Test-UseBlueprintSubcategories {
     param([string]$Category)
 
-    return $Category -in @('Корабельные компоненты', 'Корабельные орудия', 'Добывающие лазеры', 'Броня/одежда', 'Оружие')
+    return $Category -in @('Корабельные компоненты', 'Корабельные орудия', 'Горное оборудование', 'Броня/одежда', 'Оружие')
 }
 
 function Test-IncludePlanetRecipe {
@@ -3750,7 +3840,7 @@ function Format-RewardBlock {
 
             foreach ($subcategory in ($subcategoryGroups.Keys | Sort-Object { Get-BlueprintSubcategoryRank -Category $category -Subcategory $_ }, { $_ })) {
                 $blockLines.Add((Format-SubcategoryLabel -Label "${subcategory}:"))
-                $omitType = $category -in @('Корабельные компоненты', 'Броня/одежда', 'Оружие')
+                $omitType = $category -in @('Корабельные компоненты', 'Горное оборудование', 'Броня/одежда', 'Оружие')
                 foreach ($name in ($subcategoryGroups[$subcategory] | Sort-Object)) {
                     $blockLines.Add((Format-BlueprintLine -Name $name -OmitType:$omitType))
                 }

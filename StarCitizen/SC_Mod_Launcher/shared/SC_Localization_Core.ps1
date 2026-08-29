@@ -347,6 +347,7 @@ function Get-SCWikeloItemHintBlock {
 
     $stopLabels = @(
         'Крафт:',
+        'Базовые ТТХ',
         'Базовые ТТХ \(Erkul\)',
         'ТТХ \(Erkul\)'
     ) -join '|'
@@ -365,6 +366,7 @@ function Remove-SCWikeloItemHintBlock {
 
     $stopLabels = @(
         'Крафт:',
+        'Базовые ТТХ',
         'Базовые ТТХ \(Erkul\)',
         'ТТХ \(Erkul\)'
     ) -join '|'
