@@ -55,7 +55,22 @@
     $recipeData = $null
     $planetBlueprints = @()
     $recipeDataWarnings = @()
+    $timings = [ordered]@{
+        recipeDataMs = 0
+        planetDescriptionsMs = 0
+        planetCraftMapMs = 0
+        planetLocationIndexMs = 0
+        planetInventoryCacheMs = 0
+        planetDescriptionScanMs = 0
+        itemPassportsMs = 0
+        itemCraftHintsMs = 0
+        refineryHintsMs = 0
+        locationTradeHintsMs = 0
+        finalizeMs = 0
+    }
 
+    Write-Host 'Progress: mining recipe data start'
+    $recipeDataStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     if ($selectedMethods.Count -gt 0 -and $Context.KeyCount -ge 1000) {
         try {
             $planetBlueprints = @(Get-SCMiningPlanetCraftBlueprints)
@@ -76,12 +91,25 @@
             $recipeDataWarnings += "Mining recipe data unavailable: $($_.Exception.Message)"
         }
     }
+    $recipeDataStopwatch.Stop()
+    $timings['recipeDataMs'] = $recipeDataStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: mining recipe data done'
+    Write-Host "Timing: mining recipe data: $($timings['recipeDataMs']) ms"
 
+    Write-Host 'Progress: mining planet descriptions start'
+    $planetDescriptionsStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     if ($true) {
+        $planetCraftMapStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $planetCraftMap = @{}
+        $planetCraftIndex = $null
         if ($planetBlueprints.Count -gt 0) {
             $planetCraftMap = New-SCMiningPlanetCraftMap -Blueprints @($planetBlueprints)
+            $planetCraftIndex = New-SCMiningPlanetCraftIndex -PlanetCraftMap $planetCraftMap -CraftFilter $craftFilter
         }
+        $planetCraftMapStopwatch.Stop()
+        $timings['planetCraftMapMs'] = $planetCraftMapStopwatch.ElapsedMilliseconds
+
+        $planetLocationIndexStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $miningLocationIndex = @{}
         try {
             $miningLocationIndex = (Get-SCMiningLocationInventoryIndex).ByKey
@@ -89,11 +117,18 @@
         catch {
             $recipeDataWarnings += "Mining location data unavailable: $($_.Exception.Message)"
         }
+        $planetLocationIndexStopwatch.Stop()
+        $timings['planetLocationIndexMs'] = $planetLocationIndexStopwatch.ElapsedMilliseconds
+
+        $planetInventoryCacheStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $planetInventoryCache = Get-SCMiningPlanetResourceInventoryCache
+        $planetInventoryCacheStopwatch.Stop()
+        $timings['planetInventoryCacheMs'] = $planetInventoryCacheStopwatch.ElapsedMilliseconds
         $planetInventoryCacheChanged = $false
         $planetCraftBlockCache = @{}
         $planetCraftBlockOptionKey = (@($SelectedOptions | Sort-Object) -join '|')
 
+        $planetDescriptionScanStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         foreach ($key in @($Context.Values.Keys | Sort-Object)) {
             if ($key -notmatch '(?i)_desc(?:,|$)|_description(?:,|$)') {
                 continue
@@ -145,7 +180,7 @@
             if ($planetCraftMap.Count -gt 0) {
                 $cacheKey = $planetCraftBlockOptionKey + '::' + (Get-SCMiningInventorySignature -Inventory $inventory)
                 if (-not $planetCraftBlockCache.ContainsKey($cacheKey)) {
-                    $planetCraftBlockCache[$cacheKey] = Format-SCMiningPlanetCraftBlock -Inventory $inventory -PlanetCraftMap $planetCraftMap -SelectedMethods $selectedMethods -CraftFilter $craftFilter
+                    $planetCraftBlockCache[$cacheKey] = Format-SCMiningPlanetCraftBlock -Inventory $inventory -PlanetCraftMap $planetCraftMap -PlanetCraftIndex $planetCraftIndex -SelectedMethods $selectedMethods -CraftFilter $craftFilter
                 }
                 $detailedCraftBlock = [string]$planetCraftBlockCache[$cacheKey]
             }
@@ -164,23 +199,41 @@
                 $changedPlanetKeys += $key
             }
         }
+        $planetDescriptionScanStopwatch.Stop()
+        $timings['planetDescriptionScanMs'] = $planetDescriptionScanStopwatch.ElapsedMilliseconds
 
         if ($planetInventoryCacheChanged) {
             Write-SCMiningPlanetResourceInventoryCache -Cache $planetInventoryCache
         }
     }
+    $planetDescriptionsStopwatch.Stop()
+    $timings['planetDescriptionsMs'] = $planetDescriptionsStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: mining planet descriptions done'
+    Write-Host "Timing: mining planet descriptions: $($timings['planetDescriptionsMs']) ms"
+    Write-Host "Timing: mining planet craft map: $($timings['planetCraftMapMs']) ms"
+    Write-Host "Timing: mining planet location index: $($timings['planetLocationIndexMs']) ms"
+    Write-Host "Timing: mining planet inventory cache: $($timings['planetInventoryCacheMs']) ms"
+    Write-Host "Timing: mining planet description scan: $($timings['planetDescriptionScanMs']) ms"
 
     $workingValues = Copy-SCMiningValueMap -Values $Context.Values
     Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations $operations
     $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
 
+    Write-Host 'Progress: mining item passports start'
+    $itemPassportsStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $itemPassportPlan = New-SCMiningItemPassportOperations -Context $Context -Values $workingValues
     $operations += @($itemPassportPlan.Operations)
     $itemPassportWarnings += @($itemPassportPlan.Warnings)
     $itemPassportMetadata = $itemPassportPlan.Metadata
     Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($itemPassportPlan.Operations)
     $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
+    $itemPassportsStopwatch.Stop()
+    $timings['itemPassportsMs'] = $itemPassportsStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: mining item passports done'
+    Write-Host "Timing: mining item passports: $($timings['itemPassportsMs']) ms"
 
+    Write-Host 'Progress: mining item craft hints start'
+    $itemCraftHintsStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     if ($enableItemCraftHints) {
         $itemPlan = New-SCMiningItemCraftHintOperations -Context $workingContext -RecipeData $recipeData
         $operations += @($itemPlan.Operations)
@@ -189,7 +242,13 @@
     }
     Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($itemPlan.Operations)
     $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
+    $itemCraftHintsStopwatch.Stop()
+    $timings['itemCraftHintsMs'] = $itemCraftHintsStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: mining item craft hints done'
+    Write-Host "Timing: mining item craft hints: $($timings['itemCraftHintsMs']) ms"
 
+    Write-Host 'Progress: mining refinery hints start'
+    $refineryHintsStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     if ($enableRefineryYieldHints) {
         $refineryPlan = New-SCMiningRefineryYieldHintOperations -Context $workingContext
         $operations += @($refineryPlan.Operations)
@@ -203,7 +262,13 @@
     }
     Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($refineryPlan.Operations)
     $workingContext = New-SCMiningContextWithValues -Context $Context -Values $workingValues
+    $refineryHintsStopwatch.Stop()
+    $timings['refineryHintsMs'] = $refineryHintsStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: mining refinery hints done'
+    Write-Host "Timing: mining refinery hints: $($timings['refineryHintsMs']) ms"
 
+    Write-Host 'Progress: mining location trade hints start'
+    $locationTradeHintsStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     if ($enableLocationTradeHints) {
         $locationTradePlan = New-SCMiningLocationTradeHintOperations -Context $workingContext
         $operations += @($locationTradePlan.Operations)
@@ -216,13 +281,23 @@
         $locationTradeMetadata = $locationTradePlan.Metadata
     }
     Apply-SCMiningOperationsToValueMap -Values $workingValues -Operations @($locationTradePlan.Operations)
+    $locationTradeHintsStopwatch.Stop()
+    $timings['locationTradeHintsMs'] = $locationTradeHintsStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: mining location trade hints done'
+    Write-Host "Timing: mining location trade hints: $($timings['locationTradeHintsMs']) ms"
 
+    Write-Host 'Progress: mining finalize start'
+    $finalizeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $operations = Merge-SCMiningReplaceOperations -Operations $operations -BaseValues $Context.Values
     if ($enableStripLoreDescriptions) {
         $stripPlan = Set-SCMiningLoreDescriptionStripOnOperations -Operations @($operations)
         $operations = Merge-SCMiningReplaceOperations -Operations @($stripPlan.Operations) -BaseValues $Context.Values
         $stripLoreMetadata = $stripPlan.Metadata
     }
+    $finalizeStopwatch.Stop()
+    $timings['finalizeMs'] = $finalizeStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: mining finalize done'
+    Write-Host "Timing: mining finalize: $($timings['finalizeMs']) ms"
 
     $metadata = @{
         source = 'existing SCMDB planet craft blocks + Star Citizen Wiki item craft hints and item passports'
@@ -237,6 +312,7 @@
         locationTradeHints = $locationTradeMetadata
         itemPassports = $itemPassportMetadata
         stripLoreDescriptions = $stripLoreMetadata
+        timings = $timings
     }
 
     return [pscustomobject]@{
@@ -475,6 +551,14 @@ function New-SCMiningRefineryYieldHintOperations {
         $metadata.sourceUrl = [string]$data.sourceUrl
         $metadata.gameVersion = [string]$data.gameVersion
         $metadata.stationCount = @($data.stations).Count
+        $stationMatchEntries = @(
+            foreach ($station in @($data.stations)) {
+                [pscustomobject]@{
+                    Station = $station
+                    Candidates = @(Get-SCMiningRefineryYieldStationCandidates -Station $station | Sort-Object { $_.Length } -Descending)
+                }
+            }
+        )
 
         $operations = @()
         $changedKeys = New-Object System.Collections.Generic.List[string]
@@ -486,7 +570,7 @@ function New-SCMiningRefineryYieldHintOperations {
 
             $current = [string]$Context.Values[$key]
             $clean = Remove-SCMiningRefineryYieldHint -Value $current
-            $station = Find-SCMiningRefineryYieldStation -Key $key -Values $Context.Values -Stations @($data.stations)
+            $station = Find-SCMiningRefineryYieldStation -Key $key -Values $Context.Values -Stations @($data.stations) -StationMatchEntries $stationMatchEntries
             if ($null -eq $station) {
                 if ($clean -ne $current) {
                     $operations += [pscustomobject]@{
@@ -594,6 +678,14 @@ function New-SCMiningLocationTradeHintOperations {
         $metadata.sourceUrl = [string]$data.sourceUrl
         $metadata.gameVersion = [string]$data.gameVersion
         $metadata.locationCount = @($data.locations).Count
+        $locationMatchEntries = @(
+            foreach ($location in @($data.locations)) {
+                [pscustomobject]@{
+                    Location = $location
+                    Candidates = @(Get-SCMiningLocationTradeCandidates -Location $location | Sort-Object { $_.Length } -Descending)
+                }
+            }
+        )
 
         $operations = @()
         $changedKeys = New-Object System.Collections.Generic.List[string]
@@ -605,7 +697,7 @@ function New-SCMiningLocationTradeHintOperations {
 
             $current = [string]$Context.Values[$key]
             $clean = Remove-SCMiningLocationTradeHint -Value $current
-            $location = Find-SCMiningLocationTradeLocation -Key $key -Values $Context.Values -Locations @($data.locations)
+            $location = Find-SCMiningLocationTradeLocation -Key $key -Values $Context.Values -Locations @($data.locations) -LocationMatchEntries $locationMatchEntries
             if ($null -eq $location) {
                 if ($clean -ne $current) {
                     $operations += [pscustomobject]@{
@@ -1466,8 +1558,10 @@ function Invoke-SCMiningRemoteJson {
             }
             $curlArgs += $Uri
 
-            $json = & curl.exe @curlArgs
-            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
+            $curlOutput = @(& curl.exe @curlArgs 2>&1)
+            $curlExitCode = $LASTEXITCODE
+            $json = $curlOutput -join [Environment]::NewLine
+            if ($curlExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
                 return ($json | ConvertFrom-Json)
             }
         }
@@ -1627,12 +1721,14 @@ function Write-SCMiningItemPassportCache {
         [hashtable]$Headers
     )
 
+    $wikiVersions = Get-SCMiningWikiGameVersions -Headers $Headers
+    $wikiVersion = Resolve-SCMiningWikiGameVersion -CacheKey $CacheKey -Versions $wikiVersions
     $records = New-Object System.Collections.Generic.List[object]
     foreach ($endpoint in Get-SCMiningWikiPassportEndpoints) {
         $page = 1
         $lastPage = 1
         do {
-            $result = Invoke-SCMiningWikiItemPage -Type ([string]$endpoint.Type) -Page $page -CacheKey $CacheKey -Headers $Headers
+            $result = Invoke-SCMiningWikiItemPage -Type ([string]$endpoint.Type) -Page $page -WikiVersion ([string]$wikiVersion.Code) -Headers $Headers
             foreach ($item in @($result.data)) {
                 $record = ConvertTo-SCMiningWikiItemPassportRecord -Entry $item -Kind ([string]$endpoint.Kind)
                 if ($null -ne $record) {
@@ -1652,12 +1748,14 @@ function Write-SCMiningItemPassportCache {
     }
 
     $payload = [pscustomobject]@{
-        schemaVersion = 2
+        schemaVersion = 3
         source = 'Star Citizen Wiki'
         sourceUrl = 'https://api.star-citizen.wiki/'
         backendUrl = 'https://api.star-citizen.wiki/api/items'
         cacheKey = [string]$CacheKey
-        gameVersion = ConvertTo-SCMiningWikiGameVersion -CacheKey $CacheKey
+        requestedGameVersion = [string]$wikiVersion.RequestedCode
+        gameVersion = [string]$wikiVersion.Code
+        versionMatch = [string]$wikiVersion.Match
         createdAt = (Get-Date).ToString('o')
         records = @($records.ToArray() | Sort-Object kind, displayName, localName)
     }
@@ -1692,15 +1790,95 @@ function ConvertTo-SCMiningWikiGameVersion {
     return ([string]$CacheKey -replace '(?i)-live\.', '-LIVE.')
 }
 
+function Get-SCMiningWikiGameVersions {
+    param([hashtable]$Headers)
+
+    return (Invoke-SCMiningRemoteJson -Uri 'https://api.star-citizen.wiki/api/game-versions?page%5Bsize%5D=100&page%5Bnumber%5D=1' -Headers $Headers -Referer 'https://api.star-citizen.wiki/')
+}
+
+function Get-SCMiningWikiGameVersionParts {
+    param([string]$Version)
+
+    $match = [regex]::Match(([string]$Version).Trim(), '^(?<branch>\d+\.\d+\.\d+)-(?<channel>[^.]+)\.(?<build>\d+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if (-not $match.Success) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Branch = [string]$match.Groups['branch'].Value
+        Channel = [string]$match.Groups['channel'].Value
+        Build = [long]$match.Groups['build'].Value
+    }
+}
+
+function Resolve-SCMiningWikiGameVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$CacheKey,
+        [Parameter(Mandatory = $true)][object]$Versions
+    )
+
+    $requestedCode = ConvertTo-SCMiningWikiGameVersion -CacheKey $CacheKey
+    $requestedParts = Get-SCMiningWikiGameVersionParts -Version $requestedCode
+    if ($null -eq $requestedParts) {
+        throw "Cannot resolve Wiki game version for invalid SCMDB cache key: $CacheKey"
+    }
+
+    $entries = if ($null -ne $Versions -and $null -ne $Versions.PSObject.Properties['data']) {
+        @($Versions.data)
+    }
+    else {
+        @($Versions)
+    }
+
+    $available = @($entries | ForEach-Object {
+        $code = [string]$_.code
+        $parts = Get-SCMiningWikiGameVersionParts -Version $code
+        if ($null -ne $parts) {
+            [pscustomobject]@{
+                Code = $code
+                Branch = [string]$parts.Branch
+                Channel = [string]$parts.Channel
+                Build = [long]$parts.Build
+            }
+        }
+    })
+
+    $exact = $available | Where-Object { [string]$_.Code -eq $requestedCode } | Select-Object -First 1
+    if ($null -ne $exact) {
+        return [pscustomobject]@{
+            RequestedCode = $requestedCode
+            Code = [string]$exact.Code
+            Match = 'exact'
+        }
+    }
+
+    $compatible = $available |
+        Where-Object {
+            [string]$_.Branch -eq [string]$requestedParts.Branch -and
+            [string]$_.Channel -eq [string]$requestedParts.Channel
+        } |
+        Sort-Object -Property @{ Expression = { [long]$_.Build }; Descending = $true } |
+        Select-Object -First 1
+    if ($null -eq $compatible) {
+        throw "Star Citizen Wiki has no LIVE item data for SCMDB branch $($requestedParts.Branch)."
+    }
+
+    return [pscustomobject]@{
+        RequestedCode = $requestedCode
+        Code = [string]$compatible.Code
+        Match = 'compatible'
+    }
+}
+
 function Invoke-SCMiningWikiItemPage {
     param(
         [Parameter(Mandatory = $true)][string]$Type,
         [Parameter(Mandatory = $true)][int]$Page,
-        [Parameter(Mandatory = $true)][string]$CacheKey,
+        [Parameter(Mandatory = $true)][string]$WikiVersion,
         [hashtable]$Headers
     )
 
-    $version = [uri]::EscapeDataString((ConvertTo-SCMiningWikiGameVersion -CacheKey $CacheKey))
+    $version = [uri]::EscapeDataString($WikiVersion)
     $encodedType = [uri]::EscapeDataString($Type)
     $uri = "https://api.star-citizen.wiki/api/items?filter%5Btype%5D=$encodedType&page%5Bsize%5D=100&page%5Bnumber%5D=$Page&version=$version"
     return (Invoke-SCMiningRemoteJson -Uri $uri -Headers $Headers -Referer 'https://api.star-citizen.wiki/')
@@ -2565,10 +2743,43 @@ function Test-SCMiningIgnoredCraftName {
     return ($clean -match '^<=\s*PLACEHOLDER\s*=>$' -or $clean -match '(?i)\bplaceholder\b')
 }
 
+function New-SCMiningPlanetCraftIndex {
+    param(
+        [hashtable]$PlanetCraftMap,
+        [object]$CraftFilter
+    )
+
+    $byResource = @{}
+    foreach ($entry in $PlanetCraftMap.GetEnumerator()) {
+        $recipe = $entry.Value
+        if (-not (Test-SCMiningIncludePlanetRecipe -Recipe $recipe -CraftFilter $CraftFilter)) {
+            continue
+        }
+        foreach ($resource in @($recipe.Resources)) {
+            $resourceKey = [string]$resource
+            if ([string]::IsNullOrWhiteSpace($resourceKey)) {
+                continue
+            }
+            if (-not $byResource.ContainsKey($resourceKey)) {
+                $byResource[$resourceKey] = New-Object System.Collections.Generic.List[object]
+            }
+            $byResource[$resourceKey].Add([pscustomobject]@{
+                RecipeKey = [string]$entry.Key
+                Recipe = $recipe
+            })
+        }
+    }
+
+    return [pscustomobject]@{
+        ByResource = $byResource
+    }
+}
+
 function Format-SCMiningPlanetCraftBlock {
     param(
         [object]$Inventory,
         [hashtable]$PlanetCraftMap,
+        [AllowNull()][object]$PlanetCraftIndex,
         [string[]]$SelectedMethods,
         [object]$CraftFilter
     )
@@ -2591,7 +2802,7 @@ function Format-SCMiningPlanetCraftBlock {
         $resourceText = Format-SCMiningResourceEntriesForDisplay -Entries $Inventory.ResourcesByMethod[$method]
 
         if ($method -in $SelectedMethods) {
-            $methodLines = @(Format-SCMiningPlanetMethodRecipeLines -Method $method -Inventory $Inventory -PlanetCraftMap $PlanetCraftMap -CraftFilter $CraftFilter)
+            $methodLines = @(Format-SCMiningPlanetMethodRecipeLines -Method $method -Inventory $Inventory -PlanetCraftMap $PlanetCraftMap -PlanetCraftIndex $PlanetCraftIndex -CraftFilter $CraftFilter)
             if ($methodLines.Count -gt 0) {
                 $body.Add((Get-SCMiningResourceListLabel) + ' ' + $resourceText)
                 $body.Add('')
@@ -2625,6 +2836,7 @@ function Format-SCMiningPlanetMethodRecipeLines {
         [string]$Method,
         [object]$Inventory,
         [hashtable]$PlanetCraftMap,
+        [AllowNull()][object]$PlanetCraftIndex,
         [object]$CraftFilter
     )
 
@@ -2639,16 +2851,30 @@ function Format-SCMiningPlanetMethodRecipeLines {
         return @()
     }
 
+    $candidateRecipes = $PlanetCraftMap
+    if ($null -ne $PlanetCraftIndex -and $null -ne $PlanetCraftIndex.ByResource) {
+        $candidateRecipes = @{}
+        foreach ($resource in $methodResources.Keys) {
+            $resourceKey = [string]$resource
+            if (-not $PlanetCraftIndex.ByResource.ContainsKey($resourceKey)) {
+                continue
+            }
+            foreach ($indexedRecipe in $PlanetCraftIndex.ByResource[$resourceKey].ToArray()) {
+                $candidateRecipes[[string]$indexedRecipe.RecipeKey] = $indexedRecipe.Recipe
+            }
+        }
+    }
+
     $body = New-Object System.Collections.Generic.List[string]
     foreach ($category in Get-SCMiningPlanetCategoryOrder) {
-        $categoryRecipes = @($PlanetCraftMap.Values | Where-Object { $_.Category -eq $category } | Sort-Object Name)
+        $categoryRecipes = @($candidateRecipes.Values | Where-Object { $_.Category -eq $category } | Sort-Object Name)
         if ($categoryRecipes.Count -eq 0) {
             continue
         }
 
         $groupMap = @{}
         foreach ($recipe in $categoryRecipes) {
-            if (-not (Test-SCMiningIncludePlanetRecipe -Recipe $recipe -CraftFilter $CraftFilter)) {
+            if ($null -eq $PlanetCraftIndex -and -not (Test-SCMiningIncludePlanetRecipe -Recipe $recipe -CraftFilter $CraftFilter)) {
                 continue
             }
 
@@ -5092,7 +5318,8 @@ function Find-SCMiningRefineryYieldStation {
     param(
         [string]$Key,
         [hashtable]$Values,
-        [object[]]$Stations
+        [object[]]$Stations,
+        [object[]]$StationMatchEntries
     )
 
     if ([string]::IsNullOrWhiteSpace($Key)) {
@@ -5104,12 +5331,25 @@ function Find-SCMiningRefineryYieldStation {
         return $null
     }
 
-    foreach ($station in @($Stations)) {
+    $matchEntries = @($StationMatchEntries)
+    if ($matchEntries.Count -eq 0) {
+        $matchEntries = @(
+            foreach ($station in @($Stations)) {
+                [pscustomobject]@{
+                    Station = $station
+                    Candidates = @(Get-SCMiningRefineryYieldStationCandidates -Station $station | Sort-Object { $_.Length } -Descending)
+                }
+            }
+        )
+    }
+
+    foreach ($matchEntry in $matchEntries) {
+        $station = $matchEntry.Station
         if (-not (Test-SCMiningRefineryYieldKeyQualifier -Key $Key -StationName ([string]$station.name))) {
             continue
         }
 
-        foreach ($candidate in @(Get-SCMiningRefineryYieldStationCandidates -Station $station | Sort-Object { $_.Length } -Descending)) {
+        foreach ($candidate in @($matchEntry.Candidates)) {
             if ([string]::IsNullOrWhiteSpace($candidate) -or $candidate.Length -lt 5) {
                 continue
             }
@@ -5340,7 +5580,8 @@ function Find-SCMiningLocationTradeLocation {
     param(
         [string]$Key,
         [hashtable]$Values,
-        [object[]]$Locations
+        [object[]]$Locations,
+        [object[]]$LocationMatchEntries
     )
 
     if ([string]::IsNullOrWhiteSpace($Key)) {
@@ -5352,8 +5593,21 @@ function Find-SCMiningLocationTradeLocation {
         return $null
     }
 
-    foreach ($location in @($Locations)) {
-        foreach ($candidate in @(Get-SCMiningLocationTradeCandidates -Location $location | Sort-Object { $_.Length } -Descending)) {
+    $matchEntries = @($LocationMatchEntries)
+    if ($matchEntries.Count -eq 0) {
+        $matchEntries = @(
+            foreach ($location in @($Locations)) {
+                [pscustomobject]@{
+                    Location = $location
+                    Candidates = @(Get-SCMiningLocationTradeCandidates -Location $location | Sort-Object { $_.Length } -Descending)
+                }
+            }
+        )
+    }
+
+    foreach ($matchEntry in $matchEntries) {
+        $location = $matchEntry.Location
+        foreach ($candidate in @($matchEntry.Candidates)) {
             if ([string]::IsNullOrWhiteSpace($candidate) -or $candidate.Length -lt 4) {
                 continue
             }

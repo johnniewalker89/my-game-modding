@@ -209,6 +209,54 @@ Assert-True ($questQuantumOnly.Contains('Квантовые двигатели:'
 Assert-True ((Format-BlueprintLine -Name 'VK-00') -eq '- VK-00') 'Quest blueprint lists should show every blueprint in the same name-only format.'
 Assert-True ((Remove-TitleMarker -Value '[Ч?] TEST TITLE') -eq 'TEST TITLE') 'Quest engine should remove a mixed blueprint marker before rebuilding title markers.'
 Assert-True ((Repair-EmphasisTags -Value 'A</EM4> B <EM4>C</EM4>') -eq 'A B <EM4>C</EM4>') 'Emphasis repair should remove only the unmatched closing tag.'
+$descriptionIndexFixture = @{
+    'Mission_Desc_01_Extra' = 'exact'
+    'mission_desc_01_extra_branch' = 'child'
+    'MISSION_DESC_01_EXTRA2' = 'similar prefix without boundary'
+    'Explicit_Description' = 'mapped directly'
+}
+
+$wikiVersionFixture = [pscustomobject]@{
+    data = @(
+        [pscustomobject]@{ code = '4.10.0-LIVE.12519617'; channel = 'live' },
+        [pscustomobject]@{ code = '4.10.0-LIVE.12510000'; channel = 'live' },
+        [pscustomobject]@{ code = '4.9.0-LIVE.12232306'; channel = 'live' }
+    )
+}
+$wikiExactVersion = Resolve-SCMiningWikiGameVersion -CacheKey '4.10.0-live.12519617' -Versions $wikiVersionFixture
+Assert-True ([string]$wikiExactVersion.Code -eq '4.10.0-LIVE.12519617' -and [string]$wikiExactVersion.Match -eq 'exact') 'Wiki version resolver should prefer an exact SCMDB build match.'
+$wikiCompatibleVersion = Resolve-SCMiningWikiGameVersion -CacheKey '4.10.0-live.12568521' -Versions $wikiVersionFixture
+Assert-True ([string]$wikiCompatibleVersion.Code -eq '4.10.0-LIVE.12519617' -and [string]$wikiCompatibleVersion.Match -eq 'compatible') 'Wiki version resolver should select the newest LIVE build from the same patch branch.'
+$wikiMissingBranchFailed = $false
+try {
+    [void](Resolve-SCMiningWikiGameVersion -CacheKey '4.11.0-live.12600000' -Versions $wikiVersionFixture)
+}
+catch {
+    $wikiMissingBranchFailed = $true
+}
+Assert-True $wikiMissingBranchFailed 'Wiki version resolver should reject fallback across patch branches.'
+
+$hashProbePath = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-hash-probe-" + [guid]::NewGuid().ToString('N') + '.bin')
+[System.IO.File]::WriteAllBytes($hashProbePath, [byte[]](0x61, 0x62, 0x63))
+function Get-FileHash {
+    throw 'Get-SCFileSha256 must not depend on the Get-FileHash cmdlet.'
+}
+try {
+    Assert-True ((Get-SCFileSha256 -Path $hashProbePath) -eq 'BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD') 'SHA256 fallback should work without Get-FileHash.'
+}
+finally {
+    Remove-Item -LiteralPath $hashProbePath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath 'Function:\Get-FileHash' -Force -ErrorAction SilentlyContinue
+}
+$descriptionIndex = (ConvertTo-SCQuestDescriptionKeyIndex -Values $descriptionIndexFixture).Keys
+$linkedDescriptionKeys = @(Get-SCQuestLinkedDescriptionKeysForTitle `
+    -TitleKey 'MISSION_TITLE_01_EXTRA' `
+    -TitleDescriptionMap @{ 'mission_title_01_extra' = @{ 'explicit_description' = $true } } `
+    -SortedDescriptionKeys $descriptionIndex)
+Assert-True ($linkedDescriptionKeys -contains 'Mission_Desc_01_Extra') 'Quest description index should match an exact title-derived description key case-insensitively.'
+Assert-True ($linkedDescriptionKeys -contains 'mission_desc_01_extra_branch') 'Quest description index should match child description keys separated by an underscore.'
+Assert-True ($linkedDescriptionKeys -contains 'explicit_description') 'Quest description index should preserve explicit engine title-description links.'
+Assert-True (-not ($linkedDescriptionKeys -contains 'MISSION_DESC_01_EXTRA2')) 'Quest description index should reject similar prefixes without an underscore boundary.'
 $frontlineMiningOptions = Expand-SCMiningCraftFamilyOptionIds -OptionIds @('craftFamily|Корабельные компоненты|Квантовые двигатели|exact:Frontline')
 Assert-True (@($frontlineMiningOptions | Where-Object { $_ -like '*component:capital-a:frontline' }).Count -gt 0) 'Mining family filters should migrate old Frontline selection to CAP-A.'
 $frontlineQuestOptions = Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @('questCraftFamily|Корабельные компоненты|Квантовые двигатели|exact:Frontline')
@@ -631,6 +679,12 @@ $shipOnly = @{ mining = @('shipMining') + $standardMiningCraftFilters; quest = $
 
 $dryRun = Invoke-SCModPatch -LivePath $liveRoot -ScriptRoot $ProjectDir -SelectedOptionsByModule $allMethods -ReportDirectory $reports -BackupDirectory $backups -DryRun
 Assert-True ($dryRun.Report.dryRun -eq $true) 'Dry-run report should be marked dryRun.'
+Assert-True ([int]$dryRun.Report.schemaVersion -eq 2) 'Patch report should expose the stage-timing schema.'
+Assert-True ([long]$dryRun.Report.timings.totalProcessingMs -ge 0) 'Patch report should include total processing time.'
+Assert-True ([long]$dryRun.Report.timings.readMs -ge 0) 'Patch report should include localization read time.'
+Assert-True (@($dryRun.Report.timings.moduleMs).Count -eq 2) 'Patch report should include timing for every module.'
+Assert-True ($null -ne @($dryRun.Report.modules | Where-Object { $_.id -eq 'mining' })[0].metadata.timings) 'Mining report should include stage timings.'
+Assert-True ($null -ne @($dryRun.Report.modules | Where-Object { $_.id -eq 'quest' })[0].metadata.timings) 'Quest report should include stage timings.'
 Assert-True ($dryRun.Report.writeAttempted -eq $false) 'Dry-run must not attempt writes.'
 Assert-True ([int]$dryRun.Report.fixedMalformedEmphasisLines -eq 0) 'Dry-run should not run RuSC EM repair from module apply.'
 Assert-True ([int]$dryRun.Report.changedLines -eq 2) 'Dry-run should preview only mining fixture changes.'
@@ -858,6 +912,7 @@ $planetCraftMap = @{
 }
 $standardCraftFilter = Get-SCMiningCraftFilter -SelectedOptions $standardMiningCraftFilters
 $emptyCraftFilter = Get-SCMiningCraftFilter -SelectedOptions @()
+$standardCraftIndex = New-SCMiningPlanetCraftIndex -PlanetCraftMap $planetCraftMap -CraftFilter $standardCraftFilter
 
 $methodCombos = @(
     @{ selected = @(); include = @('Фильтр: отключён, способы добычи не выбраны.', 'Корабль', 'Наземная техника', 'Мультитул', 'Copper', 'Iron', 'Beradon', 'Hadanite'); exclude = @('Фильтр: по выбранным галкам крафта; компоненты только Grade A.', 'Karna Rifle', 'AD Ballistic Gatlings', 'P6-LR Sniper Rifle', 'Coda Pistol', 'Palisade') },
@@ -872,6 +927,8 @@ $methodCombos = @(
 
 foreach ($combo in $methodCombos) {
     $block = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods $combo.selected -CraftFilter $standardCraftFilter
+    $indexedBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -PlanetCraftIndex $standardCraftIndex -SelectedMethods $combo.selected -CraftFilter $standardCraftFilter
+    Assert-True ($indexedBlock -ceq $block) 'Indexed planet recipe lookup must preserve the exact craft block output.'
     $blockText = (($block | ForEach-Object { [string]$_ }) -join '')
     if (@($combo.selected).Count -eq 0) {
         Assert-True ($blockText.Contains('Фильтр: отключён, способы добычи не выбраны.')) 'Planet craft block should mark recipe filter as disabled when no mining methods are selected.'
@@ -901,12 +958,14 @@ foreach ($combo in $methodCombos) {
 }
 
 $industrialFilter = Get-SCMiningCraftFilter -SelectedOptions @('componentClassIndustrial', 'shipWeaponEnergy', 'shipWeaponBallistic', 'armorHeavy', 'armorMedium', 'fpsRifles', 'fpsSniperRifles', 'fpsSmgs', 'fpsLmgs')
-$industrialBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods @($shipCode) -CraftFilter $industrialFilter
+$industrialIndex = New-SCMiningPlanetCraftIndex -PlanetCraftMap $planetCraftMap -CraftFilter $industrialFilter
+$industrialBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -PlanetCraftIndex $industrialIndex -SelectedMethods @($shipCode) -CraftFilter $industrialFilter
 Assert-True ($industrialBlock.Contains('Palisade')) 'Industrial component filter should include Grade A industrial components when selected.'
 Assert-True (-not $industrialBlock.Contains('FR-86')) 'Industrial component filter should exclude military components when military is not selected.'
 
 $pistolFilter = Get-SCMiningCraftFilter -SelectedOptions @('componentClassMilitary', 'componentClassStealth', 'shipWeaponEnergy', 'shipWeaponBallistic', 'armorHeavy', 'armorMedium', 'fpsPistols')
-$pistolBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods @($shipCode) -CraftFilter $pistolFilter
+$pistolIndex = New-SCMiningPlanetCraftIndex -PlanetCraftMap $planetCraftMap -CraftFilter $pistolFilter
+$pistolBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -PlanetCraftIndex $pistolIndex -SelectedMethods @($shipCode) -CraftFilter $pistolFilter
 Assert-True ($pistolBlock.Contains('Coda Pistol')) 'FPS pistol filter should include pistols when selected.'
 Assert-True (-not $pistolBlock.Contains('Karna Rifle')) 'FPS pistol filter should exclude rifles when rifles are not selected.'
 
@@ -916,7 +975,8 @@ Assert-True ($noMethodBlock.Contains('Beradon')) 'No mining methods selected sho
 Assert-True ($noMethodBlock.Contains('Hadanite')) 'No mining methods selected should still show hand resources as reference.'
 Assert-True (-not $noMethodBlock.Contains('- Karna Rifle')) 'No mining methods selected should not expand detailed recipes.'
 
-$emptyFilterBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -SelectedMethods @($shipCode) -CraftFilter $emptyCraftFilter
+$emptyCraftIndex = New-SCMiningPlanetCraftIndex -PlanetCraftMap $planetCraftMap -CraftFilter $emptyCraftFilter
+$emptyFilterBlock = Format-SCMiningPlanetCraftBlock -Inventory $methodInventory -PlanetCraftMap $planetCraftMap -PlanetCraftIndex $emptyCraftIndex -SelectedMethods @($shipCode) -CraftFilter $emptyCraftFilter
 $emptyFilterText = (($emptyFilterBlock | ForEach-Object { [string]$_ }) -join '')
 Assert-True ($emptyFilterText.Contains('Copper') -and $emptyFilterText.Contains('Iron')) 'Empty craft filter should still show raw resources for selected mining methods.'
 Assert-True (-not $emptyFilterText.Contains('- Karna Rifle')) 'Empty craft filter should not expand default recipes.'

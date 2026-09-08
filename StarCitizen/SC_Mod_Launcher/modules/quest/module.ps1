@@ -11,6 +11,15 @@
     $enableHighValueScripHighlights = @($SelectedOptions) -contains 'highValueScripHighlights'
     $enableWikeloItemHints = @($SelectedOptions) -contains 'wikeloItemHints'
     $enableReputationHints = @($SelectedOptions) -contains 'reputationHints'
+    $timings = [ordered]@{
+        engineMs = 0
+        preparationMs = 0
+        rewardFilterMs = 0
+        titleMarkersMs = 0
+        highlightsMs = 0
+        wikeloHintsMs = 0
+        diffMs = 0
+    }
     $metadata = @{
         source = 'SC Quest Recipe Engine'
         selectedOptionCount = @($SelectedOptions).Count
@@ -34,6 +43,7 @@
         changedDescriptionLines = 0
         changedTitleLines = 0
         allSelectableCategoriesSelected = $allSelectableCategoriesSelected
+        timings = $timings
     }
 
     if ($Context.KeyCount -lt 1000) {
@@ -47,8 +57,12 @@
     }
 
     Write-Host 'Progress: quest engine start'
+    $engineStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $engine = Invoke-SCQuestRecipeEngine -Context $Context -EnableReputationHints:$enableReputationHints
+    $engineStopwatch.Stop()
+    $timings['engineMs'] = $engineStopwatch.ElapsedMilliseconds
     Write-Host 'Progress: quest engine done'
+    Write-Host "Timing: quest engine: $($timings['engineMs']) ms"
     $metadata.engine = $engine.EnginePath
     $metadata.engineExitCode = $engine.ExitCode
 
@@ -61,6 +75,8 @@
         }
     }
 
+    Write-Host 'Progress: quest preparation start'
+    $preparationStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $originalValues = ConvertTo-SCQuestLineValueMap -Lines $Context.Lines
     $patchedValues = ConvertTo-SCQuestLineValueMap -Lines $engine.PatchedLines
     $titleVisibility = @{}
@@ -78,8 +94,14 @@
         kept = 0
         filtered = 0
     }
+    $preparationStopwatch.Stop()
+    $timings['preparationMs'] = $preparationStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: quest preparation done'
+    Write-Host "Timing: quest preparation: $($timings['preparationMs']) ms"
 
     Write-Host 'Progress: quest filter start'
+    Write-Host 'Progress: quest reward filter start'
+    $rewardFilterStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     foreach ($key in @($patchedValues.Keys)) {
         $value = [string]$patchedValues[$key]
         if (-not (Test-SCQuestHasRewardBlock -Value $value)) {
@@ -102,15 +124,33 @@
             $descriptionStats.filtered++
         }
     }
+    $rewardFilterStopwatch.Stop()
+    $timings['rewardFilterMs'] = $rewardFilterStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: quest reward filter done'
+    Write-Host "Timing: quest reward filter: $($timings['rewardFilterMs']) ms"
 
     $titleVisibility = (ConvertTo-SCQuestTitleVisibilityMap -PairMap $titleVisibilityPairs).Map
+    Write-Host 'Progress: quest title markers start'
+    $titleMarkersStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $blueprintTitleMarkerStats = Update-SCQuestBlueprintTitleMarkerVisibility -Values $patchedValues -TitleDescriptionMap $titleDescriptionMap -TitleVisibility $titleVisibility
+    $titleMarkersStopwatch.Stop()
+    $timings['titleMarkersMs'] = $titleMarkersStopwatch.ElapsedMilliseconds
+    Write-Host 'Progress: quest title markers done'
+    Write-Host "Timing: quest title markers: $($timings['titleMarkersMs']) ms"
 
     Write-Host 'Progress: quest filter done'
     Write-Host 'Progress: quest extras start'
     $highlightConfig = Get-SCQuestHighValueScripHighlightConfig
+    $highlightsStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $highlightStats = Set-SCQuestHighValueScripTitleHighlights -Values $patchedValues -Config $highlightConfig -Enable:$enableHighValueScripHighlights
+    $highlightsStopwatch.Stop()
+    $timings['highlightsMs'] = $highlightsStopwatch.ElapsedMilliseconds
+    Write-Host "Timing: quest highlights: $($timings['highlightsMs']) ms"
+    $wikeloHintsStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $wikeloHintStats = Set-SCQuestWikeloItemHints -Values $patchedValues -Enable:$enableWikeloItemHints
+    $wikeloHintsStopwatch.Stop()
+    $timings['wikeloHintsMs'] = $wikeloHintsStopwatch.ElapsedMilliseconds
+    Write-Host "Timing: quest Wikelo hints: $($timings['wikeloHintsMs']) ms"
     Write-Host 'Progress: quest extras done'
 
     $operations = @()
@@ -120,6 +160,7 @@
     $insertedLocalizationLines = 0
 
     Write-Host 'Progress: quest diff start'
+    $diffStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     foreach ($key in @($patchedValues.Keys | Sort-Object)) {
         if (-not $originalValues.ContainsKey($key)) {
             continue
@@ -156,7 +197,10 @@
             OwnedMarkers = $ownedMarkers
         }
     }
+    $diffStopwatch.Stop()
+    $timings['diffMs'] = $diffStopwatch.ElapsedMilliseconds
     Write-Host 'Progress: quest diff done'
+    Write-Host "Timing: quest diff: $($timings['diffMs']) ms"
 
     $metadata.generatedDescriptionBlocks = $descriptionStats.generated
     $metadata.keptDescriptionBlocks = $descriptionStats.kept
@@ -1541,8 +1585,7 @@ function Get-SCQuestLinkedDescriptionKeysForTitle {
     param(
         [string]$TitleKey,
         [hashtable]$TitleDescriptionMap,
-        [hashtable]$Values,
-        [string[]]$DescriptionKeys
+        [string[]]$SortedDescriptionKeys
     )
 
     $keys = @{}
@@ -1552,25 +1595,49 @@ function Get-SCQuestLinkedDescriptionKeysForTitle {
 
     $baseKeys = @(Get-SCQuestPossibleDescriptionBaseKeys -TitleKey $TitleKey)
     if ($baseKeys.Count -gt 0) {
-        $candidateKeys = @($DescriptionKeys)
-        if ($candidateKeys.Count -eq 0 -and $null -ne $Values) {
-            $candidateKeys = @($Values.Keys)
-        }
-
-        foreach ($key in $candidateKeys) {
-            $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
-            foreach ($baseKey in $baseKeys) {
-                if ($normalizedKey.StartsWith($baseKey, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    $suffix = $normalizedKey.Substring($baseKey.Length)
-                    if ($suffix -eq '' -or $suffix -match '(?i)^(?:_|$)') {
-                        $keys[$normalizedKey] = $true
-                    }
-                }
+        foreach ($baseKey in $baseKeys) {
+            foreach ($descriptionKey in Get-SCQuestDescriptionKeysByBase -BaseKey $baseKey -SortedDescriptionKeys $SortedDescriptionKeys) {
+                $keys[$descriptionKey] = $true
             }
         }
     }
 
     return @($keys.Keys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+}
+
+function Get-SCQuestDescriptionKeysByBase {
+    param(
+        [string]$BaseKey,
+        [string[]]$SortedDescriptionKeys
+    )
+
+    if ([string]::IsNullOrWhiteSpace($BaseKey) -or @($SortedDescriptionKeys).Count -eq 0) {
+        return @()
+    }
+
+    $matches = New-Object System.Collections.Generic.List[string]
+    $index = [System.Array]::BinarySearch(
+        [string[]]$SortedDescriptionKeys,
+        $BaseKey,
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+    if ($index -lt 0) {
+        $index = -$index - 1
+    }
+
+    for ($i = $index; $i -lt $SortedDescriptionKeys.Count; $i++) {
+        $key = [string]$SortedDescriptionKeys[$i]
+        if (-not $key.StartsWith($BaseKey, [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+
+        $suffix = $key.Substring($BaseKey.Length)
+        if ($suffix -eq '' -or $suffix.StartsWith('_', [System.StringComparison]::Ordinal)) {
+            $matches.Add($key)
+        }
+    }
+
+    return @($matches.ToArray())
 }
 
 function ConvertTo-SCQuestDescriptionKeyIndex {
@@ -1586,7 +1653,10 @@ function ConvertTo-SCQuestDescriptionKeyIndex {
         $keys[$normalizedKey] = $true
     }
 
-    return [pscustomobject]@{ Keys = @($keys.Keys | Sort-Object -Unique) }
+    [string[]]$sortedKeys = @($keys.Keys)
+    [System.Array]::Sort($sortedKeys, [System.StringComparer]::OrdinalIgnoreCase)
+
+    return [pscustomobject]@{ Keys = $sortedKeys }
 }
 
 function ConvertTo-SCQuestNormalizedValueKeyMap {
@@ -1786,7 +1856,7 @@ function Update-SCQuestBlueprintTitleMarkerVisibility {
                 }
             }
 
-            $linkedDescriptionKeys = @(Get-SCQuestLinkedDescriptionKeysForTitle -TitleKey $key -TitleDescriptionMap $TitleDescriptionMap -Values $Values -DescriptionKeys $descriptionKeyIndex)
+            $linkedDescriptionKeys = @(Get-SCQuestLinkedDescriptionKeysForTitle -TitleKey $key -TitleDescriptionMap $TitleDescriptionMap -SortedDescriptionKeys $descriptionKeyIndex)
             if ($linkedDescriptionKeys.Count -gt 0) {
                 $rewardStats = Get-SCQuestLinkedDescriptionRewardBlockStats -DescriptionKeys $linkedDescriptionKeys -Values $Values -NormalizedValueKeys $normalizedValueKeys
                 if ([bool]$rewardStats.AllVisible) {

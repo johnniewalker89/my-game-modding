@@ -38,6 +38,28 @@ $ScmdbBaseUrl = 'https://scmdb.net/data'
 $WikiApiBaseUrl = 'https://api.star-citizen.wiki/api'
 $LocalizationRelativePath = 'data\Localization\korean_(south_korea)\global.ini'
 
+function Get-SCQuestFileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [System.IO.File]::OpenRead($resolvedPath)
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        $hashBytes = $sha256.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($hashBytes)).Replace('-', '')
+    }
+    finally {
+        if ($null -ne $sha256) {
+            $sha256.Dispose()
+        }
+        if ($null -ne $stream) {
+            $stream.Dispose()
+        }
+    }
+}
+
 $CategoryOrder = @(
     'Корабельные компоненты',
     'Корабельные орудия',
@@ -3918,7 +3940,7 @@ if ($RestoreLatestBackup) {
 }
 
 $encodingInfo = Get-TextEncodingInfo -Path $globalPath
-$originalHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $globalPath).Hash
+$originalHash = Get-SCQuestFileSha256 -Path $globalPath
 $originalSize = (Get-Item -LiteralPath $globalPath).Length
 
 Write-Host "global.ini: $globalPath"
@@ -4316,7 +4338,7 @@ if (-not $NoBackup) {
 }
 
 [System.IO.File]::WriteAllLines($globalPath, $lines, $encodingInfo.Encoding)
-$newHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $globalPath).Hash
+$newHash = Get-SCQuestFileSha256 -Path $globalPath
 
 Write-Host "Patched lines: $changedLines"
 Write-Host "SCMDB version: $($scmdb.Version)"

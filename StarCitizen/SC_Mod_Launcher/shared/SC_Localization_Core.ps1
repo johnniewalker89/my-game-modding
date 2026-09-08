@@ -2,6 +2,28 @@
 
 $script:SCLocalizationRelativePath = 'data\Localization\korean_(south_korea)\global.ini'
 
+function Get-SCFileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [System.IO.File]::OpenRead($resolvedPath)
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        $hashBytes = $sha256.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($hashBytes)).Replace('-', '')
+    }
+    finally {
+        if ($null -ne $sha256) {
+            $sha256.Dispose()
+        }
+        if ($null -ne $stream) {
+            $stream.Dispose()
+        }
+    }
+}
+
 function Get-SCGlobalIniPath {
     param([string]$LivePath)
 
@@ -129,7 +151,7 @@ function Read-SCLocalizationData {
     }
 
     $encodingInfo = Get-SCTextEncodingInfo -Path $globalIni
-    $originalHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $globalIni).Hash
+    $originalHash = Get-SCFileSha256 -Path $globalIni
     $originalSize = (Get-Item -LiteralPath $globalIni).Length
     $lines = [System.IO.File]::ReadAllLines($globalIni, $encodingInfo.Encoding)
     $values = @{}
@@ -599,7 +621,7 @@ function Write-SCBackupMetadata {
             schemaVersion = 1
             createdAt = (Get-Date).ToString('o')
             fileName = $file.Name
-            sha256 = (Get-FileHash -LiteralPath $BackupPath -Algorithm SHA256).Hash
+            sha256 = Get-SCFileSha256 -Path $BackupPath
             kind = [string]$state.kind
             rawMiningMarkers = @($state.rawMiningMarkers)
             launcherMarkers = @($state.markers)
@@ -640,7 +662,10 @@ function Invoke-SCModPatchPlan {
     $modulesRoot = Join-Path $ScriptRoot 'modules'
     $modules = Import-SCModManifests -ModulesRoot $modulesRoot
     Write-Host 'Progress: apply read'
+    $readStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $context = Read-SCLocalizationData -LivePath $LivePath -GlobalIniPath $GlobalIniPath
+    $readStopwatch.Stop()
+    Write-Host "Timing: apply read: $($readStopwatch.ElapsedMilliseconds) ms"
     $sharedOperations = @()
 
     $moduleReports = @()
@@ -656,6 +681,7 @@ function Invoke-SCModPatchPlan {
         $operations = @($plan.Operations)
         $warnings = @($plan.Warnings)
         Write-Host "Progress: module $($module.Id) done"
+        Write-Host "Timing: module $($module.Id): $($moduleStopwatch.ElapsedMilliseconds) ms"
 
         $moduleOperations += $operations
         $allWarnings += $warnings
@@ -671,12 +697,20 @@ function Invoke-SCModPatchPlan {
     }
 
     Write-Host 'Progress: apply merge'
+    $mergeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $allOperations = @(Merge-SCPatchOperations -SharedOperations $sharedOperations -ModuleOperations $moduleOperations)
     $conflicts = @(Test-SCPatchConflicts -Operations $allOperations)
+    $mergeStopwatch.Stop()
+    Write-Host "Timing: apply merge: $($mergeStopwatch.ElapsedMilliseconds) ms"
     $applyPreview = $null
+    $previewElapsedMs = 0
     if ($conflicts.Count -eq 0) {
         Write-Host 'Progress: apply preview'
+        $previewStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $applyPreview = Apply-SCPatchOperationsToLines -Context $context -Operations $allOperations
+        $previewStopwatch.Stop()
+        $previewElapsedMs = $previewStopwatch.ElapsedMilliseconds
+        Write-Host "Timing: apply preview: $previewElapsedMs ms"
     }
 
     return [pscustomobject]@{
@@ -689,6 +723,11 @@ function Invoke-SCModPatchPlan {
         Conflicts = $conflicts
         Warnings = $allWarnings
         ApplyPreview = $applyPreview
+        Timings = [pscustomobject]@{
+            readMs = $readStopwatch.ElapsedMilliseconds
+            mergeMs = $mergeStopwatch.ElapsedMilliseconds
+            previewMs = $previewElapsedMs
+        }
     }
 }
 
@@ -705,6 +744,8 @@ function Invoke-SCModPatch {
         [switch]$NoBackup
     )
 
+    $totalStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
     if ([string]::IsNullOrWhiteSpace($ReportDirectory)) {
         $ReportDirectory = Join-Path $ScriptRoot 'reports'
     }
@@ -712,7 +753,9 @@ function Invoke-SCModPatch {
         $BackupDirectory = Join-Path $ScriptRoot 'backups'
     }
 
+    $planStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $plan = Invoke-SCModPatchPlan -LivePath $LivePath -GlobalIniPath $GlobalIniPath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $SelectedOptionsByModule
+    $planStopwatch.Stop()
     $context = $plan.Context
     $changedLineCount = 0
     $changedKeys = @()
@@ -725,6 +768,9 @@ function Invoke-SCModPatch {
     $newHash = $null
     $writeAttempted = $false
     $writeSucceeded = $false
+    $backupElapsedMs = 0
+    $writeElapsedMs = 0
+    $hashElapsedMs = 0
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $reportMode = if ($DryRun) { 'dryrun' } else { 'apply' }
     $reportPath = Join-Path $ReportDirectory "$ReportPrefix-$reportMode-$stamp.json"
@@ -732,17 +778,47 @@ function Invoke-SCModPatch {
     if (-not $DryRun -and $plan.Conflicts.Count -eq 0 -and $changedLineCount -gt 0) {
         $writeAttempted = $true
         if (-not $NoBackup) {
+            Write-Host 'Progress: apply backup'
+            $backupStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             $backupPath = New-SCBackup -GlobalIniPath $context.GlobalIniPath -BackupDirectory $BackupDirectory
+            $backupStopwatch.Stop()
+            $backupElapsedMs = $backupStopwatch.ElapsedMilliseconds
+            Write-Host "Timing: apply backup: $backupElapsedMs ms"
         }
 
         Write-Host 'Progress: apply write'
+        $writeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         [System.IO.File]::WriteAllLines($context.GlobalIniPath, $plan.ApplyPreview.Lines, $context.EncodingInfo.Encoding)
-        $newHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $context.GlobalIniPath).Hash
+        $writeStopwatch.Stop()
+        $writeElapsedMs = $writeStopwatch.ElapsedMilliseconds
+        Write-Host "Timing: apply write: $writeElapsedMs ms"
+        Write-Host 'Progress: apply hash'
+        $hashStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $newHash = Get-SCFileSha256 -Path $context.GlobalIniPath
+        $hashStopwatch.Stop()
+        $hashElapsedMs = $hashStopwatch.ElapsedMilliseconds
+        Write-Host "Timing: apply hash: $hashElapsedMs ms"
         $writeSucceeded = $true
     }
 
+    $totalStopwatch.Stop()
+    $timings = [pscustomobject]@{
+        totalProcessingMs = $totalStopwatch.ElapsedMilliseconds
+        planMs = $planStopwatch.ElapsedMilliseconds
+        readMs = $plan.Timings.readMs
+        moduleMs = @($plan.ModuleReports | ForEach-Object {
+            [pscustomobject]@{ id = [string]$_.id; elapsedMs = [long]$_.elapsedMs }
+        })
+        mergeMs = $plan.Timings.mergeMs
+        previewMs = $plan.Timings.previewMs
+        backupMs = $backupElapsedMs
+        writeMs = $writeElapsedMs
+        hashMs = $hashElapsedMs
+    }
+    Write-Host "Timing: apply total processing: $($timings.totalProcessingMs) ms"
+
     $report = [pscustomobject]@{
-        schemaVersion = 1
+        schemaVersion = 2
         createdAt = (Get-Date).ToString('o')
         dryRun = [bool]$DryRun
         writeAttempted = $writeAttempted
@@ -769,6 +845,7 @@ function Invoke-SCModPatch {
         conflictCount = $plan.Conflicts.Count
         conflicts = $plan.Conflicts
         warnings = $plan.Warnings
+        timings = $timings
         operations = $plan.Operations
     }
 

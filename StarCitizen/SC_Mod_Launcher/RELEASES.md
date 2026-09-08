@@ -1,5 +1,20 @@
 # SC Mod Launcher Releases
 
+## 2.1.7
+
+### Что нового
+
+- Применение модулей майнинга и квестов стало заметно быстрее.
+- Прогрев кэша больше не падает, если точного билда нет в Star Citizen Wiki.
+- Исправлена ошибка применения, если команда `Get-FileHash` недоступна.
+- В диагностику добавлено время отдельных этапов.
+
+### Release asset
+
+- Файл: `SC_Mod_Launcher_2.1.7.zip`
+- SHA-256: указан на странице GitHub Release.
+- Проверено: свежий cache preflight, scaffold backend, WPF build/smoke, update installer и аудит содержимого ZIP.
+
 ## 2.1.6
 
 ### Хотфикс

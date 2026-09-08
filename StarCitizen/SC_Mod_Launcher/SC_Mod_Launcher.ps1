@@ -387,7 +387,7 @@ function Write-SCCacheTimestampMetadata {
         schemaVersion = 1
         fileName = Split-Path -Leaf $Path
         createdAt = $CreatedAt.ToString('o')
-        sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
+        sha256 = Get-SCFileSha256 -Path $Path
     }
     $json = $metadata | ConvertTo-Json -Depth 4
     [System.IO.File]::WriteAllText("$Path.meta.json", $json, [System.Text.UTF8Encoding]::new($false))
@@ -464,8 +464,10 @@ function Get-SCRemoteJson {
                 }
 
                 $curlArgs += $Uri
-                $json = & curl.exe @curlArgs
-                if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
+                $curlOutput = @(& curl.exe @curlArgs 2>&1)
+                $curlExitCode = $LASTEXITCODE
+                $json = $curlOutput -join [Environment]::NewLine
+                if ($curlExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($json)) {
                     if (-not $Quiet) {
                         Write-Host "Source ${Name}: OK"
                     }
@@ -743,6 +745,7 @@ function Write-ConsoleRemoteSourceSummary {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $headers = @{ 'User-Agent' = 'SC-Mod-Launcher/1.0 preflight' }
 
+    $version = $null
     $versions = Get-SCRemoteJson -Name 'SCMDB index' -Uri 'https://scmdb.net/data/game-versions.json' -Headers $headers -TimeoutSec $script:SourceCheckTimeoutSec
     if ($versions -and @($versions).Count -gt 0) {
         $version = Select-SCScmdbLiveVersion -Versions $versions
@@ -761,7 +764,8 @@ function Write-ConsoleRemoteSourceSummary {
     [void](Test-SCWikiItemsSource -Headers $headers)
     [void](Test-SCRefineryYieldsSource -Headers $headers)
     [void](Test-SCLocationTradeSource -Headers $headers)
-    [void](Test-SCWikiItemPassportSource -Headers $headers)
+    . (Get-SCMiningModuleScriptPath)
+    [void](Test-SCWikiItemPassportSource -Headers $headers -CacheKey $(if ($null -ne $version) { [string]$version.version } else { '' }))
 }
 
 function Test-SCWikiBlueprintSource {
@@ -821,10 +825,19 @@ function Test-SCLocationTradeSource {
 }
 
 function Test-SCWikiItemPassportSource {
-    param([hashtable]$Headers)
+    param(
+        [hashtable]$Headers,
+        [string]$CacheKey
+    )
 
     try {
-        $result = Get-SCRemoteJson -Name 'Wiki item passports' -Uri 'https://api.star-citizen.wiki/api/items?filter%5Btype%5D=WeaponGun&page%5Bsize%5D=1&page%5Bnumber%5D=1' -Headers $Headers -TimeoutSec $script:SourceCheckTimeoutSec
+        if ([string]::IsNullOrWhiteSpace($CacheKey)) {
+            throw 'SCMDB LIVE version is unavailable.'
+        }
+
+        $versions = Get-SCMiningWikiGameVersions -Headers $Headers
+        $wikiVersion = Resolve-SCMiningWikiGameVersion -CacheKey $CacheKey -Versions $versions
+        $result = Invoke-SCMiningWikiItemPage -Type 'WeaponGun' -Page 1 -WikiVersion ([string]$wikiVersion.Code) -Headers $Headers
         if ($null -eq $result) {
             return $false
         }
@@ -832,6 +845,13 @@ function Test-SCWikiItemPassportSource {
             throw 'empty response'
         }
 
+        $matchText = if ([string]$wikiVersion.Match -eq 'exact') {
+            "exact $($wikiVersion.Code)"
+        }
+        else {
+            "compatible $($wikiVersion.Code) for $($wikiVersion.RequestedCode)"
+        }
+        Write-Host "Source Wiki item passports: OK; $matchText"
         return $true
     }
     catch {
@@ -1008,8 +1028,14 @@ function Write-ConsoleWarmCacheSummary {
     $itemPassportPath = Get-SCMiningItemPassportCachePath -CacheKey ([string]$version.version)
     try {
         $itemPassportPath = Write-SCMiningItemPassportCache -CacheKey ([string]$version.version) -Headers $headers
-        Write-Host 'Source Wiki item passports: OK'
         $itemPassportCache = Get-Content -LiteralPath $itemPassportPath -Encoding UTF8 -Raw | ConvertFrom-Json
+        $wikiMatch = if ([string]$itemPassportCache.versionMatch -eq 'compatible') {
+            "compatible $($itemPassportCache.gameVersion) for $($itemPassportCache.requestedGameVersion)"
+        }
+        else {
+            "exact $($itemPassportCache.gameVersion)"
+        }
+        Write-Host "Source Wiki item passports: OK; $wikiMatch"
         Write-Host "Wiki item passports: $(@($itemPassportCache.records).Count)"
         Write-SCRefreshedCacheLine -Name 'mining item passports' -Path $itemPassportPath
     }

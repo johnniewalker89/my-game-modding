@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.6";
+    private const string CurrentLauncherVersion = "2.1.7";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -1868,11 +1868,21 @@ Write-Host "FAMILY_INDEX:$indexPath"
             else if (line.Equals("Progress: apply plan", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(18);
             else if (line.Equals("Progress: apply read", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(20);
             else if (line.Equals("Progress: module mining start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(34);
+            else if (line.Equals("Progress: mining recipe data start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(35);
+            else if (line.Equals("Progress: mining planet descriptions start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(37);
+            else if (line.Equals("Progress: mining item passports start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(40);
+            else if (line.Equals("Progress: mining item craft hints start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(43);
+            else if (line.Equals("Progress: mining refinery hints start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(45);
+            else if (line.Equals("Progress: mining location trade hints start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(46);
+            else if (line.Equals("Progress: mining finalize start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(47);
             else if (line.Equals("Progress: module mining done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(48);
             else if (line.Equals("Progress: module quest start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(58);
             else if (line.Equals("Progress: quest engine start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(60);
             else if (line.Equals("Progress: quest engine done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(64);
+            else if (line.Equals("Progress: quest preparation start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(64);
             else if (line.Equals("Progress: quest filter start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(65);
+            else if (line.Equals("Progress: quest reward filter start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(65);
+            else if (line.Equals("Progress: quest title markers start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(66);
             else if (line.Equals("Progress: quest filter done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(67);
             else if (line.Equals("Progress: quest extras start", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(68);
             else if (line.Equals("Progress: quest extras done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(70);
@@ -1881,7 +1891,9 @@ Write-Host "FAMILY_INDEX:$indexPath"
             else if (line.Equals("Progress: module quest done", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(72);
             else if (line.Equals("Progress: apply merge", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(78);
             else if (line.Equals("Progress: apply preview", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(84);
+            else if (line.Equals("Progress: apply backup", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(88);
             else if (line.Equals("Progress: apply write", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(92);
+            else if (line.Equals("Progress: apply hash", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(94);
             else if (line.StartsWith("SC Mod Launcher LIVE apply", StringComparison.OrdinalIgnoreCase)) SetBackendProgress(96);
         }
     }
@@ -3655,7 +3667,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             var diagnosticPath = WriteBackendDiagnosticLog(mode, result, timeout);
             if (mode is BackendRunMode.WarmCache or BackendRunMode.LiveApply)
             {
-                StopBackendProgress(result.ExitCode == 0 && string.IsNullOrWhiteSpace(result.Error));
+                StopBackendProgress(result.ExitCode == 0);
             }
 
             if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.Output))
@@ -3694,7 +3706,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
             }
             else if (!string.IsNullOrWhiteSpace(result.Error))
             {
-                AddError(result.Error.Trim());
+                AddMetricLog("Предупреждение backend: " + result.Error.Trim());
                 AddPathLog("Диагностика", diagnosticPath);
             }
         }
@@ -3939,7 +3951,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
         }
 
         var hasFailure = lines.Any(line => line.Contains(": FAIL", StringComparison.OrdinalIgnoreCase));
-        SetJournalState(hasFailure ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: cache не прогрет." : "Cache прогрет. Можно применять в LIVE.", hasFailure);
+        var hasFallback = lines.Any(line => line.Contains(": FALLBACK", StringComparison.OrdinalIgnoreCase));
+        var state = hasFailure
+            ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: cache не прогрет."
+            : hasFallback
+                ? "Cache прогрет с резервными данными. Можно применять в LIVE."
+                : "Cache прогрет. Можно применять в LIVE.";
+        SetJournalState(state, hasFailure);
         if (!hasFailure)
         {
             SetWarmCacheAttention(false);
@@ -3954,6 +3972,11 @@ Write-Host "FAMILY_INDEX:$indexPath"
         {
             var source = last ? lines.Reverse() : lines;
             return source.FirstOrDefault(line => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Substring(prefix.Length).Trim() ?? "";
+        }
+
+        foreach (var timingLine in lines.Where(line => line.StartsWith("Timing:", StringComparison.OrdinalIgnoreCase)))
+        {
+            AddMetricLog("Этап " + timingLine["Timing:".Length..].Trim() + ".");
         }
 
         var operations = FindValue("Operations:");

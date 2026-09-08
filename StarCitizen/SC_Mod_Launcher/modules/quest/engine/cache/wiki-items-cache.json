@@ -23,10 +23,10 @@
                                        "found":  false,
                                        "source":  "wiki-miss"
                                    },
-    "Novikov Helmet":  {
-                           "found":  false,
-                           "source":  "wiki-miss"
-                       },
+    "Stirling Exploration Suit":  {
+                                      "found":  false,
+                                      "source":  "wiki-miss"
+                                  },
     "ColdSnap":  {
                      "found":  false,
                      "source":  "wiki-miss"
@@ -87,6 +87,10 @@
                                "found":  false,
                                "source":  "wiki-miss"
                            },
+    "Coda Pistol":  {
+                        "found":  false,
+                        "source":  "wiki-miss"
+                    },
     "Monde Core Hemlock Camo":  {
                                     "found":  false,
                                     "source":  "wiki-miss"
@@ -95,10 +99,6 @@
                                 "found":  false,
                                 "source":  "wiki-miss"
                             },
-    "Tarantula GT-870 Mark 1 Cannon":  {
-                                           "found":  false,
-                                           "source":  "wiki-miss"
-                                       },
     "Aves Shrike Helmet":  {
                                "found":  false,
                                "source":  "wiki-miss"
@@ -107,15 +107,19 @@
                    "found":  false,
                    "source":  "wiki-miss"
                },
-    "BLOC":  {
-                 "found":  false,
-                 "source":  "wiki-miss"
-             },
-    "Monde Core Delta Camo":  {
+    "Palatino Core Daystar":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
-    "Klein-S2 Mining Laser":  {
+    "Pulverizer LMG Magazine (120 Cap)":  {
+                                              "found":  false,
+                                              "source":  "wiki-miss"
+                                          },
+    "Ravager-212 Twin Shotgun Magazine (16 cap)":  {
+                                                       "found":  false,
+                                                       "source":  "wiki-miss"
+                                                   },
+    "Monde Core Delta Camo":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
@@ -139,10 +143,6 @@
                     "found":  false,
                     "source":  "wiki-miss"
                 },
-    "Aves Core":  {
-                      "found":  false,
-                      "source":  "wiki-miss"
-                  },
     "P8-SC SMG":  {
                       "found":  false,
                       "source":  "wiki-miss"
@@ -159,10 +159,6 @@
                                 "found":  false,
                                 "source":  "wiki-miss"
                             },
-    "Citadel":  {
-                    "found":  false,
-                    "source":  "wiki-miss"
-                },
     "Parapet":  {
                     "found":  false,
                     "source":  "wiki-miss"
@@ -183,10 +179,6 @@
                    "found":  false,
                    "source":  "wiki-miss"
                },
-    "Parallax \"Sunstone\" Energy Assault Rifle":  {
-                                                       "found":  false,
-                                                       "source":  "wiki-miss"
-                                                   },
     "Lightstrike II Cannon":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
@@ -215,10 +207,10 @@
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
-    "Atzkav \"Mirage\" Sniper Rifle":  {
-                                           "found":  false,
-                                           "source":  "wiki-miss"
-                                       },
+    "Surveyor-Max":  {
+                         "found":  false,
+                         "source":  "wiki-miss"
+                     },
     "Testudo Legs Turfwar":  {
                                  "found":  false,
                                  "source":  "wiki-miss"
@@ -277,22 +269,18 @@
                          "found":  false,
                          "source":  "wiki-miss"
                      },
-    "Artimex Arms":  {
-                         "found":  false,
-                         "source":  "wiki-miss"
-                     },
+    "Corbel Helmet Patina":  {
+                                 "found":  false,
+                                 "source":  "wiki-miss"
+                             },
     "Sledge III Mass Driver Cannon":  {
                                           "found":  false,
                                           "source":  "wiki-miss"
                                       },
-    "Pulse Laser Pistol Battery (60 Cap)":  {
-                                                "found":  false,
-                                                "source":  "wiki-miss"
-                                            },
-    "JS-500":  {
-                   "found":  false,
-                   "source":  "wiki-miss"
-               },
+    "Yubarev \"Mirage\" Pistol":  {
+                                      "found":  false,
+                                      "source":  "wiki-miss"
+                                  },
     "Testudo Core Combustion":  {
                                     "found":  false,
                                     "source":  "wiki-miss"
@@ -411,10 +399,10 @@
                     "found":  false,
                     "source":  "wiki-miss"
                 },
-    "Winter-Star SL":  {
-                           "found":  false,
-                           "source":  "wiki-miss"
-                       },
+    "Siebe Helmet":  {
+                         "found":  false,
+                         "source":  "wiki-miss"
+                     },
     "BUL-H4 Helmet":  {
                           "found":  false,
                           "source":  "wiki-miss"
@@ -439,10 +427,10 @@
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
-    "Coda Pistol":  {
-                        "found":  false,
-                        "source":  "wiki-miss"
-                    },
+    "AD4B Ballistic Gatling":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "Overlord Arms Supernova":  {
                                     "found":  false,
                                     "source":  "wiki-miss"
@@ -463,10 +451,10 @@
                        "found":  false,
                        "source":  "wiki-miss"
                    },
-    "Novikov Backpack Smolder":  {
-                                     "found":  false,
-                                     "source":  "wiki-miss"
-                                 },
+    "Palatino Legs Moonfall":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "WEB":  {
                 "found":  false,
                 "source":  "wiki-miss"
@@ -499,14 +487,10 @@
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
-    "AD4B Ballistic Gatling":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
-    "SonicLite":  {
-                      "found":  false,
-                      "source":  "wiki-miss"
-                  },
+    "Testudo Arms":  {
+                         "found":  false,
+                         "source":  "wiki-miss"
+                     },
     "SW16BR2 âSawbuckâ Repeater":  {
                                            "found":  false,
                                            "source":  "wiki-miss"
@@ -579,14 +563,10 @@
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
-    "Palatino Legs Daystar":  {
-                                  "found":  false,
-                                  "source":  "wiki-miss"
-                              },
-    "Siebe Helmet":  {
-                         "found":  false,
-                         "source":  "wiki-miss"
-                     },
+    "CBH-3 Helmet Base":  {
+                              "found":  false,
+                              "source":  "wiki-miss"
+                          },
     "Testudo Legs":  {
                          "found":  false,
                          "source":  "wiki-miss"
@@ -595,10 +575,10 @@
                        "found":  false,
                        "source":  "wiki-miss"
                    },
-    "Calico Legs Tactical":  {
-                                 "found":  false,
-                                 "source":  "wiki-miss"
-                             },
+    "Arrowhead Sniper Rifle":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "Testudo Arms Turfwar":  {
                                  "found":  false,
                                  "source":  "wiki-miss"
@@ -687,10 +667,6 @@
                      "found":  false,
                      "source":  "wiki-miss"
                  },
-    "Surveyor-Max":  {
-                         "found":  false,
-                         "source":  "wiki-miss"
-                     },
     "Klein-S1 Mining Laser":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
@@ -699,10 +675,10 @@
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
-    "Antium Core Jet":  {
-                            "found":  false,
-                            "source":  "wiki-miss"
-                        },
+    "Klein-S2 Mining Laser":  {
+                                  "found":  false,
+                                  "source":  "wiki-miss"
+                              },
     "ADP-mk4 Core Woodland":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
@@ -731,10 +707,10 @@
                                            "found":  false,
                                            "source":  "wiki-miss"
                                        },
-    "AD5B Ballistic Gatling":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
+    "IceBox":  {
+                   "found":  false,
+                   "source":  "wiki-miss"
+               },
     "Monde Arms Hiro":  {
                             "found":  false,
                             "source":  "wiki-miss"
@@ -887,10 +863,6 @@
                                         "blueprintLink":  "https://api.star-citizen.wiki/api/blueprints/b04aff42-d892-4ca9-991e-101c869a7caa",
                                         "isCraftable":  true
                                     },
-    "LH86 Pistol":  {
-                        "found":  false,
-                        "source":  "wiki-miss"
-                    },
     "Antium Arms Storm":  {
                               "found":  false,
                               "source":  "wiki-miss"
@@ -899,6 +871,10 @@
                               "found":  false,
                               "source":  "wiki-miss"
                           },
+    "Zenith \"Darkwave\" Laser Sniper Rifle":  {
+                                                   "found":  false,
+                                                   "source":  "wiki-miss"
+                                               },
     "FullSpec":  {
                      "found":  false,
                      "source":  "wiki-miss"
@@ -919,10 +895,6 @@
                                     "found":  false,
                                     "source":  "wiki-miss"
                                 },
-    "Yubarev \"Mirage\" Pistol":  {
-                                      "found":  false,
-                                      "source":  "wiki-miss"
-                                  },
     "XL-1":  {
                  "found":  false,
                  "source":  "wiki-miss"
@@ -947,10 +919,18 @@
                          "found":  false,
                          "source":  "wiki-miss"
                      },
-    "NN-14 Cannon":  {
+    "FL-22 Cannon":  {
                          "found":  false,
                          "source":  "wiki-miss"
                      },
+    "Calico Legs Tactical":  {
+                                 "found":  false,
+                                 "source":  "wiki-miss"
+                             },
+    "M4A Cannon":  {
+                       "found":  false,
+                       "source":  "wiki-miss"
+                   },
     "Antium Helmet Storm":  {
                                 "found":  false,
                                 "source":  "wiki-miss"
@@ -959,6 +939,10 @@
                  "found":  false,
                  "source":  "wiki-miss"
              },
+    "DuraJet":  {
+                    "found":  false,
+                    "source":  "wiki-miss"
+                },
     "Pulse Laser Pistol":  {
                                "found":  false,
                                "source":  "wiki-miss"
@@ -979,14 +963,14 @@
                                        "found":  false,
                                        "source":  "wiki-miss"
                                    },
-    "DuraJet":  {
+    "Helix I Mining Laser":  {
+                                 "found":  false,
+                                 "source":  "wiki-miss"
+                             },
+    "Glacier":  {
                     "found":  false,
                     "source":  "wiki-miss"
                 },
-    "DustUp Helmet Tactical":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
     "Testudo Core Nightveil":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
@@ -1011,10 +995,14 @@
                     "found":  false,
                     "source":  "wiki-miss"
                 },
-    "Deadrig Shotgun":  {
-                            "found":  false,
-                            "source":  "wiki-miss"
-                        },
+    "Atzkav \"Mirage\" Sniper Rifle":  {
+                                           "found":  false,
+                                           "source":  "wiki-miss"
+                                       },
+    "Attrition-5 Repeater":  {
+                                 "found":  false,
+                                 "source":  "wiki-miss"
+                             },
     "Morozov-SH Arms Thule":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
@@ -1067,10 +1055,10 @@
                                              "found":  false,
                                              "source":  "wiki-miss"
                                          },
-    "Palatino Legs Moonfall":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
+    "NN-14 Cannon":  {
+                         "found":  false,
+                         "source":  "wiki-miss"
+                     },
     "Testudo Arms Nightveil":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
@@ -1095,6 +1083,10 @@
                             "found":  false,
                             "source":  "wiki-miss"
                         },
+    "Hofstede-S1 Mining Laser":  {
+                                     "found":  false,
+                                     "source":  "wiki-miss"
+                                 },
     "Tailwind Flight Helmet Dominion Camo":  {
                                                  "found":  false,
                                                  "source":  "wiki-miss"
@@ -1131,10 +1123,14 @@
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
-    "Impact I Mining Laser":  {
-                                  "found":  false,
-                                  "source":  "wiki-miss"
-                              },
+    "Kragen":  {
+                   "found":  false,
+                   "source":  "wiki-miss"
+               },
+    "BLOC":  {
+                 "found":  false,
+                 "source":  "wiki-miss"
+             },
     "HAVEN":  {
                   "found":  false,
                   "source":  "wiki-miss"
@@ -1171,10 +1167,10 @@
                           "found":  false,
                           "source":  "wiki-miss"
                       },
-    "STOP":  {
-                 "found":  false,
-                 "source":  "wiki-miss"
-             },
+    "CF-337 Panther \"Hazard-Zone\" Repeater":  {
+                                                    "found":  false,
+                                                    "source":  "wiki-miss"
+                                                },
     "Predator Scattergun":  {
                                 "found":  false,
                                 "source":  "wiki-miss"
@@ -1187,10 +1183,10 @@
                          "found":  false,
                          "source":  "wiki-miss"
                      },
-    "GOLEM MC-4 Ore Pod":  {
-                               "found":  false,
-                               "source":  "wiki-miss"
-                           },
+    "FrostBurn":  {
+                      "found":  false,
+                      "source":  "wiki-miss"
+                  },
     "Aril Helmet":  {
                         "found":  false,
                         "source":  "wiki-miss"
@@ -1223,10 +1219,6 @@
                                 "found":  false,
                                 "source":  "wiki-miss"
                             },
-    "Palisade":  {
-                     "found":  false,
-                     "source":  "wiki-miss"
-                 },
     "Dominance-1 Scattergun":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
@@ -1251,22 +1243,22 @@
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
-    "Tarantula GT-870 Mark 3 Cannon":  {
-                                           "found":  false,
-                                           "source":  "wiki-miss"
-                                       },
-    "Inquisitor Legs Grey":  {
-                                 "found":  false,
-                                 "source":  "wiki-miss"
-                             },
+    "FullForce Pro":  {
+                          "found":  false,
+                          "source":  "wiki-miss"
+                      },
+    "PowerBolt":  {
+                      "found":  false,
+                      "source":  "wiki-miss"
+                  },
     "Badami Helmet":  {
                           "found":  false,
                           "source":  "wiki-miss"
                       },
-    "Bellator Shirt and Waistcoat":  {
-                                         "found":  false,
-                                         "source":  "wiki-miss"
-                                     },
+    "Palisade":  {
+                     "found":  false,
+                     "source":  "wiki-miss"
+                 },
     "Horizon Helmet":  {
                            "found":  false,
                            "source":  "wiki-miss"
@@ -1275,18 +1267,14 @@
                           "found":  false,
                           "source":  "wiki-miss"
                       },
-    "IceBox":  {
-                   "found":  false,
-                   "source":  "wiki-miss"
-               },
     "VK-00":  {
                   "found":  false,
                   "source":  "wiki-miss"
               },
-    "M4A Cannon":  {
-                       "found":  false,
-                       "source":  "wiki-miss"
-                   },
+    "Inquisitor Legs Grey":  {
+                                 "found":  false,
+                                 "source":  "wiki-miss"
+                             },
     "FS-9 Magazine (75 cap)":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
@@ -1295,10 +1283,10 @@
                                                 "found":  false,
                                                 "source":  "wiki-miss"
                                             },
-    "Testudo Helmet Combustion":  {
-                                      "found":  false,
-                                      "source":  "wiki-miss"
-                                  },
+    "Palatino Core Moonfall":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "TS-2":  {
                  "found":  false,
                  "source":  "wiki-miss"
@@ -1367,14 +1355,18 @@
                           "found":  false,
                           "source":  "wiki-miss"
                       },
-    "Tempest":  {
-                    "found":  false,
-                    "source":  "wiki-miss"
-                },
-    "Ravager-212 Twin Shotgun Magazine (16 cap)":  {
-                                                       "found":  false,
-                                                       "source":  "wiki-miss"
-                                                   },
+    "Geist Armor Core Forest":  {
+                                    "found":  false,
+                                    "source":  "wiki-miss"
+                                },
+    "SonicLite":  {
+                      "found":  false,
+                      "source":  "wiki-miss"
+                  },
+    "Tarantula GT-870 Mark 3 Cannon":  {
+                                           "found":  false,
+                                           "source":  "wiki-miss"
+                                       },
     "Palatino Helmet":  {
                             "found":  false,
                             "source":  "wiki-miss"
@@ -1387,14 +1379,14 @@
                                                "found":  false,
                                                "source":  "wiki-miss"
                                            },
-    "ORC-mkX Helmet Woodland":  {
-                                    "found":  false,
-                                    "source":  "wiki-miss"
-                                },
     "Tailwind Flight Helmet Big Bite":  {
                                             "found":  false,
                                             "source":  "wiki-miss"
                                         },
+    "Lotus":  {
+                  "found":  false,
+                  "source":  "wiki-miss"
+              },
     "V801-11":  {
                     "found":  false,
                     "source":  "wiki-miss"
@@ -1439,6 +1431,10 @@
                                "found":  false,
                                "source":  "wiki-miss"
                            },
+    "Antium Core Jet":  {
+                            "found":  false,
+                            "source":  "wiki-miss"
+                        },
     "Testudo Core Turfwar":  {
                                  "found":  false,
                                  "source":  "wiki-miss"
@@ -1461,14 +1457,14 @@
                                  "blueprintLink":  "https://api.star-citizen.wiki/api/blueprints/cd86dd07-2425-4cd2-81c4-88e62499c113",
                                  "isCraftable":  true
                              },
-    "Lightstrike III Cannon":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
-    "FL-22 Cannon":  {
-                         "found":  false,
-                         "source":  "wiki-miss"
-                     },
+    "Prism \"Firesteel\" Laser Shotgun":  {
+                                              "found":  false,
+                                              "source":  "wiki-miss"
+                                          },
+    "Tailwind Flight Helmet Frostshock":  {
+                                              "found":  false,
+                                              "source":  "wiki-miss"
+                                          },
     "Novikov Backpack Mire":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
@@ -1509,6 +1505,10 @@
                            "found":  false,
                            "source":  "wiki-miss"
                        },
+    "Palatino Helmet Sunstone":  {
+                                     "found":  false,
+                                     "source":  "wiki-miss"
+                                 },
     "Sens":  {
                  "found":  false,
                  "source":  "wiki-miss"
@@ -1533,10 +1533,10 @@
                              "found":  false,
                              "source":  "wiki-miss"
                          },
-    "Attrition-5 Repeater":  {
-                                 "found":  false,
-                                 "source":  "wiki-miss"
-                             },
+    "Novikov Backpack Smolder":  {
+                                     "found":  false,
+                                     "source":  "wiki-miss"
+                                 },
     "Mantis GT-220 Gatling":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
@@ -1545,6 +1545,10 @@
                             "found":  false,
                             "source":  "wiki-miss"
                         },
+    "FullFrost":  {
+                      "found":  false,
+                      "source":  "wiki-miss"
+                  },
     "BroadSpec-Max":  {
                           "found":  false,
                           "source":  "wiki-miss"
@@ -1553,14 +1557,10 @@
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
-    "Corbel Helmet Patina":  {
-                                 "found":  false,
-                                 "source":  "wiki-miss"
-                             },
-    "Coda \"Big Boss\" Pistol":  {
-                                     "found":  false,
-                                     "source":  "wiki-miss"
-                                 },
+    "Parallax \"Sunstone\" Energy Assault Rifle":  {
+                                                       "found":  false,
+                                                       "source":  "wiki-miss"
+                                                   },
     "Artimex Legs":  {
                          "found":  false,
                          "source":  "wiki-miss"
@@ -1569,10 +1569,10 @@
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
-    "Geist Armor Core Forest":  {
-                                    "found":  false,
-                                    "source":  "wiki-miss"
-                                },
+    "Lightstrike III Cannon":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "DR Model-XJ3 Repeater":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
@@ -1589,10 +1589,6 @@
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
-    "CF-337 Panther \"Hazard-Zone\" Repeater":  {
-                                                    "found":  false,
-                                                    "source":  "wiki-miss"
-                                                },
     "C-788 Cannon":  {
                          "found":  false,
                          "source":  "wiki-miss"
@@ -1613,6 +1609,10 @@
                                "found":  false,
                                "source":  "wiki-miss"
                            },
+    "Palatino Legs Daystar":  {
+                                  "found":  false,
+                                  "source":  "wiki-miss"
+                              },
     "Citadel Legs Base":  {
                               "found":  false,
                               "source":  "wiki-miss"
@@ -1667,10 +1667,14 @@
                                            "found":  false,
                                            "source":  "wiki-miss"
                                        },
-    "Aufeis":  {
-                   "found":  false,
-                   "source":  "wiki-miss"
-               },
+    "Impact I Mining Laser":  {
+                                  "found":  false,
+                                  "source":  "wiki-miss"
+                              },
+    "Coda \"Big Boss\" Pistol":  {
+                                     "found":  false,
+                                     "source":  "wiki-miss"
+                                 },
     "BUL-H4 Armor Snow Camo":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
@@ -1679,18 +1683,18 @@
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
-    "Palatino Core Daystar":  {
-                                  "found":  false,
-                                  "source":  "wiki-miss"
-                              },
     "Geist Armor Arms Rogue":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
-    "Omnisky XVIII Cannon":  {
-                                 "found":  false,
-                                 "source":  "wiki-miss"
-                             },
+    "Geist Armor Legs ASD Edition":  {
+                                         "found":  false,
+                                         "source":  "wiki-miss"
+                                     },
+    "Palatino Arms Moonfall":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "Aves Helmet":  {
                         "found":  false,
                         "source":  "wiki-miss"
@@ -1735,10 +1739,6 @@
                                             "found":  false,
                                             "source":  "wiki-miss"
                                         },
-    "Strata Legs":  {
-                        "found":  false,
-                        "source":  "wiki-miss"
-                    },
     "Tailwind Flight Suit":  {
                                  "found":  false,
                                  "source":  "wiki-miss"
@@ -1795,6 +1795,10 @@
                                       "found":  false,
                                       "source":  "wiki-miss"
                                   },
+    "Winter-Star SL":  {
+                           "found":  false,
+                           "source":  "wiki-miss"
+                       },
     "Endo":  {
                  "found":  false,
                  "source":  "wiki-miss"
@@ -1879,10 +1883,10 @@
                          "found":  false,
                          "source":  "wiki-miss"
                      },
-    "Hofstede-S1 Mining Laser":  {
-                                     "found":  false,
-                                     "source":  "wiki-miss"
-                                 },
+    "Tarantula GT-870 Mark 1 Cannon":  {
+                                           "found":  false,
+                                           "source":  "wiki-miss"
+                                       },
     "F55 LMG":  {
                     "found":  false,
                     "source":  "wiki-miss"
@@ -1919,22 +1923,26 @@
                                             "found":  false,
                                             "source":  "wiki-miss"
                                         },
-    "Palatino Helmet Sunstone":  {
-                                     "found":  false,
-                                     "source":  "wiki-miss"
-                                 },
+    "Omnisky XVIII Cannon":  {
+                                 "found":  false,
+                                 "source":  "wiki-miss"
+                             },
     "Defiant":  {
                     "found":  false,
                     "source":  "wiki-miss"
                 },
-    "Palatino Arms Moonfall":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
+    "GOLEM MC-4 Ore Pod":  {
+                               "found":  false,
+                               "source":  "wiki-miss"
+                           },
     "Metamaterial Test #152":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
+    "DustUp Arms Tactical":  {
+                                 "found":  false,
+                                 "source":  "wiki-miss"
+                             },
     "Ripper \"Sunblock\" SMG":  {
                                     "found":  false,
                                     "source":  "wiki-miss"
@@ -1943,10 +1951,10 @@
                   "found":  false,
                   "source":  "wiki-miss"
               },
-    "CF-117 Bulldog Repeater":  {
-                                    "found":  false,
-                                    "source":  "wiki-miss"
-                                },
+    "Pulse Laser Pistol Battery (60 Cap)":  {
+                                                "found":  false,
+                                                "source":  "wiki-miss"
+                                            },
     "Testudo Helmet Earthshake":  {
                                       "found":  false,
                                       "source":  "wiki-miss"
@@ -1963,10 +1971,10 @@
                       "found":  false,
                       "source":  "wiki-miss"
                   },
-    "FullFrost":  {
-                      "found":  false,
-                      "source":  "wiki-miss"
-                  },
+    "ORC-mkX Helmet Woodland":  {
+                                    "found":  false,
+                                    "source":  "wiki-miss"
+                                },
     "Tepilo":  {
                    "found":  false,
                    "source":  "wiki-miss"
@@ -2007,18 +2015,10 @@
                                       "blueprintLink":  "https://api.star-citizen.wiki/api/blueprints/ad0494d5-ca83-4f6a-a4c0-f29b7b221a20",
                                       "isCraftable":  true
                                   },
-    "Glacier":  {
-                    "found":  false,
-                    "source":  "wiki-miss"
-                },
     "Neutrino Racing Flight Suit BlackFire":  {
                                                   "found":  false,
                                                   "source":  "wiki-miss"
                                               },
-    "Testudo Arms":  {
-                         "found":  false,
-                         "source":  "wiki-miss"
-                     },
     "Impact II Mining Laser":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
@@ -2055,18 +2055,18 @@
                                    "found":  false,
                                    "source":  "wiki-miss"
                                },
-    "Lotus":  {
-                  "found":  false,
-                  "source":  "wiki-miss"
-              },
+    "Aufeis":  {
+                   "found":  false,
+                   "source":  "wiki-miss"
+               },
     "Geist Armor Arms Whiteout":  {
                                       "found":  false,
                                       "source":  "wiki-miss"
                                   },
-    "Calico Helmet Tactical":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
+    "Strata Legs":  {
+                        "found":  false,
+                        "source":  "wiki-miss"
+                    },
     "OracleÂ Helmet":  {
                            "found":  false,
                            "source":  "wiki-miss"
@@ -2091,10 +2091,14 @@
                                              "found":  false,
                                              "source":  "wiki-miss"
                                          },
-    "Helix I Mining Laser":  {
-                                 "found":  false,
-                                 "source":  "wiki-miss"
-                             },
+    "Citadel":  {
+                    "found":  false,
+                    "source":  "wiki-miss"
+                },
+    "Deadrig Shotgun":  {
+                            "found":  false,
+                            "source":  "wiki-miss"
+                        },
     "P6-LR Magazine (8 cap)":  {
                                    "found":  false,
                                    "source":  "wiki-miss"
@@ -2103,10 +2107,6 @@
                                  "found":  false,
                                  "source":  "wiki-miss"
                              },
-    "ADP-mk4 Helmet Woodland":  {
-                                    "found":  false,
-                                    "source":  "wiki-miss"
-                                },
     "CF-447 Rhino Repeater":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
@@ -2135,10 +2135,6 @@
                          "found":  false,
                          "source":  "wiki-miss"
                      },
-    "CBH-3 Helmet Base":  {
-                              "found":  false,
-                              "source":  "wiki-miss"
-                          },
     "RPEL":  {
                  "found":  false,
                  "source":  "wiki-miss"
@@ -2263,18 +2259,18 @@
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
-    "Veil":  {
-                 "found":  false,
-                 "source":  "wiki-miss"
-             },
+    "CF-227 Badger \"Hazard-Zone\" Repeater":  {
+                                                   "found":  false,
+                                                   "source":  "wiki-miss"
+                                               },
     "Cryo-Star XL":  {
                          "found":  false,
                          "source":  "wiki-miss"
                      },
-    "Pulverizer LMG Magazine (120 Cap)":  {
-                                              "found":  false,
-                                              "source":  "wiki-miss"
-                                          },
+    "Novian Crossbow":  {
+                            "found":  false,
+                            "source":  "wiki-miss"
+                        },
     "H4-PBF Ammo Carrier":  {
                                 "found":  false,
                                 "source":  "wiki-miss"
@@ -2307,10 +2303,6 @@
                       "found":  false,
                       "source":  "wiki-miss"
                   },
-    "Kragen":  {
-                   "found":  false,
-                   "source":  "wiki-miss"
-               },
     "Novikov Backpack Patina":  {
                                     "found":  false,
                                     "source":  "wiki-miss"
@@ -2327,10 +2319,14 @@
                                  "found":  false,
                                  "source":  "wiki-miss"
                              },
-    "DustUp Arms Tactical":  {
-                                 "found":  false,
-                                 "source":  "wiki-miss"
-                             },
+    "LH86 Pistol":  {
+                        "found":  false,
+                        "source":  "wiki-miss"
+                    },
+    "Bellator Shirt and Waistcoat":  {
+                                         "found":  false,
+                                         "source":  "wiki-miss"
+                                     },
     "HEX":  {
                 "found":  false,
                 "source":  "wiki-miss"
@@ -2371,10 +2367,6 @@
                                  "found":  false,
                                  "source":  "wiki-miss"
                              },
-    "PowerBolt":  {
-                      "found":  false,
-                      "source":  "wiki-miss"
-                  },
     "Antium Legs Storm":  {
                               "found":  false,
                               "source":  "wiki-miss"
@@ -2387,14 +2379,6 @@
                       "found":  false,
                       "source":  "wiki-miss"
                   },
-    "Arrowhead Sniper Rifle":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
-    "Tailwind Flight Helmet Frostshock":  {
-                                              "found":  false,
-                                              "source":  "wiki-miss"
-                                          },
     "Geist Armor Core Desert":  {
                                     "found":  false,
                                     "source":  "wiki-miss"
@@ -2429,10 +2413,6 @@
                          "found":  false,
                          "source":  "wiki-miss"
                      },
-    "Palatino Core Moonfall":  {
-                                   "found":  false,
-                                   "source":  "wiki-miss"
-                               },
     "Ezra":  {
                  "found":  false,
                  "source":  "wiki-miss"
@@ -2441,6 +2421,10 @@
                         "found":  false,
                         "source":  "wiki-miss"
                     },
+    "Calico Helmet Tactical":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "P8-AR Rifle Magazine (15 Cap)":  {
                                           "found":  false,
                                           "source":  "wiki-miss"
@@ -2457,6 +2441,10 @@
                                "found":  false,
                                "source":  "wiki-miss"
                            },
+    "Testudo Helmet Combustion":  {
+                                      "found":  false,
+                                      "source":  "wiki-miss"
+                                  },
     "Calico Core Tactical":  {
                                  "found":  false,
                                  "source":  "wiki-miss"
@@ -2465,14 +2453,18 @@
                       "found":  false,
                       "source":  "wiki-miss"
                   },
+    "Novikov Helmet":  {
+                           "found":  false,
+                           "source":  "wiki-miss"
+                       },
     "Strata Arms Levski Edition":  {
                                        "found":  false,
                                        "source":  "wiki-miss"
                                    },
-    "FrostBurn":  {
-                      "found":  false,
-                      "source":  "wiki-miss"
-                  },
+    "Tempest":  {
+                    "found":  false,
+                    "source":  "wiki-miss"
+                },
     "Tailwind Flight Helmet Blue Skies":  {
                                               "found":  false,
                                               "source":  "wiki-miss"
@@ -2507,6 +2499,10 @@
                                      "blueprintLink":  "https://api.star-citizen.wiki/api/blueprints/6a4393b4-b7fe-4913-85bc-dc803dc73acb",
                                      "isCraftable":  true
                                  },
+    "DustUp Helmet Tactical":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "Sledge II Mass Driver Cannon":  {
                                          "found":  false,
                                          "source":  "wiki-miss"
@@ -2519,10 +2515,6 @@
                                  "found":  false,
                                  "source":  "wiki-miss"
                              },
-    "FullForce Pro":  {
-                          "found":  false,
-                          "source":  "wiki-miss"
-                      },
     "SW16BR3 âShredderâ Repeater":  {
                                             "found":  false,
                                             "source":  "wiki-miss"
@@ -2575,10 +2567,14 @@
                   "found":  false,
                   "source":  "wiki-miss"
               },
-    "CF-227 Badger \"Hazard-Zone\" Repeater":  {
-                                                   "found":  false,
-                                                   "source":  "wiki-miss"
-                                               },
+    "ADP-mk4 Helmet Woodland":  {
+                                    "found":  false,
+                                    "source":  "wiki-miss"
+                                },
+    "STOP":  {
+                 "found":  false,
+                 "source":  "wiki-miss"
+             },
     "Lynx Core":  {
                       "found":  false,
                       "source":  "wiki-miss"
@@ -2599,6 +2595,10 @@
                  "found":  false,
                  "source":  "wiki-miss"
              },
+    "Artimex Arms":  {
+                         "found":  false,
+                         "source":  "wiki-miss"
+                     },
     "Geist Armor Helmet Rogue":  {
                                      "found":  false,
                                      "source":  "wiki-miss"
@@ -2631,18 +2631,14 @@
                                            "found":  false,
                                            "source":  "wiki-miss"
                                        },
-    "Stirling Exploration Suit":  {
-                                      "found":  false,
-                                      "source":  "wiki-miss"
-                                  },
     "Dust Devil Armor Legs":  {
                                   "found":  false,
                                   "source":  "wiki-miss"
                               },
-    "Zenith \"Darkwave\" Laser Sniper Rifle":  {
-                                                   "found":  false,
-                                                   "source":  "wiki-miss"
-                                               },
+    "Aves Core":  {
+                      "found":  false,
+                      "source":  "wiki-miss"
+                  },
     "Novikov Backpack Halcyon":  {
                                      "found":  false,
                                      "source":  "wiki-miss"
@@ -2667,14 +2663,18 @@
                      "found":  false,
                      "source":  "wiki-miss"
                  },
-    "Novian Crossbow":  {
-                            "found":  false,
-                            "source":  "wiki-miss"
-                        },
+    "Veil":  {
+                 "found":  false,
+                 "source":  "wiki-miss"
+             },
     "Bolt":  {
                  "found":  false,
                  "source":  "wiki-miss"
              },
+    "CF-117 Bulldog Repeater":  {
+                                    "found":  false,
+                                    "source":  "wiki-miss"
+                                },
     "Quartz \"Lumen\" Energy SMG":  {
                                         "found":  false,
                                         "source":  "wiki-miss"
@@ -2687,14 +2687,14 @@
                                 "found":  false,
                                 "source":  "wiki-miss"
                             },
-    "Geist Armor Legs ASD Edition":  {
-                                         "found":  false,
-                                         "source":  "wiki-miss"
-                                     },
     "Bendix":  {
                    "found":  false,
                    "source":  "wiki-miss"
                },
+    "AD5B Ballistic Gatling":  {
+                                   "found":  false,
+                                   "source":  "wiki-miss"
+                               },
     "Siren":  {
                   "found":  false,
                   "source":  "wiki-miss"
@@ -2739,14 +2739,14 @@
                           "found":  false,
                           "source":  "wiki-miss"
                       },
-    "Prism \"Firesteel\" Laser Shotgun":  {
-                                              "found":  false,
-                                              "source":  "wiki-miss"
-                                          },
     "Fierell Cascade":  {
                             "found":  false,
                             "source":  "wiki-miss"
                         },
+    "JS-500":  {
+                   "found":  false,
+                   "source":  "wiki-miss"
+               },
     "Pulverizer LMG":  {
                            "found":  false,
                            "source":  "wiki-miss"
