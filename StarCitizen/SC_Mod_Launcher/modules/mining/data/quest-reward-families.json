@@ -1,0 +1,24 @@
+[
+  {
+    "category": "Броня/одежда",
+    "subcategory": "Тяжёлая броня",
+    "familyKey": "armor:Monolith-Shadowflux",
+    "label": "Monolith Shadowflux",
+    "blueprintRecords": [
+      "7985ff3c-ab96-4bed-8358-9de570b2c7cf",
+      "16c6b960-827d-45e9-9967-ad07982d7ad4",
+      "4d28a0a6-4626-457e-b4f6-171dab12cdac",
+      "129eaa5c-b5a5-4ce6-809f-c90949178625",
+      "b0183159-9bf0-4b53-8bc0-643a258a7032"
+    ]
+  },
+  {
+    "category": "Оружие",
+    "subcategory": "Пулемёты",
+    "familyKey": "exact:F55 Shadowflux LMG",
+    "label": "F55 Shadowflux LMG",
+    "blueprintRecords": [
+      "d5e951bf-f079-4dfb-9b95-39676059fdf1"
+    ]
+  }
+]

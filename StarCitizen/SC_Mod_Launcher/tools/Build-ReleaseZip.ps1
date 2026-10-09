@@ -1,5 +1,5 @@
-param(
-    [string]$Version = '2.1.7'
+﻿param(
+    [string]$Version = '2.1.8'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,18 +31,16 @@ $packageItems = @(
 )
 
 $releaseSeedItems = @(
-    'backups\global.ini.20260908-144813.starter-clean.bak',
-    'backups\global.ini.20260908-144813.starter-clean.bak.meta.json',
-    'modules\scmdb\cache\scmdb-4.10.0-live.12568521.json',
-    'modules\scmdb\cache\scmdb-4.10.0-live.12568521.json.meta.json',
-    'modules\mining\cache\wiki-blueprints-4.10.0-live.12568521.json',
-    'modules\mining\cache\craft-family-index-4.10.0-live.12568521.json',
-    'modules\mining\cache\mining-data-4.10.0-live.12568521.json',
-    'modules\mining\cache\refinery-yields-4.10.0-live.12568521.json',
-    'modules\mining\cache\raw-ore-buy-prices-4.10.0-live.12568521.json',
-    'modules\mining\cache\wiki-item-passports-4.10.0-live.12568521.json',
-    'modules\quest\engine\cache\wiki-items-cache.json',
-    'modules\quest\engine\cache\wiki-items-cache.json.meta.json'
+    'backups\global.ini.20261010-012624.starter-clean.bak',
+    'backups\global.ini.20261010-012624.starter-clean.bak.meta.json',
+    'modules\scmdb\cache\scmdb-4.10.2-live.12881860.json',
+    'modules\scmdb\cache\scmdb-4.10.2-live.12881860.json.meta.json',
+    'modules\scmdb\cache\crafting-catalog-4.10.2-live.12881860.json',
+    'modules\mining\cache\craft-family-index-4.10.2-live.12881860.json',
+    'modules\mining\cache\mining-data-4.10.2-live.12881860.json',
+    'modules\mining\cache\refinery-yields-4.10.2-live.12881860.json',
+    'modules\mining\cache\raw-ore-buy-prices-4.10.2-live.12881860.json',
+    'modules\mining\cache\wiki-item-passports-4.10.2-live.12881860.json'
 )
 
 $managedPaths = @('.')
@@ -153,9 +151,32 @@ function ConvertTo-PackageRelativePath {
     return $fullPath.Substring($root.Length).Replace('\', '/')
 }
 
+function Assert-ReleasePackageContents {
+    $seedPaths = @($releaseSeedItems | ForEach-Object { $_.Replace('\', '/') })
+    foreach ($file in @(Get-ChildItem -LiteralPath $PackageRoot -File -Recurse)) {
+        $relative = ConvertTo-PackageRelativePath -Path $file.FullName
+        if ($relative -match '(^|/)(reports|dist|config|updates|src|bin|obj|asset-backups|hologram-work)(/|$)' -or $relative -like '*.pdb') {
+            throw "Development or user file entered the release: $relative"
+        }
+        if ($relative -match '(^|/)(cache|backups)/' -and $relative -notin $seedPaths) {
+            throw "Unlisted backup or cache entered the release: $relative"
+        }
+    }
+    $starter = Join-Path $PackageRoot $releaseSeedItems[0]
+    $metadata = Get-Content -LiteralPath ($starter + '.meta.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($metadata.kind -ne 'clean' -or $metadata.localization.tagName -ne '4.10.2-v128' -or
+        (Get-FileHash -LiteralPath $starter -Algorithm SHA256).Hash -ne $metadata.sha256) {
+        throw 'Release starter is not the verified clean RuSC v128 backup.'
+    }
+}
+
 try {
     Save-ReleaseSeedSnapshot
+    & (Join-Path $ScriptDir 'Test-CraftingCatalog.ps1') | Out-Host
+    & (Join-Path $ScriptDir 'Test-UnnamedCraftRecipes.ps1') | Out-Host
+    & (Join-Path $ScriptDir 'Test-CatalogPresentation.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-Scaffold.ps1') | Out-Host
+    & (Join-Path $ScriptDir 'Test-Sc4102.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-UpdateTransport.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Build-WpfLauncher.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-WpfLauncher.ps1') | Out-Host
@@ -173,6 +194,8 @@ try {
     foreach ($item in $releaseSeedItems) {
         Copy-ReleaseSeedItem -RelativePath $item
     }
+
+    Assert-ReleasePackageContents
 
     $files = @(
         Get-ChildItem -LiteralPath $PackageRoot -File -Recurse |

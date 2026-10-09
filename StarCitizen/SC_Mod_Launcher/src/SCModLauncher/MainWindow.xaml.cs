@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Globalization;
@@ -36,10 +36,11 @@ public partial class MainWindow : Window
     private readonly List<ModuleManifest> _modules = new();
     private readonly Dictionary<string, CheckBox> _optionChecks = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<RecipeFamilySection> _miningCraftFamilySections = new();
+    private Dictionary<string, List<string>> _deferredRecipeSelections = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.7";
+    private const string CurrentLauncherVersion = "2.1.8";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -189,6 +190,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        // During offline index repair there are no recipe checkboxes yet.
+        // Keep their saved selections until those controls can actually receive them.
+        _deferredRecipeSelections = _miningCraftFamilySections.Count == 0 && _questCraftFamilySections.Count == 0
+            ? selectedOptions.ToDictionary(pair => pair.Key,
+                pair => pair.Value.Where(value => value.StartsWith("craftFamily|", StringComparison.OrdinalIgnoreCase) || value.StartsWith("questCraftFamily|", StringComparison.OrdinalIgnoreCase)).ToList(),
+                StringComparer.OrdinalIgnoreCase)
+            : new(StringComparer.OrdinalIgnoreCase);
+
         var selectedByModule = selectedOptions.ToDictionary(
             pair => pair.Key,
             pair => ExpandSavedOptionAliases(pair.Value).ToHashSet(StringComparer.OrdinalIgnoreCase),
@@ -213,8 +222,9 @@ public partial class MainWindow : Window
 
     private static IEnumerable<string> ExpandSavedOptionAliases(IEnumerable<string>? values)
     {
-        foreach (var value in values ?? Enumerable.Empty<string>())
+        foreach (var savedValue in values ?? Enumerable.Empty<string>())
         {
+            var value = NormalizeSavedRecipeFamilyOption(savedValue);
             yield return value;
             if (value.Equals("craftFamily|Броня/одежда|Тяжёлая броня|armor:BUL-H4", StringComparison.OrdinalIgnoreCase))
             {
@@ -249,6 +259,35 @@ public partial class MainWindow : Window
                 yield return value.Replace("questCraftFamily|Добывающие лазеры|", "questCraftFamily|Горное оборудование|", StringComparison.OrdinalIgnoreCase);
             }
         }
+    }
+
+    private static string NormalizeSavedRecipeFamilyOption(string value)
+    {
+        var parts = value.Split('|', 4);
+        if (parts.Length != 4 || (parts[0] != "craftFamily" && parts[0] != "questCraftFamily")) return value;
+        parts[3] = parts[3] switch
+        {
+            "variant:Arrowhead\u00C2 Sniper Rifle" => "variant:Arrowhead Sniper Rifle",
+            "variant:P8-SC\u00C2 SMG" => "variant:P8-SC SMG",
+            "armor:Lynx\u00C2" => "armor:Lynx",
+            "armor:Oracle\u00C2" => "armor:Oracle",
+            "exact:Hellion\u00C2\u00A0Scattergun" => "exact:Hellion Scattergun",
+            "exact:F55 Shadowflux LMG" => "variant:F55 LMG",
+            "armor:Monolith-Shadowflux" => "armor:Monolith",
+            "exact:YellowJacket GT-210 Gatling" => "weapon:GT Gatling",
+            "exact:Scorpion GT-215 Gatling" => "weapon:GT Gatling",
+            "exact:Mantis GT-220 Gatling" => "weapon:GT Gatling",
+            "armor:Arden-CL" => "armor:Arden",
+            "armor:Arden-SL" => "armor:Arden",
+            "armor:Aztalan Galena" => "armor:Aztalan",
+            "armor:Aztalan Tamarack" => "armor:Aztalan",
+            "exact:Coda Pistol (Modified)" => "variant:Coda Pistol",
+            "variant:Salvo Esteban Frag Pistol" => "variant:Salvo Frag Pistol",
+            _ => parts[3]
+        };
+        if (parts[3] == "exact:Thlilye Laser Gatling" && parts[2] == "Баллистика") parts[2] = "Энергетика";
+        if (parts[2] == "Энергетика" && parts[3] is "exact:BRVS Repeater" or "exact:CVSA Cannon" or "exact:Havoc Scattergun" or "exact:Hellion Scattergun" or "exact:Predator Scattergun") parts[2] = "Баллистика";
+        return string.Join('|', parts);
     }
 
     private void SaveLauncherStateAfterUserChange()
@@ -862,7 +901,7 @@ public partial class MainWindow : Window
 
         var order = new[] { "Корабельные компоненты", "Корабельные орудия", "Добывающие лазеры", "Горное оборудование", "Броня/одежда", "FPS-оружие" };
         var groups = index.Families
-            .Where(entry => !string.IsNullOrWhiteSpace(entry.OptionId))
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.OptionId) && (moduleId == "quest" || !entry.QuestOnly))
             .GroupBy(GetRecipeFamilyDisplayCategory)
             .OrderBy(group =>
             {
@@ -1296,11 +1335,11 @@ public partial class MainWindow : Window
         }
 
         AddMetricLog("Фильтры рецептов: восстанавливаю индекс из локального cache.");
-        var repaired = await TryRepairMiningCraftFamilyIndexFromWikiCacheAsync();
+        var repaired = await TryRepairMiningCraftFamilyIndexFromRecipeCacheAsync();
         if (!repaired || (LoadMiningCraftFamilyIndex()?.Families.Count ?? 0) <= 0)
         {
             _miningCraftFamilyIndexRepairFailed = true;
-            AddMetricLog("Фильтры рецептов: локальный wiki cache не найден. Прогрей кэш.");
+            AddMetricLog("Фильтры рецептов: не удалось восстановить индекс из локального кэша. Прогрей кэш.");
             SetWarmCacheAttention(true);
             BuildModuleCards();
             return;
@@ -1311,7 +1350,7 @@ public partial class MainWindow : Window
         RebuildModuleCardsPreservingSelection();
     }
 
-    private async Task<bool> TryRepairMiningCraftFamilyIndexFromWikiCacheAsync()
+    private async Task<bool> TryRepairMiningCraftFamilyIndexFromRecipeCacheAsync()
     {
         var scriptPath = Path.Combine(Path.GetTempPath(), $"sc-mod-family-index-{Guid.NewGuid():N}.ps1");
         var script = """
@@ -1319,23 +1358,11 @@ param([string]$RootPath)
 $ErrorActionPreference = 'Stop'
 $modulePath = Join-Path $RootPath 'modules\mining\module.ps1'
 . $modulePath
-$cacheDir = Join-Path $RootPath 'modules\mining\cache'
-$cacheFile = Get-ChildItem -LiteralPath $cacheDir -Filter 'wiki-blueprints-*.json' -File -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
-if ($null -eq $cacheFile) {
-    Write-Host 'NO_WIKI_CACHE'
-    exit 2
-}
-$cache = Get-Content -LiteralPath $cacheFile.FullName -Encoding UTF8 -Raw | ConvertFrom-Json
-if (-not $cache.PSObject.Properties['data']) {
-    throw 'wiki blueprint cache has no data'
-}
-$cacheKey = [string]$cache.cacheKey
-if ([string]::IsNullOrWhiteSpace($cacheKey)) {
-    $cacheKey = $cacheFile.BaseName -replace '^wiki-blueprints-', ''
-}
-$indexPath = Write-SCMiningCraftFamilyIndexCache -CacheKey $cacheKey -Blueprints @($cache.data)
+$scmdb = Read-SCMiningScmdbCache
+$cacheKey = [string]$scmdb.Version
+$blueprints = @(Get-SCMiningCachedCraftingRecipes -CacheKey $cacheKey)
+if ($blueprints.Count -eq 0) { throw 'Recipe cache is missing' }
+$indexPath = Write-SCMiningCraftFamilyIndexCache -CacheKey $cacheKey -Blueprints $blueprints
 Write-Host "FAMILY_INDEX:$indexPath"
 """;
 
@@ -1364,17 +1391,14 @@ Write-Host "FAMILY_INDEX:$indexPath"
     private void RebuildModuleCardsPreservingSelection()
     {
         var selected = GetSelectedOptions();
-        BuildModuleCards();
-        foreach (var pair in _optionChecks)
+        var wasApplyingState = _isApplyingLauncherState;
+        _isApplyingLauncherState = true;
+        try
         {
-            var parts = pair.Key.Split('|', 2);
-            if (parts.Length != 2 || !selected.TryGetValue(parts[0], out var options))
-            {
-                continue;
-            }
-
-            pair.Value.IsChecked = options.Contains(parts[1], StringComparer.OrdinalIgnoreCase);
+            BuildModuleCards();
+            ApplySelectedOptions(selected.ToDictionary(pair => pair.Key, pair => pair.Value.ToList(), StringComparer.OrdinalIgnoreCase));
         }
+        finally { _isApplyingLauncherState = wasApplyingState; }
 
         UpdateMiningRecipeFilterState();
         if (_launchButtonGlitchesStarted)
@@ -3235,7 +3259,11 @@ Write-Host "FAMILY_INDEX:$indexPath"
             }
         }
 
-        return selected.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.OrdinalIgnoreCase);
+        foreach (var pending in _deferredRecipeSelections)
+        {
+            if (selected.TryGetValue(pending.Key, out var options)) options.AddRange(pending.Value);
+        }
+        return selected.ToDictionary(pair => pair.Key, pair => pair.Value.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), StringComparer.OrdinalIgnoreCase);
     }
 
     private string WriteSelectedOptionsFile()
@@ -3794,14 +3822,16 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 return false;
             }
 
-            if (status.HasCacheStale)
+            if (status.HasCacheStale || status.HasDataFallback)
             {
                 AddPreflightSummary(result.Output);
                 SetWarmCacheAttention(true);
-                AddHeadingLog("Cache старше 7 дней. Можно применить, но лучше прогреть.");
+                if (status.HasCacheStale) AddHeadingLog("Часть cache старше 7 дней. Доступные данные можно применить.");
             }
 
-            AddMetricLog(status.HasCacheStale ? "Предстартовая проверка: OK. Cache доступен." : "Предстартовая проверка: OK. Cache свежий.");
+            AddMetricLog(status.HasDataFallback
+                ? "Предстартовая проверка: OK. Часть данных — FALLBACK предыдущей версии; см. журнал."
+                : status.HasCacheStale ? "Предстартовая проверка: OK. Cache доступен." : "Предстартовая проверка: OK. Cache свежий.");
             return true;
         }
         catch (Exception ex)
@@ -3855,6 +3885,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         var status = GetPreflightStatus(output, requireGlobalIni);
         var wikiFallback = IsWikiBlueprintFailureCoveredByCache(lines);
+        var dataFallback = lines.Any(line => line.StartsWith("Cache ", StringComparison.OrdinalIgnoreCase) && line.Contains(": FALLBACK", StringComparison.OrdinalIgnoreCase));
         var state = status.HasBlockingFailure
             ? status.HasCacheMissing
                 ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: cache не найден."
@@ -3863,14 +3894,16 @@ Write-Host "FAMILY_INDEX:$indexPath"
                 ? "Cache доступен, но старше 7 дней."
                 : status.HasGlobalMissing
                     ? "Источники и cache проверены. Русификатор не установлен."
+                : dataFallback
+                    ? "Часть данных от предыдущей версии игры. См. версии источников в журнале."
                 : wikiFallback
-                    ? "Wiki временно недоступна. Используем свежий cache."
+                    ? "Источник Wiki недоступен для запрошенной версии. Используем доступный cache."
                     : "Cache свежий. Можно применять в LIVE.";
         SetJournalState(state, status.HasBlockingFailure);
         SetWarmCacheAttention(status.HasCacheIssue);
         if (wikiFallback && !staleOrMissing && !status.HasBlockingFailure)
         {
-            AddMetricLog("Wiki временно недоступна, используем свежий cache.");
+            AddMetricLog("Источник Wiki недоступен для запрошенной версии; используем доступный cache. Фактическая версия и возраст указаны выше.");
         }
         if (status.HasCacheMissing)
         {
@@ -3900,10 +3933,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
             line.Contains("MISSING", StringComparison.OrdinalIgnoreCase));
         var cacheStale = lines.Any(line =>
             line.StartsWith("Cache ", StringComparison.OrdinalIgnoreCase) &&
-            line.Contains("STALE", StringComparison.OrdinalIgnoreCase));
-        var cacheIssue = cacheFail || cacheMissing || cacheStale;
+            (line.Contains("STALE", StringComparison.OrdinalIgnoreCase) ||
+             (Regex.Match(line, @"(?:source age|age):\s*(\d+)d", RegexOptions.IgnoreCase) is var age && age.Success && int.Parse(age.Groups[1].Value, CultureInfo.InvariantCulture) > 7)));
+        var dataFallback = lines.Any(line => line.StartsWith("Cache ", StringComparison.OrdinalIgnoreCase) && line.Contains(": FALLBACK", StringComparison.OrdinalIgnoreCase));
+        var cacheIssue = cacheFail || cacheMissing || cacheStale || dataFallback;
 
-        return new PreflightStatus(sourceFailure || (requireGlobalIni && globalMissing) || cacheFail || cacheMissing, cacheIssue, cacheMissing, cacheStale, globalMissing);
+        return new PreflightStatus(sourceFailure || (requireGlobalIni && globalMissing) || cacheFail || cacheMissing, cacheIssue, cacheMissing, cacheStale, globalMissing, dataFallback);
     }
 
     private static bool IsWikiBlueprintFailureCoveredByCache(IEnumerable<string> lines)
@@ -3914,15 +3949,16 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private static bool IsWikiBlueprintFailureCoveredByCache(string sourceLine, IEnumerable<string> lines)
     {
-        if (!sourceLine.StartsWith("Source Wiki blueprints:", StringComparison.OrdinalIgnoreCase) ||
+        var passports = sourceLine.StartsWith("Source Wiki item passports:", StringComparison.OrdinalIgnoreCase);
+        if ((!sourceLine.StartsWith("Source Wiki blueprints:", StringComparison.OrdinalIgnoreCase) && !passports) ||
             !sourceLine.Contains(": FAIL", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
         return lines.Any(line =>
-            line.StartsWith("Cache mining blueprints:", StringComparison.OrdinalIgnoreCase) &&
-            line.Contains("HIT", StringComparison.OrdinalIgnoreCase));
+            line.StartsWith(passports ? "Cache mining item passports:" : "Cache mining blueprints:", StringComparison.OrdinalIgnoreCase) &&
+            (line.Contains(": HIT", StringComparison.OrdinalIgnoreCase) || line.Contains(": FALLBACK", StringComparison.OrdinalIgnoreCase)));
     }
 
     private void AddWarmCacheSummary(string output)
@@ -3955,7 +3991,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
         var state = hasFailure
             ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: cache не прогрет."
             : hasFallback
-                ? "Cache прогрет с резервными данными. Можно применять в LIVE."
+                ? "Cache прогрет с резервными данными. Проверь версии источников в журнале."
                 : "Cache прогрет. Можно применять в LIVE.";
         SetJournalState(state, hasFailure);
         if (!hasFailure)
@@ -3976,7 +4012,11 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         foreach (var timingLine in lines.Where(line => line.StartsWith("Timing:", StringComparison.OrdinalIgnoreCase)))
         {
-            AddMetricLog("Этап " + timingLine["Timing:".Length..].Trim() + ".");
+            var timing = timingLine["Timing:".Length..].Trim();
+            var match = Regex.Match(timing, @"^(.*): (\d+) ms$");
+            AddMetricLog("Этап " + (match.Success && double.TryParse(match.Groups[2].Value, out var milliseconds)
+                ? match.Groups[1].Value + ": " + FormatStageDuration(milliseconds)
+                : timing) + ".");
         }
 
         var operations = FindValue("Operations:");
@@ -4004,7 +4044,10 @@ Write-Host "FAMILY_INDEX:$indexPath"
         if (!string.IsNullOrWhiteSpace(writeSucceeded))
         {
             var writeLabel = mode == BackendRunMode.LiveApply ? "LIVE" : "проверки";
-            AddMetricLog($"Запись {writeLabel}: {(writeSucceeded.Equals("True", StringComparison.OrdinalIgnoreCase) ? "OK" : writeSucceeded)}.");
+            var noChanges = int.TryParse(operations, out var count) && count == 0;
+            var writeStatus = writeSucceeded.Equals("True", StringComparison.OrdinalIgnoreCase)
+                ? "OK" : noChanges ? "не требовалась (изменений нет)" : "не выполнена";
+            AddMetricLog($"Запись {writeLabel}: {writeStatus}.");
         }
 
         if (!string.IsNullOrWhiteSpace(miningModule))
@@ -4049,7 +4092,9 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
         var hasConflicts = int.TryParse(conflicts, out var conflictCount) && conflictCount > 0;
         var cleanMessage = mode == BackendRunMode.LiveApply
-            ? "Применение в LIVE завершено. Backup сохранён."
+            ? (int.TryParse(operations, out var appliedCount) && appliedCount == 0
+                ? "LIVE уже содержит выбранные подсказки. Изменений нет."
+                : "Применение в LIVE завершено. Backup сохранён.")
             : "Контур чист. Можно применять в LIVE.";
         SetJournalState(hasConflicts ? "ХЬЮСТОН, У НАС ПРОБЛЕМА: есть конфликт модулей." : cleanMessage, hasConflicts);
     }
@@ -4309,8 +4354,13 @@ Write-Host "FAMILY_INDEX:$indexPath"
         return new ProcessResult(output, error, process.ExitCode);
     }
 
+    private static string FormatStageDuration(double milliseconds) =>
+        FormatDuration(TimeSpan.FromMilliseconds(milliseconds));
+
     private static string FormatDuration(TimeSpan value)
     {
+        if (value.TotalSeconds < 1) return "<1 с";
+        value = TimeSpan.FromSeconds(Math.Round(value.TotalSeconds, MidpointRounding.AwayFromZero));
         if (value.TotalHours >= 1)
         {
             return $"{(int)value.TotalHours} ч {value.Minutes} мин {value.Seconds} с";
@@ -4837,7 +4887,7 @@ Write-Host "FAMILY_INDEX:$indexPath"
 
     private sealed record ProcessResult(string Output, string Error, int ExitCode);
 
-    private sealed record PreflightStatus(bool HasBlockingFailure, bool HasCacheIssue, bool HasCacheMissing, bool HasCacheStale, bool HasGlobalMissing);
+    private sealed record PreflightStatus(bool HasBlockingFailure, bool HasCacheIssue, bool HasCacheMissing, bool HasCacheStale, bool HasGlobalMissing, bool HasDataFallback);
 }
 
 public enum BackendRunMode
@@ -4934,6 +4984,9 @@ public sealed class MiningCraftFamilyEntry
 
     [JsonPropertyName("label")]
     public string Label { get; set; } = "";
+
+    [JsonPropertyName("questOnly")]
+    public bool QuestOnly { get; set; }
 
     [JsonPropertyName("defaultSelected")]
     public bool DefaultSelected { get; set; }

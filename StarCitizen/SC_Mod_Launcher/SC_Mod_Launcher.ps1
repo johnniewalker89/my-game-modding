@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$LivePath,
     [string]$SelectedOptionsJson,
     [switch]$Preflight,
@@ -100,9 +100,16 @@ function Get-ModuleSummaryLines {
 
         if ($module.id -eq 'mining') {
             $lines += "  Planet descriptions: $($module.metadata.changedPlanetDescriptions) changed of $($module.metadata.planetBlocksFound) with SCMDB hints"
+            if ($module.metadata.craftingCatalog) {
+                $catalog = $module.metadata.craftingCatalog
+                $lines += "  Crafting coverage: $($catalog.status); unresolved: $($catalog.unresolvedCount); corrected names: $($catalog.correctedNameCount)"
+                foreach ($issue in @($catalog.issues)) {
+                    $lines += "    Unresolved recipe: $($issue.tag); blueprint: $($issue.blueprintGuid)"
+                }
+            }
             if ($module.metadata.itemCraftHints -and $module.metadata.itemCraftHints.enabled) {
                 $craft = $module.metadata.itemCraftHints
-                $lines += "  Item craft hints: $($craft.changedItemDescriptions) changed of $($craft.safeDescriptionKeys) safe; skipped unmapped: $($craft.skippedUnmapped), no wiki: $($craft.skippedNoWiki), conflicts: $($craft.skippedConflict)"
+                $lines += "  Item craft hints: $($craft.changedItemDescriptions) changed of $($craft.safeDescriptionKeys) safe; skipped unmapped: $($craft.skippedUnmapped), no recipe: $($craft.skippedNoWiki), conflicts: $($craft.skippedConflict)"
             }
             if ($module.metadata.refineryYieldHints -and $module.metadata.refineryYieldHints.enabled) {
                 $refinery = $module.metadata.refineryYieldHints
@@ -413,7 +420,19 @@ function Write-SCCacheStatusLine {
     }
 
     $state = if ($isStale) { 'STALE' } else { 'HIT' }
-    Write-Host "Cache ${Name}: $state; age: $age; file: $(Get-SCRelativeOrName -Path $Path); path: $Path"
+    $provenance = ''
+    # Do not classify a freshly copied fallback as fresh source data.
+    if ($Name -in @('mining blueprints', 'mining item passports', 'mining refinery yields', 'mining raw ore buy prices')) {
+        try {
+            $payload = Get-Content -LiteralPath $Path -Encoding UTF8 -Raw | ConvertFrom-Json
+            if ($payload.fallbackFromCacheKey -or $payload.versionMatch -eq 'source-lag' -or $payload.versionMatch -eq 'offline-fallback') {
+                $state = 'FALLBACK'
+                $provenance = "; source version: $($payload.gameVersion); requested: $($payload.requestedGameVersion); source age: $age"
+            }
+        }
+        catch { }
+    }
+    Write-Host "Cache ${Name}: $state; age: $age$provenance; file: $(Get-SCRelativeOrName -Path $Path); path: $Path"
 }
 
 function Get-SCRemoteJson {
@@ -587,15 +606,15 @@ function Assert-SCLocalCachesAvailable {
 
     . (Get-SCMiningModuleScriptPath)
     $required = @(
-        [pscustomobject]@{ Name = 'mining blueprints'; Path = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$scmdbCache.Version) },
+        [pscustomobject]@{ Name = 'mining blueprints'; Path = Get-SCMiningRecipeCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining recipe families'; Path = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining data'; Path = Get-SCMiningMiningDataCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining refinery yields'; Path = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$scmdbCache.Version) },
         [pscustomobject]@{ Name = 'mining raw ore buy prices'; Path = Get-SCMiningLocationTradeCachePath -CacheKey ([string]$scmdbCache.Version) },
-        [pscustomobject]@{ Name = 'mining item passports'; Path = Get-SCMiningItemPassportCachePath -CacheKey ([string]$scmdbCache.Version) },
-        [pscustomobject]@{ Name = 'quest items'; Path = (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json') }
+        [pscustomobject]@{ Name = 'mining item passports'; Path = Get-SCMiningItemPassportCachePath -CacheKey ([string]$scmdbCache.Version) }
     )
 
+    [void](Read-SCCraftingCatalog -CacheKey ([string]$scmdbCache.Version))
     foreach ($item in $required) {
         if (-not (Test-Path -LiteralPath $item.Path -PathType Leaf)) {
             throw "CACHE PREFLIGHT FAILED: $($item.Name) cache is missing. Refresh cache before applying to LIVE."
@@ -623,6 +642,13 @@ function Write-SCRefreshedCacheLine {
     )
 
     if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        if ($Name -eq 'mining blueprints') {
+            $payload = Get-Content -LiteralPath $Path -Encoding UTF8 -Raw | ConvertFrom-Json
+            if ($payload.versionMatch -eq 'source-lag') {
+                Write-SCFallbackCacheLine -Name $Name -Path $Path -Reason 'Wiki source version lags requested game version'
+                return
+            }
+        }
         Write-Host "Cache ${Name}: REFRESHED; file: $(Get-SCRelativeOrName -Path $Path); path: $Path"
     }
     else {
@@ -638,7 +664,9 @@ function Write-SCFallbackCacheLine {
     )
 
     if (Test-Path -LiteralPath $Path -PathType Leaf) {
-        Write-Host "Cache ${Name}: FALLBACK; reason: $Reason; file: $(Get-SCRelativeOrName -Path $Path); path: $Path"
+        $payload = Get-Content -LiteralPath $Path -Encoding UTF8 -Raw | ConvertFrom-Json
+        $provenance = "; source version: $($payload.gameVersion); requested: $($payload.requestedGameVersion); fallback from: $($payload.fallbackFromCacheKey); data age: $(Format-SCCacheAge -Timestamp (Get-SCCacheTimestamp -Path $Path))"
+        Write-Host "Cache ${Name}: FALLBACK; reason: $Reason$provenance; file: $(Get-SCRelativeOrName -Path $Path); path: $Path"
     }
     else {
         Write-Host "Cache ${Name}: FAIL; fallback cache file was not created; reason: $Reason; path: $Path"
@@ -689,10 +717,10 @@ function Write-SCMiningRefineryYieldFallbackCache {
         return $null
     }
 
-    $sourceKey = [string]$fallback.cacheKey
+    $sourceKey = if ($fallback.fallbackFromCacheKey) { [string]$fallback.fallbackFromCacheKey } else { [string]$fallback.cacheKey }
     Set-SCJsonProperty -Object $fallback -Name 'fallbackFromCacheKey' -Value $sourceKey
     Set-SCJsonProperty -Object $fallback -Name 'cacheKey' -Value ([string]$CacheKey)
-    Set-SCJsonProperty -Object $fallback -Name 'createdAt' -Value ((Get-Date).ToString('o'))
+    Set-SCJsonProperty -Object $fallback -Name 'fallbackCopiedAt' -Value ((Get-Date).ToString('o'))
     Write-SCMiningRefineryYieldCache -CachePath $targetPath -Payload $fallback
     return $targetPath
 }
@@ -709,10 +737,10 @@ function Write-SCMiningLocationTradeFallbackCache {
         return $null
     }
 
-    $sourceKey = [string]$fallback.cacheKey
+    $sourceKey = if ($fallback.fallbackFromCacheKey) { [string]$fallback.fallbackFromCacheKey } else { [string]$fallback.cacheKey }
     Set-SCJsonProperty -Object $fallback -Name 'fallbackFromCacheKey' -Value $sourceKey
     Set-SCJsonProperty -Object $fallback -Name 'cacheKey' -Value ([string]$CacheKey)
-    Set-SCJsonProperty -Object $fallback -Name 'createdAt' -Value ((Get-Date).ToString('o'))
+    Set-SCJsonProperty -Object $fallback -Name 'fallbackCopiedAt' -Value ((Get-Date).ToString('o'))
     Write-SCMiningLocationTradeCache -CachePath $targetPath -Payload $fallback
     return $targetPath
 }
@@ -729,10 +757,12 @@ function Write-SCMiningItemPassportFallbackCache {
         return $null
     }
 
-    $sourceKey = [string]$fallback.cacheKey
+    $sourceKey = if ($fallback.fallbackFromCacheKey) { [string]$fallback.fallbackFromCacheKey } else { [string]$fallback.cacheKey }
     Set-SCJsonProperty -Object $fallback -Name 'fallbackFromCacheKey' -Value $sourceKey
     Set-SCJsonProperty -Object $fallback -Name 'cacheKey' -Value ([string]$CacheKey)
-    Set-SCJsonProperty -Object $fallback -Name 'createdAt' -Value ((Get-Date).ToString('o'))
+    Set-SCJsonProperty -Object $fallback -Name 'fallbackCopiedAt' -Value ((Get-Date).ToString('o'))
+    Set-SCJsonProperty -Object $fallback -Name 'requestedGameVersion' -Value (ConvertTo-SCMiningWikiGameVersion -CacheKey $CacheKey)
+    Set-SCJsonProperty -Object $fallback -Name 'versionMatch' -Value 'offline-fallback'
     Write-SCJsonCacheFile -Path $targetPath -Payload $fallback -Depth 12
     return $targetPath
 }
@@ -760,8 +790,11 @@ function Write-ConsoleRemoteSourceSummary {
         Write-Host 'Source SCMDB data: FAIL; SCMDB index unavailable.'
     }
 
-    [void](Test-SCWikiBlueprintSource -Headers $headers)
-    [void](Test-SCWikiItemsSource -Headers $headers)
+    if ($null -ne $version) {
+        foreach ($catalogName in @('crafting_blueprints', 'crafting_items')) {
+            [void](Get-SCRemoteJson -Name ('SCMDB ' + $catalogName) -Uri ("https://scmdb.net/data/{0}-{1}.json" -f $catalogName, $version.version) -Headers $headers -TimeoutSec $script:SourceCheckTimeoutSec)
+        }
+    }
     [void](Test-SCRefineryYieldsSource -Headers $headers)
     [void](Test-SCLocationTradeSource -Headers $headers)
     . (Get-SCMiningModuleScriptPath)
@@ -889,8 +922,10 @@ function Write-ConsolePreflightSummary {
     try {
         . (Get-SCMiningModuleScriptPath)
         if ($scmdbCache -and -not [string]::IsNullOrWhiteSpace([string]$scmdbCache.Version)) {
-            $miningCachePath = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$scmdbCache.Version)
+            $miningCachePath = Get-SCMiningRecipeCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining blueprints' -Path $miningCachePath
+            $catalog = Read-SCCraftingCatalog -CacheKey ([string]$scmdbCache.Version)
+            if ($null -ne $catalog) { Write-SCCraftingCatalogDiagnostics -Diagnostics (Get-SCCraftingCatalogDiagnostics -Catalog $catalog) }
             $familyIndexPath = Get-SCMiningCraftFamilyIndexCachePath -CacheKey ([string]$scmdbCache.Version)
             Write-SCCacheStatusLine -Name 'mining recipe families' -Path $familyIndexPath
             $miningDataPath = Get-SCMiningMiningDataCachePath -CacheKey ([string]$scmdbCache.Version)
@@ -907,7 +942,7 @@ function Write-ConsolePreflightSummary {
         Write-Host "Cache mining module: FAIL; $($_.Exception.Message)"
     }
 
-    Write-SCCacheStatusLine -Name 'quest items' -Path (Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json')
+    if ($scmdbCache) { Write-SCCacheStatusLine -Name 'quest items' -Path (Get-SCMiningRecipeCachePath -CacheKey ([string]$scmdbCache.Version)) }
     Write-Host 'Advice: refresh cache when important cache is MISSING or older than 7 days.'
 }
 
@@ -934,13 +969,10 @@ function Write-ConsoleWarmCacheSummary {
     if ($null -eq $scmdbData) {
         throw 'SCMDB data returned no data.'
     }
-    $scmdbCachePath = Write-SCScmdbCache -Version $version -Data $scmdbData
-    Write-SCRefreshedCacheLine -Name 'scmdb data' -Path $scmdbCachePath
-
     . (Get-SCMiningModuleScriptPath)
-    if (-not (Test-SCWikiBlueprintSource -Headers $headers)) {
-        throw 'Wiki blueprints source is unavailable.'
-    }
+    # Commit the complete recipe+identity pair before activating a new mission build.
+    $cachePath = Update-SCCraftingCatalog -CacheKey ([string]$version.version) -Headers $headers
+    $blueprints = @(Get-SCCraftingRecipes -CacheKey ([string]$version.version))
 
     $miningDataUri = "https://scmdb.net/data/mining_data-$($version.version).json"
     $miningData = Get-SCRemoteJson -Name 'SCMDB mining data' -Uri $miningDataUri -Headers $headers
@@ -957,37 +989,14 @@ function Write-ConsoleWarmCacheSummary {
     Write-Host "SCMDB mining locations: $(@($miningData.locations).Count)"
     Write-SCRefreshedCacheLine -Name 'mining data' -Path $miningDataPath
 
-    $blueprints = @(Get-SCMiningWikiBlueprints -Headers $headers -CacheKey ([string]$version.version) -ForceRefresh)
-    $cachePath = Get-SCMiningWikiBlueprintCachePath -CacheKey ([string]$version.version)
-    Write-Host "Wiki blueprints: $($blueprints.Count)"
+    $scmdbCachePath = Write-SCScmdbCache -Version $version -Data $scmdbData
+    Write-SCRefreshedCacheLine -Name 'scmdb data' -Path $scmdbCachePath
+    Write-Host "SCMDB blueprints: $($blueprints.Count)"
+    Write-SCCraftingCatalogDiagnostics -Diagnostics (Get-SCCraftingCatalogDiagnostics -Catalog (Read-SCCraftingCatalog -CacheKey ([string]$version.version)))
     Write-SCRefreshedCacheLine -Name 'mining blueprints' -Path $cachePath
-
-    foreach ($questCachePath in Get-SCQuestCachePaths) {
-        Reset-SCCacheFile -Path $questCachePath
-    }
-
-    if (-not (Test-SCWikiItemsSource -Headers $headers)) {
-        throw 'Wiki items source is unavailable.'
-    }
-
-    $questItemsCachePath = Join-Path $ScriptRoot 'modules\quest\engine\cache\wiki-items-cache.json'
-    $questEngineScript = Join-Path $ScriptRoot 'modules\quest\engine\SC_Quest_Recipe_Engine.ps1'
-    $questReportPath = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-quest-cache-warmup-" + [guid]::NewGuid().ToString('N') + ".json")
-    $questEngineArgs = @{
-        GlobalIniPath = Resolve-SCGlobalIniPath -LivePath $LivePath
-        NoBackup = $true
-        NoCraftIntel = $true
-        CacheOnly = $true
-        ReportPath = $questReportPath
-        OverridesPath = Join-Path $ScriptRoot 'modules\quest\engine\data\blueprint-overrides.ru.json'
-        WikiCachePath = $questItemsCachePath
-    }
-    & $questEngineScript @questEngineArgs | ForEach-Object { Write-Host ([string]$_) }
-    Write-SCCacheTimestampMetadata -Path $questItemsCachePath
-    Write-SCRefreshedCacheLine -Name 'quest items' -Path $questItemsCachePath
-
     $familyIndexPath = Write-SCMiningCraftFamilyIndexCache -CacheKey ([string]$version.version) -Blueprints @($blueprints)
     Write-SCRefreshedCacheLine -Name 'mining recipe families' -Path $familyIndexPath
+    Write-SCRefreshedCacheLine -Name 'quest items' -Path $cachePath
 
     $refineryYieldPath = Get-SCMiningRefineryYieldCachePath -CacheKey ([string]$version.version)
     try {

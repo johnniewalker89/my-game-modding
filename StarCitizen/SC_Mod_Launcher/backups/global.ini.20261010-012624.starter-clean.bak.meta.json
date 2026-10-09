@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-10T01:43:57.0393804+03:00",
+  "fileName": "global.ini.20261010-012624.starter-clean.bak",
+  "sha256": "FB994FB62AA68CDD4B004038C86E82AFCDEC7BD3619A98FCFEE11F0EB35297DC",
+  "kind": "clean",
+  "rawMiningMarkers": [
+    "Потенциально добываемые ресурсы (корабль):",
+    "Потенциально добываемые ресурсы (наземная техника):",
+    "Потенциально добываемые ресурсы (ручная добыча):"
+  ],
+  "launcherMarkers": [],
+  "localization": {
+    "tagName": "4.10.2-v128",
+    "releaseName": "4.10.2-v128 (for 4.10.2-LIVE)",
+    "releaseUrl": "https://github.com/n1ghter/StarCitizenRu/releases/tag/4.10.2-v128",
+    "publishedAt": "2026-10-09T19:20:11+03:00",
+    "installedAtUtc": "2026-10-10T00:56:27.7826896+03:00",
+    "languagesSha256": "57047D7D2CBF35D5A5EB409700D52AB7EE380CCAAF83D932856999D565AF2682",
+    "globalIniSha256": "FB994FB62AA68CDD4B004038C86E82AFCDEC7BD3619A98FCFEE11F0EB35297DC"
+  },
+  "sourceBackupFile": "global.ini.20261010-012624.sc-mod-launcher.bak"
+}

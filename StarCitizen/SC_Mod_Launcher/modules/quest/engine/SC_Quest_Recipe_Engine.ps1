@@ -34,6 +34,7 @@
 $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path (Split-Path -Parent (Split-Path -Parent $ScriptDir)) 'scmdb\SC_Crafting_Catalog.ps1')
 $ScmdbBaseUrl = 'https://scmdb.net/data'
 $WikiApiBaseUrl = 'https://api.star-citizen.wiki/api'
 $LocalizationRelativePath = 'data\Localization\korean_(south_korea)\global.ini'
@@ -1691,7 +1692,7 @@ function ConvertTo-RussianItemType {
 function Format-DisplayName {
     param([Parameter(Mandatory = $true)][string]$Name)
 
-    return ($Name -replace 'Â ', ' ' -replace [string][char]0x00A0, ' ')
+    return (Normalize-SCCraftingProductName -Name $Name)
 }
 
 function ConvertTo-ArmorSlot {
@@ -1931,6 +1932,7 @@ function ConvertTo-QuestFamilyEnrichmentType {
         'Гибрид' { return 'корабельное орудие' }
         'Добывающие лазеры' { return 'добывающий лазер' }
         'Модули добычи' { return 'модуль добычи' }
+        'Модули утилизации' { return 'скребковый модуль' }
         'Рудные контейнеры' { return 'рудный контейнер' }
         'Сверхтяжёлая броня' { return 'сверхтяжёлая броня' }
         'Тяжёлая броня' { return 'тяжёлая броня' }
@@ -1959,7 +1961,7 @@ function New-FamilyEnrichmentFromEntry {
 
     return [pscustomobject]@{
         found = $true
-        source = 'craft-family'
+        source = $(if ($Entry.questOnly) { 'SCMDB-reward-family' } else { 'craft-family' })
         category = [string]$Entry.category
         subcategory = $subcategory
         type = ConvertTo-QuestFamilyEnrichmentType -Subcategory $subcategory
@@ -1970,7 +1972,7 @@ function New-FamilyEnrichmentFromEntry {
         manufacturer = $null
         blueprintUuid = $null
         blueprintLink = $null
-        isCraftable = $true
+        isCraftable = (-not [bool]$Entry.questOnly)
     }
 }
 
@@ -2127,84 +2129,96 @@ function Normalize-EnrichmentCategory {
     return $Info
 }
 
+function New-ScmdbEnrichmentMap {
+    param([string[]]$Names, [hashtable]$FamilyMap)
+    $version = Get-CurrentScmdbCacheVersion
+    if ([string]::IsNullOrWhiteSpace($version)) { return $null }
+    $catalog = Read-SCCraftingCatalog -CacheKey $version
+    if ($null -eq $catalog) { return $null }
+    $itemsByGuid = @{}
+    $itemsByName = @{}
+    foreach ($item in @($catalog.itemData.items)) {
+        $itemsByGuid[[string]$item.entityClass] = $item
+        $name = [string]$item.name
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        if (-not $itemsByName.ContainsKey($name)) { $itemsByName[$name] = New-Object System.Collections.Generic.List[object] }
+        $itemsByName[$name].Add($item)
+    }
+    $productsByBlueprint = @{}
+    foreach ($record in @($catalog.blueprintData.blueprints)) { $productsByBlueprint[[string]$record.guid] = [string]$record.productEntityClass }
+    $rewardProducts = @{}
+    $missionData = (Get-ScmdbData).Data
+    foreach ($pool in @($missionData.blueprintPools.PSObject.Properties)) {
+        foreach ($reward in @($pool.Value.blueprints)) {
+            $name = [string]$reward.name
+            $guid = $productsByBlueprint[[string]$reward.blueprintRecord]
+            if ([string]::IsNullOrWhiteSpace($guid)) { continue }
+            if (-not $rewardProducts.ContainsKey($name)) { $rewardProducts[$name] = @{} }
+            $rewardProducts[$name][$guid] = $true
+        }
+    }
+    $map = @{}
+    foreach ($name in @($Names)) {
+        $candidates = @()
+        if ($rewardProducts.ContainsKey($name)) {
+            $candidates = @($rewardProducts[$name].Keys | ForEach-Object { if ($itemsByGuid.ContainsKey($_)) { $itemsByGuid[$_] } })
+        }
+        elseif ($itemsByName.ContainsKey($name)) { $candidates = @($itemsByName[$name].ToArray()) }
+        if ($candidates.Count -ne 1) { continue }
+        $item = $candidates[0]
+        $type = Get-SCCraftingItemTypeLabel -Item $item
+        $category = 'Не распознано'
+        $typeRu = ConvertTo-RussianItemType -Value $type
+        $slot = $null
+        switch -Regex ([string]$item.attachType) {
+            '^Char_' { $category = 'Броня/одежда'; $slot = ConvertTo-ArmorSlot -Item ([pscustomobject]@{name=$name;type=$item.attachType}); break }
+            '^WeaponPersonal$' { $category = 'Оружие'; break }
+            '^(Shield|QuantumDrive|PowerPlant|Cooler|Radar)$' { $category = 'Корабельные компоненты'; break }
+            '^(WeaponMining|MiningModifier|SalvageModifier)$' { $category = 'Горное оборудование'; break }
+            '^WeaponGun$' { $category = 'Корабельные орудия'; break }
+            '^Container$' { if ($name -match '(?i)\bOre\s+Pod$') { $category = 'Горное оборудование' }; break }
+            '^WeaponAttachment$' { $category = 'Снаряжение/расходники'; break }
+        }
+        $familyName = Normalize-SCCraftingProductName -Name $name
+        if ($FamilyMap.ContainsKey($familyName)) {
+            # Existing family policy owns the familiar categories/subcategories.
+            $family = $FamilyMap[$familyName]
+            $category = [string]$family.category
+            if (-not [string]::IsNullOrWhiteSpace([string]$family.type)) { $typeRu = [string]$family.type }
+        }
+        elseif ($category -eq 'Броня/одежда') {
+            switch ([string]$item.attachSubType) { Heavy { $typeRu = 'тяжёлая броня' }; Medium { $typeRu = 'средняя броня' }; Light { $typeRu = 'лёгкая броня' } }
+        }
+        $map[$name] = [pscustomobject]@{
+            found = ($category -ne 'Не распознано'); source = 'scmdb'; category = $category; type = $typeRu
+            subcategory = $(if ($FamilyMap.ContainsKey($familyName)) { [string]$FamilyMap[$familyName].subcategory } else { $null })
+            slot = $slot; size = [string]$item.size; grade = [string]$item.grade; class = [string]$item.componentClass
+            manufacturer = [string]$item.manufacturer; entityClass = [string]$item.entityClass; gameVersion = $version
+        }
+    }
+    return $map
+}
+
 function New-EnrichmentMap {
     param([string[]]$Names)
-
-    $cache = if ($NoCache) { @{} } else { Read-JsonHashtable -Path $WikiCachePath }
     $overrides = Read-JsonHashtable -Path $OverridesPath
     $familyFallback = New-CraftFamilyEnrichmentMap
+    $primary = New-ScmdbEnrichmentMap -Names $Names -FamilyMap $familyFallback
+    # Legacy Wiki enrichment remains read-only compatibility when no SCMDB catalog exists.
+    $legacy = if ($null -eq $primary -and -not $NoCache) { Read-JsonHashtable -Path $WikiCachePath } else { @{} }
     $result = @{}
-    $namesForWiki = New-Object System.Collections.Generic.List[string]
-
-    foreach ($name in $Names) {
-        if (-not $NoCache -and $cache.ContainsKey($name)) {
-            $cached = Normalize-EnrichmentCategory -Name $name -Info $cache[$name]
-            $cache[$name] = $cached
-            if ($cached.found) {
-                $result[$name] = $cached
-                if (-not $cached.PSObject.Properties['blueprintUuid']) {
-                    $namesForWiki.Add($name)
-                }
-            }
-            else {
-                $result[$name] = $cached
-            }
-        }
-        else {
-            $namesForWiki.Add($name)
-        }
-    }
-
-    if ($namesForWiki.Count -gt 0 -and -not $NoWikiEnrichment) {
-        Write-Host "Querying Star Citizen Wiki API for $($namesForWiki.Count) blueprint names..."
-        $wikiItems = Get-WikiItemsByName -Names @($namesForWiki)
-        foreach ($name in $namesForWiki) {
-            if ($wikiItems.ContainsKey($name)) {
-                $enrichment = Normalize-EnrichmentCategory -Name $name -Info (New-EnrichmentFromWikiItem -Item $wikiItems[$name])
-                $result[$name] = $enrichment
-                if (-not $NoCache) {
-                    $cache[$name] = $enrichment
-                }
-            }
-            elseif (-not $NoCache) {
-                $cache[$name] = [pscustomobject]@{
-                    found = $false
-                    source = 'wiki-miss'
-                }
-            }
-        }
-    }
-
-    foreach ($name in $Names) {
+    foreach ($name in @($Names)) {
+        if ($null -ne $primary -and $primary.ContainsKey($name)) { $result[$name] = Normalize-EnrichmentCategory -Name $name -Info $primary[$name] }
+        elseif ($legacy.ContainsKey($name)) { $result[$name] = Normalize-EnrichmentCategory -Name $name -Info $legacy[$name] }
         if ($overrides.ContainsKey($name)) {
             $base = if ($result.ContainsKey($name)) { $result[$name] } else { $null }
             $result[$name] = Normalize-EnrichmentCategory -Name $name -Info (Merge-OverrideEnrichment -Base $base -Override $overrides[$name])
         }
-    }
-
-    foreach ($name in $Names) {
-        if ($familyFallback.ContainsKey($name) -and (
-            -not $result.ContainsKey($name) -or
-            -not $result[$name].found -or
-            [string]$result[$name].category -eq 'Не распознано'
-        )) {
+        if ($familyFallback.ContainsKey($name) -and (-not $result.ContainsKey($name) -or -not $result[$name].found -or [string]$result[$name].category -eq 'Не распознано')) {
             $result[$name] = Normalize-EnrichmentCategory -Name $name -Info $familyFallback[$name]
         }
+        if (-not $result.ContainsKey($name) -or -not $result[$name].found) { $result[$name] = Normalize-EnrichmentCategory -Name $name -Info (Get-PatternEnrichment -Name $name) }
     }
-
-    foreach ($name in $Names) {
-        if (-not $result.ContainsKey($name)) {
-            $result[$name] = Normalize-EnrichmentCategory -Name $name -Info (Get-PatternEnrichment -Name $name)
-        }
-        elseif (-not $result[$name].found) {
-            $result[$name] = Normalize-EnrichmentCategory -Name $name -Info (Get-PatternEnrichment -Name $name)
-        }
-    }
-
-    if (-not $NoCache) {
-        Write-JsonHashtable -Path $WikiCachePath -Value $cache
-    }
-
     return $result
 }
 
@@ -3265,6 +3279,9 @@ function Get-ShipWeaponSubcategory {
         $CraftInfo
     )
 
+    if ($CraftInfo -and $CraftInfo.subcategory -in @('Добывающие лазеры', 'Гибрид', 'Баллистика', 'Энергетика', 'Прочее')) {
+        return [string]$CraftInfo.subcategory
+    }
     $displayName = (Format-DisplayName -Name $Name).Trim()
     $type = if ($CraftInfo -and $CraftInfo.type) { [string]$CraftInfo.type } else { '' }
 
@@ -3882,13 +3899,15 @@ function Get-EnrichmentStats {
     param([hashtable]$Map)
 
     $wiki = 0
+    $scmdbMatched = 0
     $override = 0
     $pattern = 0
     $unknown = New-Object System.Collections.Generic.List[string]
 
     foreach ($entry in $Map.GetEnumerator()) {
         $info = $entry.Value
-        if ($info.source -eq 'wiki') { $wiki++ }
+        if ($info.source -eq 'scmdb') { $scmdbMatched++ }
+        elseif ($info.source -eq 'wiki') { $wiki++ }
         elseif ($info.source -eq 'override') { $override++ }
         elseif ($info.source -eq 'pattern') { $pattern++ }
 
@@ -3898,6 +3917,7 @@ function Get-EnrichmentStats {
     }
 
     return [pscustomobject]@{
+        scmdbMatched = $scmdbMatched
         wikiMatched = $wiki
         overrideMatched = $override
         patternMatched = $pattern
@@ -3978,7 +3998,8 @@ if ($CacheOnly) {
         originalSize = $originalSize
         scmdbVersion = $scmdb.Version
         uniqueBlueprintNames = @($uniqueBlueprintNames).Count
-        wikiMatched = $enrichmentStats.wikiMatched
+        scmdbMatched = $enrichmentStats.scmdbMatched
+    wikiMatched = $enrichmentStats.wikiMatched
         overrideMatched = $enrichmentStats.overrideMatched
         patternMatched = $enrichmentStats.patternMatched
         unknownBlueprints = @($enrichmentStats.unknownBlueprints | Sort-Object)
@@ -3991,7 +4012,7 @@ if ($CacheOnly) {
 
     Write-Host "Quest cache warmup: OK; names: $(@($uniqueBlueprintNames).Count)"
     Write-Host "SCMDB version: $($scmdb.Version)"
-    Write-Host "Wiki matched: $($enrichmentStats.wikiMatched)"
+    Write-Host "SCMDB matched: $($enrichmentStats.scmdbMatched); legacy Wiki matched: $($enrichmentStats.wikiMatched)"
     Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
@@ -4286,6 +4307,7 @@ $report = [pscustomobject]@{
     conflictingSharedDescriptionKeys = $conflictKeys.Count
     missingDescriptionKeys = $missingDescriptionKeys.Count
     missingTitleKeys = $missingTitleKeys.Count
+    scmdbMatched = $enrichmentStats.scmdbMatched
     wikiMatched = $enrichmentStats.wikiMatched
     overrideMatched = $enrichmentStats.overrideMatched
     patternMatched = $enrichmentStats.patternMatched
@@ -4307,7 +4329,7 @@ $reportEncoding = New-Object System.Text.UTF8Encoding($true)
 if ($changedLines -eq 0) {
     Write-Host 'No modifications were necessary.'
     Write-Host "SCMDB version: $($scmdb.Version)"
-    Write-Host "Wiki matched: $($enrichmentStats.wikiMatched)"
+    Write-Host "SCMDB matched: $($enrichmentStats.scmdbMatched); legacy Wiki matched: $($enrichmentStats.wikiMatched)"
     Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
@@ -4319,7 +4341,7 @@ if ($DryRun) {
     Write-Host 'Dry run complete. No game files were modified.'
     Write-Host "Would modify lines: $changedLines"
     Write-Host "SCMDB version: $($scmdb.Version)"
-    Write-Host "Wiki matched: $($enrichmentStats.wikiMatched)"
+    Write-Host "SCMDB matched: $($enrichmentStats.scmdbMatched); legacy Wiki matched: $($enrichmentStats.wikiMatched)"
     Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
     Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
     Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"
@@ -4342,7 +4364,7 @@ $newHash = Get-SCQuestFileSha256 -Path $globalPath
 
 Write-Host "Patched lines: $changedLines"
 Write-Host "SCMDB version: $($scmdb.Version)"
-Write-Host "Wiki matched: $($enrichmentStats.wikiMatched)"
+Write-Host "SCMDB matched: $($enrichmentStats.scmdbMatched); legacy Wiki matched: $($enrichmentStats.wikiMatched)"
 Write-Host "Override matched: $($enrichmentStats.overrideMatched)"
 Write-Host "Pattern matched: $($enrichmentStats.patternMatched)"
 Write-Host "Unknown blueprints: $($enrichmentStats.unknownBlueprints.Count)"

@@ -1,4 +1,6 @@
-﻿function Get-SCMiningPatchPlan {
+﻿. (Join-Path (Split-Path -Parent $PSScriptRoot) 'scmdb\SC_Crafting_Catalog.ps1')
+
+function Get-SCMiningPatchPlan {
     param(
         [object]$Context,
         [string[]]$SelectedOptions
@@ -83,8 +85,11 @@
     if ($enableItemCraftHints) {
         try {
             $recipeData = Get-SCMiningItemCraftRecipeData
+            if ($recipeData.CatalogDiagnostics -and $recipeData.CatalogDiagnostics.unresolvedCount -gt 0) {
+                $recipeDataWarnings += "SCMDB crafting catalog has $($recipeData.CatalogDiagnostics.unresolvedCount) unresolved records; see metadata.craftingCatalog.issues."
+            }
             if ($planetBlueprints.Count -eq 0) {
-                $planetBlueprints = @($recipeData.WikiBlueprints)
+                $planetBlueprints = @($recipeData.Blueprints)
             }
         }
         catch {
@@ -300,7 +305,8 @@
     Write-Host "Timing: mining finalize: $($timings['finalizeMs']) ms"
 
     $metadata = @{
-        source = 'existing SCMDB planet craft blocks + Star Citizen Wiki item craft hints and item passports'
+        source = 'SCMDB mining data and crafting recipes, UEX hints and Wiki item passports'
+        craftingCatalog = $(if ($recipeData) { $recipeData.CatalogDiagnostics } else { $null })
         selectedOptionCount = @($SelectedOptions).Count
         selectedMethods = @($selectedMethods)
         inspectedKeys = $Context.KeyCount
@@ -350,7 +356,8 @@ function New-SCMiningItemCraftHintOperations {
         enabled = $true
         scmdbVersion = $null
         rewardRecords = 0
-        wikiBlueprints = 0
+        blueprints = 0
+        recipeSource = $null
         rewardRecipes = 0
         safeDescriptionKeys = 0
         safeRewardRecords = 0
@@ -367,7 +374,8 @@ function New-SCMiningItemCraftHintOperations {
         $recipeData = if ($null -ne $RecipeData) { $RecipeData } else { Get-SCMiningItemCraftRecipeData }
         $metadata.scmdbVersion = $recipeData.ScmdbVersion
         $metadata.rewardRecords = $recipeData.RewardRecords.Count
-        $metadata.wikiBlueprints = $recipeData.WikiBlueprints.Count
+        $metadata.blueprints = $recipeData.Blueprints.Count
+        $metadata.recipeSource = if ($recipeData.Blueprints.Count -gt 0 -and $recipeData.Blueprints[0].source -eq 'SCMDB') { 'SCMDB' } else { 'legacy Wiki' }
 
         $lookup = New-SCMiningLocalizationLookup -Context $Context
         $mappedByDescriptionKey = @{}
@@ -1149,13 +1157,15 @@ function Get-SCMiningItemCraftRecipeData {
     $scmdbCache = Read-SCMiningScmdbCache
     $scmdb = $scmdbCache.Data
     $rewardRecords = @(Get-SCMiningScmdbRewardBlueprintRecords -Scmdb $scmdb)
-    $wikiBlueprints = @(Get-SCMiningCachedWikiBlueprints -CacheKey ([string]$scmdbCache.Version))
-    if ($wikiBlueprints.Count -eq 0) {
-        throw "Mining wiki blueprints cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
+    $blueprints = @(Get-SCMiningCachedCraftingRecipes -CacheKey ([string]$scmdbCache.Version))
+    if ($blueprints.Count -eq 0) {
+        throw "Mining recipe cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
     }
     $blueprintsByUuid = @{}
+    $catalog = Read-SCCraftingCatalog -CacheKey ([string]$scmdbCache.Version)
+    $diagnostics = if ($null -ne $catalog) { Get-SCCraftingCatalogDiagnostics -Catalog $catalog } else { $null }
 
-    foreach ($blueprint in $wikiBlueprints) {
+    foreach ($blueprint in $blueprints) {
         if (-not [string]::IsNullOrWhiteSpace([string]$blueprint.uuid)) {
             $blueprintsByUuid[[string]$blueprint.uuid] = $blueprint
         }
@@ -1164,8 +1174,9 @@ function Get-SCMiningItemCraftRecipeData {
     return [pscustomobject]@{
         ScmdbVersion = [string]$scmdbCache.Version
         RewardRecords = @($rewardRecords)
-        WikiBlueprints = @($wikiBlueprints)
+        Blueprints = @($blueprints)
         BlueprintsByUuid = $blueprintsByUuid
+        CatalogDiagnostics = $diagnostics
     }
 }
 
@@ -1177,12 +1188,12 @@ function Get-SCMiningNormalizedIniKey {
 
 function Get-SCMiningPlanetCraftBlueprints {
     $scmdbCache = Read-SCMiningScmdbCache
-    $cached = Get-SCMiningCachedWikiBlueprints -CacheKey ([string]$scmdbCache.Version)
+    $cached = Get-SCMiningCachedCraftingRecipes -CacheKey ([string]$scmdbCache.Version)
     if ($cached.Count -gt 0) {
         return @($cached)
     }
 
-    throw "Mining wiki blueprints cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
+    throw "Mining recipe cache is missing for SCMDB version $($scmdbCache.Version). Refresh cache before applying."
 }
 
 function Get-SCMiningCachedMiningData {
@@ -1607,6 +1618,23 @@ function Read-SCMiningScmdbCache {
         Version = [string]$payload.version
         Data = $payload.data
     }
+}
+
+function Get-SCMiningCachedCraftingRecipes {
+    param([string]$CacheKey)
+    $catalog = Read-SCCraftingCatalog -CacheKey $CacheKey
+    if ($null -ne $catalog) {
+        return @(ConvertTo-SCCraftingRecipes -BlueprintData $catalog.blueprintData -ItemData $catalog.itemData)
+    }
+    # Legacy cache is read only for compatibility; refresh always uses SCMDB.
+    return @(Get-SCMiningCachedWikiBlueprints -CacheKey $CacheKey)
+}
+
+function Get-SCMiningRecipeCachePath {
+    param([string]$CacheKey)
+    $primary = Get-SCCraftingCatalogCachePath -CacheKey $CacheKey
+    if (Test-Path -LiteralPath $primary -PathType Leaf) { return $primary }
+    return (Get-SCMiningWikiBlueprintCachePath -CacheKey $CacheKey)
 }
 
 function Get-SCMiningCachedWikiBlueprints {
@@ -2648,7 +2676,7 @@ function Write-SCMiningCraftFamilyIndexCache {
         }
     }
 
-    $families = foreach ($group in @($groups.Values)) {
+    $families = @(foreach ($group in @($groups.Values)) {
         $displayGroup = [pscustomobject]@{
             Label = [string]$group.label
             Family = [string]$group.familyType
@@ -2668,10 +2696,12 @@ function Write-SCMiningCraftFamilyIndexCache {
         }
     }
 
+    )
+    $families += @(Get-SCMiningQuestOnlyRewardFamilies -CacheKey $CacheKey -ExistingFamilies $families)
     $payload = [pscustomobject]@{
         cacheKey = [string]$CacheKey
         createdAt = (Get-Date).ToString('o')
-        shipComponentGradeFilter = 'A'
+        shipComponentGradeFilter = 'A' 
         families = @(
             $families |
                 Sort-Object `
@@ -2693,6 +2723,37 @@ function Write-SCMiningCraftFamilyIndexCache {
     return $cachePath
 }
 
+function Get-SCMiningQuestOnlyRewardFamilies {
+    param([string]$CacheKey, [object[]]$ExistingFamilies)
+
+    $path = Join-Path $PSScriptRoot 'data\quest-reward-families.json'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return @() }
+    $scmdb = Read-SCMiningScmdbCache
+    if ($null -eq $scmdb -or $scmdb.Version -ne $CacheKey) { return @() }
+    $rewards = @(Get-SCMiningScmdbRewardBlueprintRecords -Scmdb $scmdb.Data)
+    $knownNames = @{}
+    foreach ($entry in @($ExistingFamilies)) {
+        foreach ($name in @($entry.names)) { $knownNames[[string]$name] = $true }
+    }
+    $definitions = Get-Content -LiteralPath $path -Encoding UTF8 -Raw | ConvertFrom-Json
+    foreach ($definition in @($definitions)) {
+        $names = @($rewards | Where-Object { @($definition.blueprintRecords) -contains [string]$_.blueprintRecord -and -not $knownNames.ContainsKey([string]$_.name) } | ForEach-Object { [string]$_.name } | Sort-Object -Unique)
+        if ($names.Count -eq 0) { continue }
+        [pscustomobject]@{
+            optionId = 'craftFamily|' + [string]$definition.category + '|' + [string]$definition.subcategory + '|' + [string]$definition.familyKey
+            category = [string]$definition.category
+            subcategory = [string]$definition.subcategory
+            familyKey = [string]$definition.familyKey
+            label = [string]$definition.label
+            sortLabel = [string]$definition.label
+            defaultSelected = $false
+            names = @($names)
+            resources = @()
+            questOnly = $true
+        }
+    }
+}
+
 function New-SCMiningPlanetCraftMap {
     param([object[]]$Blueprints)
 
@@ -2700,6 +2761,8 @@ function New-SCMiningPlanetCraftMap {
     $itemLookup = Get-SCMiningCachedItemInfoLookup
     foreach ($blueprint in @($Blueprints)) {
         $name = Get-SCMiningBlueprintOutputName -Blueprint $blueprint -Reward $null
+        $unresolvedName = [string]::IsNullOrWhiteSpace($name)
+        if ($unresolvedName) { $name = Get-SCMiningUnnamedRecipeLabel -Blueprint $blueprint }
         if ([string]::IsNullOrWhiteSpace($name) -or (Test-SCMiningIgnoredCraftName -Name $name)) {
             continue
         }
@@ -2718,11 +2781,17 @@ function New-SCMiningPlanetCraftMap {
         $componentGrade = Get-SCMiningBlueprintOutputGrade -Blueprint $blueprint -ItemLookup $itemLookup
         $componentClass = Get-SCMiningBlueprintOutputComponentClass -Blueprint $blueprint -ItemLookup $itemLookup
         $key = if (-not [string]::IsNullOrWhiteSpace([string]$blueprint.uuid)) { [string]$blueprint.uuid } else { [string]$blueprint.key }
+        $family = Get-SCMiningPlanetRecipeFamily -Name $name -Category $category -Subcategory $subcategory -Resources @($resources) -ComponentGrade $componentGrade -ComponentClass $componentClass
+        if (Test-SCMiningUnlocalizedRecipeIdentity -Blueprint $blueprint) {
+            # Preserve the choice even if the source later supplies an official name.
+            $family = [pscustomobject]@{ Key = ('component:record:' + $key); Label = $name; Family = 'exact'; Token = $null }
+        }
         $result[$key] = [pscustomobject]@{
             Name = $name
             Category = $category
             Subcategory = $subcategory
-            Family = Get-SCMiningPlanetRecipeFamily -Name $name -Category $category -Subcategory $subcategory -Resources @($resources) -ComponentGrade $componentGrade -ComponentClass $componentClass
+            Family = $family
+            UnresolvedName = $unresolvedName
             Resources = @($resources)
             ComponentGrade = $componentGrade
             ComponentClass = $componentClass
@@ -2730,6 +2799,31 @@ function New-SCMiningPlanetCraftMap {
     }
 
     return $result
+}
+
+function Test-SCMiningUnlocalizedRecipeIdentity {
+    param([object]$Blueprint)
+    # Exact identities with product cards but absent native/RuSC localization.
+    # Pioneer is excluded: it has no product identity or verified grade.
+    return ($Blueprint.source -eq 'SCMDB' -and [string]$Blueprint.uuid -in @(
+        '3c10e4f9-a125-4171-acfc-b9b51c5b19e1',
+        '8a4f43a8-5f3d-4557-9756-01e1e77fbc2c',
+        '7ab8c5b1-2b1c-4388-8931-ad2aefa812e3',
+        'c0226b4d-3829-487c-8bf0-7d47f36ae867'
+    ))
+}
+
+function Get-SCMiningUnnamedRecipeLabel {
+    param([object]$Blueprint)
+    if (-not (Test-SCMiningUnlocalizedRecipeIdentity -Blueprint $Blueprint)) { return $null }
+    $type = Get-SCMiningBlueprintOutputType -Blueprint $Blueprint
+    $labels = @{ Cooler = 'Охладитель'; Radar = 'Радар' }
+    if (-not $labels.ContainsKey($type) -or [int]$Blueprint.output.size -le 0) { return $null }
+    $class = (Get-SCMiningBlueprintOutputClass -Blueprint $Blueprint -Reward $null) -replace '(?i)_SCItem$', ''
+    if ($class -notmatch '(?i)^(?:COOL|RADR)_[A-Z0-9]+_S0*(\d+)_(.+)$') { return $null }
+    if ([int]$Matches[1] -ne [int]$Blueprint.output.size) { return $null }
+    $descriptor = $Matches[2] -replace '_', ' '
+    return ('{0} S{1} ({2}; без игрового имени)' -f $labels[$type], [int]$Blueprint.output.size, $descriptor)
 }
 
 function Test-SCMiningIgnoredCraftName {
@@ -3041,7 +3135,7 @@ function Get-SCMiningPlanetBlueprintCategory {
     if ($type -eq 'Weapon Mining') {
         return (Get-SCMiningPlanetCategoryMiningEquipment)
     }
-    if ($type -eq 'Mining Modifier' -or ($type -eq 'Container' -and (Get-SCMiningBlueprintOutputName -Blueprint $Blueprint -Reward $null) -match '(?i)\bOre\s+Pod$')) {
+    if ($type -in @('Mining Modifier', 'Salvage Modifier') -or ($type -eq 'Container' -and (Get-SCMiningBlueprintOutputName -Blueprint $Blueprint -Reward $null) -match '(?i)\bOre\s+Pod$')) {
         return (Get-SCMiningPlanetCategoryMiningEquipment)
     }
     if ($type -eq 'Weapon Gun') {
@@ -3080,13 +3174,18 @@ function Get-SCMiningPlanetBlueprintSubcategory {
         return (Get-SCMiningPlanetTextOther)
     }
     if ($Category -eq (Get-SCMiningPlanetCategoryShipWeapons)) {
-        if ($name -match '(?i)ballistic|gatling|deadbolt|c-788|tarantula|tigerstrike|sword|draugar|mantis|revenant|scorpion|sw16br') { return (Get-SCMiningPlanetSubcategoryBallistics) }
         if ($name -match '(?i)mass driver|sledge|strife') { return (Get-SCMiningPlanetSubcategoryHybrid) }
+        # SCMDB's laser subtype takes precedence over the generic Gatling name.
+        # The name check also keeps legacy recipe inputs in the correct category.
+        if ([string]$Blueprint.output.weaponSubtype -eq 'laser' -or $name -match '(?i)\blaser\b') { return (Get-SCMiningPlanetSubcategoryEnergy) }
+        if ([string]$Blueprint.output.weaponSubtype -eq 'ballistic') { return (Get-SCMiningPlanetSubcategoryBallistics) }
+        if ($name -match '(?i)ballistic|gatling|deadbolt|c-788|tarantula|tigerstrike|sword|draugar|mantis|revenant|scorpion|sw16br') { return (Get-SCMiningPlanetSubcategoryBallistics) }
         return (Get-SCMiningPlanetSubcategoryEnergy)
     }
     if ($Category -eq (Get-SCMiningPlanetCategoryMiningEquipment)) {
         if ($type -eq 'Weapon Mining') { return (Get-SCMiningPlanetSubcategoryMiningLasers) }
         if ($type -eq 'Mining Modifier') { return (Get-SCMiningPlanetSubcategoryMiningModules) }
+        if ($type -eq 'Salvage Modifier') { return 'Модули утилизации' }
         if ($type -eq 'Container') { return (Get-SCMiningPlanetSubcategoryOrePods) }
         return (Get-SCMiningPlanetTextOther)
     }
@@ -3128,7 +3227,7 @@ function Get-SCMiningPlanetSubcategoryRank {
     $orders = @{
         (Get-SCMiningPlanetCategoryShipComponents) = @((Get-SCMiningPlanetSubcategoryShields), (Get-SCMiningPlanetSubcategoryQuantumDrives), (Get-SCMiningPlanetSubcategoryPowerPlants), (Get-SCMiningPlanetSubcategoryCoolers), (Get-SCMiningPlanetSubcategoryRadars), (Get-SCMiningPlanetTextOther))
         (Get-SCMiningPlanetCategoryShipWeapons) = @((Get-SCMiningPlanetSubcategoryEnergy), (Get-SCMiningPlanetSubcategoryBallistics), (Get-SCMiningPlanetSubcategoryHybrid), (Get-SCMiningPlanetSubcategoryMiningLasers), (Get-SCMiningPlanetTextOther))
-        (Get-SCMiningPlanetCategoryMiningEquipment) = @((Get-SCMiningPlanetSubcategoryMiningLasers), (Get-SCMiningPlanetSubcategoryMiningModules), (Get-SCMiningPlanetSubcategoryOrePods), (Get-SCMiningPlanetTextOther))
+        (Get-SCMiningPlanetCategoryMiningEquipment) = @((Get-SCMiningPlanetSubcategoryMiningLasers), (Get-SCMiningPlanetSubcategoryMiningModules), 'Модули утилизации', (Get-SCMiningPlanetSubcategoryOrePods), (Get-SCMiningPlanetTextOther))
         (Get-SCMiningPlanetCategoryArmor) = @((Get-SCMiningPlanetSubcategorySuperHeavyArmor), (Get-SCMiningPlanetSubcategoryHeavyArmor), (Get-SCMiningPlanetSubcategoryMediumArmor), (Get-SCMiningPlanetSubcategoryLightArmor), (Get-SCMiningPlanetSubcategoryUndersuits), (Get-SCMiningPlanetTextOther))
         (Get-SCMiningPlanetCategoryWeapons) = @((Get-SCMiningPlanetSubcategoryRifles), (Get-SCMiningPlanetSubcategorySniperRifles), (Get-SCMiningPlanetSubcategorySmgs), (Get-SCMiningPlanetSubcategoryLmgs), (Get-SCMiningPlanetSubcategoryHmgs), (Get-SCMiningPlanetSubcategoryPistols), (Get-SCMiningPlanetSubcategoryShotguns), (Get-SCMiningPlanetTextOther))
     }
@@ -3285,7 +3384,7 @@ function Expand-SCMiningCraftFamilyOptionIds {
     $expanded = New-Object System.Collections.Generic.List[string]
     $migrationMap = New-SCMiningCraftFamilyOptionMigrationMap -FamilyIndex (Get-SCMiningCraftFamilyIndex)
     foreach ($optionId in @($OptionIds)) {
-        $value = [string]$optionId
+        $value = ConvertTo-SCCraftingFamilyOptionId -OptionId ([string]$optionId)
         if ([string]::IsNullOrWhiteSpace($value)) {
             continue
         }
@@ -3498,6 +3597,15 @@ function Get-SCMiningPlanetRecipeFamily {
     )
 
     $label = ([string]$Name).Trim()
+    if ($label -match '^Monolith(?: Armor)? (Arms|Core|Helmet|Legs|Backpack)(?: Shadowflux)?$') {
+        return [pscustomobject]@{ Key = 'armor:Monolith'; Label = 'Monolith'; Family = 'armor'; Token = $null }
+    }
+    if ($Category -eq (Get-SCMiningPlanetCategoryArmor) -and $label -match '^Arden-(?:CL|SL)\s+(?:Backpack|Arms|Core|Helmet|Legs)$') {
+        return [pscustomobject]@{ Key = 'armor:Arden'; Label = 'Arden'; Family = 'armor'; Token = $null }
+    }
+    if ($Category -eq (Get-SCMiningPlanetCategoryArmor) -and $label -match '^Aztalan(?: Galena| Tamarack)?\s+(?:Arms|Core|Helmet|Legs)$') {
+        return [pscustomobject]@{ Key = 'armor:Aztalan'; Label = 'Aztalan'; Family = 'armor'; Token = $null }
+    }
     if ($Category -eq (Get-SCMiningPlanetCategoryArmor)) {
         if ($label -match '^(?:BUL-H4\s+(?:Armor|Helmet)|H4-PBF\s+Ammo\s+Carrier)(?:\s+Snow\s+Camo)?$') {
             return [pscustomobject]@{ Key = 'armor:BUL-H4'; Label = 'BUL-H4 / H4-PBF'; Family = 'armor'; Token = $null }
@@ -3570,6 +3678,9 @@ function Get-SCMiningPlanetRecipeFamily {
     }
     if ($label -match '^AD(\d+)B\s+Ballistic Gatling$') {
         return [pscustomobject]@{ Key = 'weapon:AD Ballistic Gatling'; Label = 'AD Ballistic Gatlings'; Family = 'suffix-list'; Token = "$($Matches[1])B" }
+    }
+    if ($label -match '^(?:YellowJacket|Scorpion|Mantis)\s+GT-(210|215|220)\s+Gatling$') {
+        return [pscustomobject]@{ Key = 'weapon:GT Gatling'; Label = 'GT Gatlings'; Family = 'number-list'; Token = [int]$Matches[1] }
     }
     if ($label -match '^(.+?)-(\d+)\s+(Repeater|Scattergun|Cannon)$') {
         $base = $Matches[1].Trim()
@@ -3655,6 +3766,12 @@ function Get-SCMiningPlanetRecipeFamily {
 
     if ($label -match '^Pulse\s+(Laser\s+)?Pistol$' -or $label -match '^Pulse\s+"[^"]+"\s+Pistol$') {
         return [pscustomobject]@{ Key = 'weapon:Pulse Pistol'; Label = 'Pulse / Pulse Laser Pistol'; Family = 'variant'; Token = $null }
+    }
+    if ($Category -eq (Get-SCMiningPlanetCategoryWeapons) -and $label -eq 'Coda Pistol (Modified)') {
+        return [pscustomobject]@{ Key = 'variant:Coda Pistol'; Label = 'Coda Pistol variants'; Family = 'variant'; Token = $null }
+    }
+    if ($Category -eq (Get-SCMiningPlanetCategoryWeapons) -and $label -eq 'Salvo Esteban Frag Pistol') {
+        return [pscustomobject]@{ Key = 'variant:Salvo Frag Pistol'; Label = 'Salvo Frag Pistol variants'; Family = 'variant'; Token = $null }
     }
     if ($label -match '^(.+?)\s+"[^"]+"\s+(.+)$') {
         $base = ($Matches[1] + ' ' + $Matches[2]).Trim()
@@ -4060,8 +4177,16 @@ function Write-SCMiningWikiBlueprintCache {
         New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
     }
 
+    $sourceVersions = @($Blueprints | ForEach-Object { [string]$_.game_version } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    $requestedVersion = ConvertTo-SCMiningWikiGameVersion -CacheKey $CacheKey
+    $match = if ($sourceVersions.Count -eq 1 -and $sourceVersions[0] -eq $requestedVersion) { 'exact' } else { 'source-lag' }
     $payload = [pscustomobject]@{
         cacheKey = $CacheKey
+        requestedGameVersion = $requestedVersion
+        gameVersion = ($sourceVersions -join ', ')
+        sourceGameVersions = @($sourceVersions)
+        versionMatch = $match
+        source = 'Star Citizen Wiki'
         createdAt = (Get-Date).ToString('o')
         data = @($Blueprints)
     }
@@ -4125,6 +4250,14 @@ function Resolve-SCMiningDirectDescriptionKey {
         return $null
     }
 
+    $verifiedAliases = @{
+        'radr_grnp_s02_vb80112' = 'item_Desc_RADR_GRNP_S02_V80112'
+        'radr_chco_s02_broadspec_lite' = 'item_Desc_RADR_CHCO_S02_BroadSpec'
+    }
+    if ($verifiedAliases.ContainsKey($OutputClass)) {
+        $actual = Get-SCMiningActualKey -Lookup $Lookup -Candidate $verifiedAliases[$OutputClass]
+        if ($actual) { return $actual }
+    }
     $stripped = [regex]::Replace($OutputClass, '(?i)_SCItem$', '')
     $variants = @($OutputClass, $stripped) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
     foreach ($variant in $variants) {
@@ -4542,6 +4675,7 @@ function Get-SCMiningBlueprintOutputGrade {
         return (Normalize-SCMiningComponentGrade -Grade ([string]$override.Grade))
     }
 
+    if ([string]$Blueprint.source -eq 'SCMDB') { return (Normalize-SCMiningComponentGrade -Grade ([string]$Blueprint.output.grade)) }
     $item = Get-SCMiningCachedItemInfo -Blueprint $Blueprint -ItemLookup $ItemLookup
     if ($null -ne $item -and -not [string]::IsNullOrWhiteSpace([string]$item.grade)) {
         return (Normalize-SCMiningComponentGrade -Grade ([string]$item.grade))
@@ -4581,6 +4715,7 @@ function Get-SCMiningBlueprintOutputComponentClass {
         '^(V60-26|V801-11|V801-12|V880)$' { return 'Military' }
     }
 
+    if ([string]$Blueprint.source -eq 'SCMDB' -and [string]$Blueprint.output.componentClass -in @('Military', 'Stealth', 'Competition', 'Civilian', 'Industrial')) { return [string]$Blueprint.output.componentClass }
     $item = Get-SCMiningCachedItemInfo -Blueprint $Blueprint -ItemLookup $ItemLookup
     if ($null -ne $item -and -not [string]::IsNullOrWhiteSpace([string]$item.class)) {
         return ([string]$item.class).Trim()
@@ -6007,7 +6142,7 @@ function Update-SCMiningCraftBlockMethods {
         return $basePrefix.TrimEnd()
     }
 
-    return ($basePrefix.TrimEnd() + '\n\n' + $ownedBlock).TrimEnd()
+    return ((Trim-SCMiningEncodedTrailingBreaks -Value $basePrefix) + '\n\n' + $ownedBlock).TrimEnd()
 }
 
 function Get-SCMiningFilteredDetailedCraftBlock {

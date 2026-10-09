@@ -3,7 +3,16 @@
 $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectDir = Split-Path -Parent $ScriptDir
+$SourceProjectDir = Split-Path -Parent $ScriptDir
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-test-" + [guid]::NewGuid().ToString('N'))
+$ProjectDir = Join-Path $tempRoot 'launcher'
+New-Item -ItemType Directory -Force -Path $ProjectDir | Out-Null
+# Module plans write derived caches, including during dry-run. Keep all fixtures isolated.
+foreach ($item in @('shared', 'modules', 'backups')) {
+    Copy-Item -LiteralPath (Join-Path $SourceProjectDir $item) -Destination $ProjectDir -Recurse -Force
+}
+$sourceInventoryCache = Join-Path $SourceProjectDir 'modules\mining\cache\planet-resource-inventory-cache.json'
+$sourceInventoryHash = if (Test-Path -LiteralPath $sourceInventoryCache -PathType Leaf) { (Get-FileHash -LiteralPath $sourceInventoryCache -Algorithm SHA256).Hash } else { '' }
 $CoreScript = Join-Path $ProjectDir 'shared\SC_Localization_Core.ps1'
 . $CoreScript
 $MiningModuleScript = Join-Path $ProjectDir 'modules\mining\module.ps1'
@@ -96,7 +105,7 @@ function Import-TestQuestEngineFunctions {
     }
 }
 
-Test-WindowsPowerShellParser -Root $ProjectDir
+Test-WindowsPowerShellParser -Root $SourceProjectDir
 
 $shipCode = [string][char]0x041A
 $groundCode = [string][char]0x0422
@@ -482,7 +491,6 @@ $noOpMergeResult = @(Merge-SCPatchOperations -SharedOperations @() -ModuleOperat
 }))
 Assert-True ($noOpMergeResult.Count -eq 0) 'Final patch merge should discard composed replace operations that do not change the value.'
 
-$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-test-" + [guid]::NewGuid().ToString('N'))
 $liveRoot = Join-Path $tempRoot 'LIVE'
 $localizationDir = Join-Path $liveRoot 'data\Localization\korean_(south_korea)'
 $globalIni = Join-Path $localizationDir 'global.ini'
@@ -1025,5 +1033,7 @@ Assert-True ($stripPlan.Metadata.changedDescriptions -eq 1) 'Lore strip operatio
 Assert-True ($stripPlan.Operations[0].OptionId.Contains('stripLoreDescriptions')) 'Lore strip operation pass should add the strip option id.'
 Assert-True ($stripPlan.Operations[0].OwnedMarkers -contains 'SC_LORE_DESCRIPTION_STRIP') 'Lore strip operation pass should add its owned marker.'
 
+$sourceInventoryHashAfter = if (Test-Path -LiteralPath $sourceInventoryCache -PathType Leaf) { (Get-FileHash -LiteralPath $sourceInventoryCache -Algorithm SHA256).Hash } else { '' }
+Assert-True ($sourceInventoryHashAfter -eq $sourceInventoryHash) 'Synthetic mining fixtures must not modify the source inventory cache.'
 Write-Host 'SC_Mod_Launcher scaffold tests passed.'
 Write-Host "Temp root: $tempRoot"

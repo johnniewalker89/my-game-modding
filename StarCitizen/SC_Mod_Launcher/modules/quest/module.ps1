@@ -1,4 +1,6 @@
-﻿function Get-SCQuestPatchPlan {
+﻿. (Join-Path (Split-Path -Parent $PSScriptRoot) 'scmdb\SC_Crafting_Catalog.ps1')
+
+function Get-SCQuestPatchPlan {
     param(
         [object]$Context,
         [string[]]$SelectedOptions
@@ -7,6 +9,10 @@
     $selectedCategoryNames = @(Get-SCQuestSelectedCategoryNames -SelectedOptions $SelectedOptions)
     $selectedFamilyOptionIds = @(Get-SCQuestSelectedFamilyOptionIds -SelectedOptions $SelectedOptions)
     $familyIndex = Get-SCQuestCraftFamilyIndex
+    $familyLookup = if ($selectedFamilyOptionIds.Count -gt 0) { New-SCQuestFamilyLookup -FamilyIndex $familyIndex } else { @{} }
+    $selectedRecipeFamilyCount = if ($null -ne $familyIndex) {
+        @($familyIndex.families | Where-Object { $selectedFamilyOptionIds -contains ([string]$_.optionId -replace '^craftFamily\|', 'questCraftFamily|') }).Count
+    } else { $selectedFamilyOptionIds.Count }
     $allSelectableCategoriesSelected = Test-SCQuestAllSelectableCategoriesSelected -SelectedCategoryNames $selectedCategoryNames
     $enableHighValueScripHighlights = @($SelectedOptions) -contains 'highValueScripHighlights'
     $enableWikeloItemHints = @($SelectedOptions) -contains 'wikeloItemHints'
@@ -24,7 +30,7 @@
         source = 'SC Quest Recipe Engine'
         selectedOptionCount = @($SelectedOptions).Count
         selectedBlueprintCategories = @($selectedCategoryNames)
-        selectedRecipeFamilies = @($selectedFamilyOptionIds).Count
+        selectedRecipeFamilies = $selectedRecipeFamilyCount
         highValueScripHighlightsEnabled = $enableHighValueScripHighlights
         wikeloItemHintsEnabled = $enableWikeloItemHints
         reputationHintsEnabled = $enableReputationHints
@@ -109,7 +115,7 @@
         }
 
         $descriptionStats.generated++
-        $filteredValue = Select-SCQuestRewardBlockCategories -Value $value -SelectedCategoryNames $selectedCategoryNames -SelectedFamilyOptionIds $selectedFamilyOptionIds -FamilyIndex $familyIndex
+        $filteredValue = Select-SCQuestRewardBlockCategories -Value $value -SelectedCategoryNames $selectedCategoryNames -SelectedFamilyOptionIds $selectedFamilyOptionIds -FamilyIndex $familyIndex -FamilyLookup $familyLookup
         $patchedValues[$key] = Remove-SCQuestVisibleScmdbBranding -Value $filteredValue
 
         $hasVisibleRewardBlock = Test-SCQuestHasRewardBlock -Value $filteredValue
@@ -153,6 +159,9 @@
     Write-Host "Timing: quest Wikelo hints: $($timings['wikeloHintsMs']) ms"
     Write-Host 'Progress: quest extras done'
 
+    $eventHints = Set-SCQuestEventProgressHints -Values $patchedValues
+    $metadata.eventProgressHints = $eventHints
+
     $operations = @()
     $changedDescriptionLines = 0
     $changedTitleLines = 0
@@ -183,6 +192,9 @@
         }
 
         $ownedMarkers = @('SCMDB_QUEST_REWARD_BLOCK', 'SCMDB_QUEST_TITLE_MARKERS')
+        if ($original -match 'Очки события \(RSI Discovery Month\)' -or $newValue -match 'Очки события \(RSI Discovery Month\)') {
+            $ownedMarkers += 'SCMDB_EVENT_PROGRESS'
+        }
         if ((Test-SCQuestHasWikeloItemHintBlock -Value $original) -or (Test-SCQuestHasWikeloItemHintBlock -Value $newValue)) {
             $ownedMarkers += 'SCMDB_WIKELO_ITEM_HINT'
         }
@@ -229,6 +241,94 @@
         Warnings = @()
         Metadata = $metadata
     }
+}
+
+function Remove-SCQuestEventProgressBlock {
+    param([AllowEmptyString()][string]$Value)
+
+    # Remove the current prefix and migrate the earlier appended multi-line block.
+    $heading = '<EM4>Очки события \(RSI Discovery Month\)</EM4>:'
+    $clean = [regex]::Replace($Value, '^' + $heading + '.*?(?:\\n\\n|$)', '')
+    return [regex]::Replace($clean, '(?:\\n\\n)?' + $heading + '.*?(?=\\n\\n|$)', '')
+}
+
+function New-SCQuestEventProgressMap {
+    param([object]$Data)
+
+    $map = @{}
+    if ($null -eq $Data -or $null -eq $Data.eventScopes) { return $map }
+    foreach ($contract in @($Data.contracts)) {
+        if ($null -eq $contract) { continue }
+        $key = [string]$contract.descriptionLocKey
+        if ([string]::IsNullOrWhiteSpace($key)) { $key = [string]$contract.descriptionKey }
+        $key = Get-SCQuestNormalizedIniKey -Key $key.TrimStart('@')
+        if ([string]::IsNullOrWhiteSpace($key)) { continue }
+        foreach ($tag in @($contract.completionTags)) {
+            if ($null -eq $tag) { continue }
+            $scopeProperty = $Data.eventScopes.PSObject.Properties[[string]$tag.tag]
+            if ($null -eq $scopeProperty -or [string]$scopeProperty.Value.eventName -ne 'Iasi') { continue }
+            $points = 0
+            if (-not [int]::TryParse([string]$tag.count, [ref]$points) -or $points -le 0) { continue }
+            if (-not $map.ContainsKey($key)) { $map[$key] = @{} }
+            $rowKey = [string]$tag.tag
+            if (-not $map[$key].ContainsKey($rowKey)) {
+                $map[$key][$rowKey] = [pscustomobject]@{ Scope = $scopeProperty.Value; Points = @{} }
+            }
+            # Shared description variants remain a set; never add their awards.
+            $map[$key][$rowKey].Points[$points] = $true
+        }
+    }
+    return $map
+}
+
+function Format-SCQuestEventProgressBlock {
+    param([hashtable]$Rows)
+
+    $labels = @{ Transport = 'Транспорт'; Collection = 'Сбор'; Defense = 'Оборона' }
+    $awards = New-Object System.Collections.Generic.List[string]
+    $categoryRows = @($Rows.Values | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.Scope.category) })
+    foreach ($entry in @($Rows.GetEnumerator() | Sort-Object Key)) {
+        $row = $entry.Value
+        $category = [string]$row.Scope.category
+        if ([string]::IsNullOrWhiteSpace($category) -and $categoryRows.Count -eq 1) {
+            $totalPoints = @($row.Points.Keys | Sort-Object { [int]$_ }) -join '/'
+            $categoryPoints = @($categoryRows[0].Points.Keys | Sort-Object { [int]$_ }) -join '/'
+            if ($totalPoints -eq $categoryPoints) { continue }
+        }
+        $label = if ([string]::IsNullOrWhiteSpace($category)) { 'Общий зачёт' } elseif ($labels.ContainsKey($category)) { $labels[$category] } else { $category }
+        $amounts = @($row.Points.Keys | Sort-Object { [int]$_ })
+        $points = if ($amounts.Count -eq 1) { [string]$amounts[0] } else { ($amounts -join '/') + ' (варианты контракта)' }
+        $awards.Add($label + ': ' + $points)
+    }
+    return '<EM4>Очки события (RSI Discovery Month)</EM4>: ' + ($awards -join '; ')
+}
+
+function Set-SCQuestEventProgressHints {
+    param([hashtable]$Values, [object]$Data)
+
+    # Automatic within the quest module; saved option selections do not gate this.
+    if ($PSBoundParameters.ContainsKey('Data')) {
+        $map = New-SCQuestEventProgressMap -Data $Data
+    }
+    else {
+        $scmdb = Get-SCQuestScmdbData
+        $map = New-SCQuestEventProgressMap -Data $scmdb.Data
+    }
+    $changed = 0
+    $shown = 0
+    $presentKeys = @{}
+    foreach ($key in @($Values.Keys)) {
+        $before = [string]$Values[$key]
+        $normalizedKey = Get-SCQuestNormalizedIniKey -Key $key
+        $presentKeys[$normalizedKey] = $true
+        $after = Remove-SCQuestEventProgressBlock -Value $before
+        if ($map.ContainsKey($normalizedKey)) {
+            $after = (Format-SCQuestEventProgressBlock -Rows $map[$normalizedKey]) + '\n\n' + $after
+            $shown++
+        }
+        if ($after -ne $before) { $Values[$key] = $after; $changed++ }
+    }
+    return [pscustomobject]@{ enabled = $true; descriptions = $shown; changed = $changed; source = 'SCMDB completionTags/eventScopes'; missingDescriptionKeys = @($map.Keys | Where-Object { -not $presentKeys.ContainsKey($_) } | Sort-Object) }
 }
 
 function Invoke-SCQuestRecipeEngine {
@@ -977,7 +1077,7 @@ function Get-SCQuestSelectedFamilyOptionIds {
     $expanded = New-Object System.Collections.Generic.List[string]
     $migrationMap = New-SCQuestCraftFamilyOptionMigrationMap -FamilyIndex (Get-SCQuestCraftFamilyIndex)
     foreach ($optionId in @($optionIds)) {
-        $value = [string]$optionId
+        $value = ConvertTo-SCCraftingFamilyOptionId -OptionId ([string]$optionId)
         $expanded.Add($value)
         if ($value -in @(
             'questCraftFamily|Корабельные компоненты|Охладители|exact:NightFall',
@@ -1119,7 +1219,7 @@ function Get-SCQuestFamilyOptionSuffix {
 function Normalize-SCQuestRecipeName {
     param([AllowEmptyString()][string]$Name)
 
-    return (([string]$Name) -replace 'Â ', ' ' -replace [string][char]0x00A0, ' ' -replace '\s+', ' ').Trim()
+    return ((Normalize-SCCraftingProductName -Name $Name) -replace '\s+', ' ').Trim()
 }
 
 function New-SCQuestFamilyLookup {
@@ -1222,7 +1322,8 @@ function Select-SCQuestRewardBlockCategories {
         [Parameter(Mandatory = $true)][string]$Value,
         [string[]]$SelectedCategoryNames,
         [string[]]$SelectedFamilyOptionIds,
-        [object]$FamilyIndex
+        [object]$FamilyIndex,
+        [hashtable]$FamilyLookup
     )
 
     $match = [regex]::Match(
@@ -1246,7 +1347,9 @@ function Select-SCQuestRewardBlockCategories {
         }
     }
     $useFamilyFilter = ($selectedFamilies.Count -gt 0)
-    $familyLookup = if ($useFamilyFilter) { New-SCQuestFamilyLookup -FamilyIndex $FamilyIndex } else { @{} }
+    if ($null -eq $FamilyLookup) {
+        $FamilyLookup = if ($useFamilyFilter) { New-SCQuestFamilyLookup -FamilyIndex $FamilyIndex } else { @{} }
+    }
 
     $known = @{}
     foreach ($name in Get-SCQuestKnownCategoryNames) {
