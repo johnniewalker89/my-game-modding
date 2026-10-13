@@ -40,7 +40,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.8";
+    private const string CurrentLauncherVersion = "2.1.9";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -3776,6 +3776,12 @@ Write-Host "FAMILY_INDEX:$indexPath"
         {
             args.Append(" -SelectedOptionsJson ");
             args.Append(Quote(optionsPath));
+        }
+
+        if (mode is BackendRunMode.DryRun or BackendRunMode.LiveApply)
+        {
+            args.Append(" -LauncherVersion ");
+            args.Append(Quote(CurrentLauncherVersion));
         }
 
         args.Append(mode switch

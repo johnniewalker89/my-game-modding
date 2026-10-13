@@ -12,6 +12,41 @@
       "reason": "high-value scrip farm"
     },
     {
+      "titleKey": "HeadHunters_ShipAmbush_S_title_001",
+      "name": "Элитная операция",
+      "reason": "cloud ambush; Council Scrip >= 8"
+    },
+    {
+      "titleKey": "Eckhart_ShipAmbush_H_title",
+      "name": "Хитрая засада",
+      "reason": "cloud ambush; MG Scrip >= 8"
+    },
+    {
+      "titleKey": "Eckhart_ShipAmbush_VH_title",
+      "name": "Опасная засада",
+      "reason": "cloud ambush; MG Scrip >= 8"
+    },
+    {
+      "titleKey": "Eckhart_ShipAmbush_S_title",
+      "name": "Очень опасная засада",
+      "reason": "cloud ambush; MG Scrip >= 8"
+    },
+    {
+      "titleKey": "Foxwell_ShipAmbush_H_title_001",
+      "name": "Контракт оранжевого уровня: вернуть должок",
+      "reason": "cloud ambush; MG Scrip >= 8"
+    },
+    {
+      "titleKey": "Foxwell_ShipAmbush_VH_title_001",
+      "name": "Контракт красного уровня: устроить засаду на отряд",
+      "reason": "cloud ambush; MG Scrip >= 8"
+    },
+    {
+      "titleKey": "Foxwell_ShipAmbush_S_title_001",
+      "name": "Контракт красного уровня: внезапная атака",
+      "reason": "cloud ambush; MG Scrip >= 8"
+    },
+    {
       "titleKey": "GFS_ShipWaveAttack_Mission05_Title",
       "name": "Боевые испытания - сценарий #5",
       "reason": "high-value scrip farm"

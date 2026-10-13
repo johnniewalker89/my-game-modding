@@ -1,5 +1,8 @@
 ﻿using System.Reflection;
 using SCModLauncher;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Windows.Controls;
 
 var owner = typeof(MainWindow);
 var statusMethod = owner.GetMethod("GetPreflightStatus", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -61,3 +64,35 @@ foreach(var key in new[] { "exact:BRVS Repeater", "exact:CVSA Cannon", "exact:Ha
     if(!result.Contains(prefix + "|Корабельные орудия|Баллистика|" + key)) throw new Exception("GUI dropped moved ballistic choice.");
 }
 Console.WriteLine("PASS: compiled GUI preserves merged armor/pistols and moved ballistic choices");
+
+Exception? menuFailure = null;
+var menuThread = new Thread(() =>
+{
+    try
+    {
+        var window = (MainWindow)RuntimeHelpers.GetUninitializedObject(owner);
+        owner.GetField("_rootPath", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, @"C:\isolated\launcher");
+        owner.GetField("LivePathBox", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, new TextBox { Text = @"C:\isolated\LIVE" });
+        var method = owner.GetMethod("BuildBackendArguments", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var modeType = method.GetParameters()[0].ParameterType;
+        var currentVersion = (string)owner.GetField("CurrentLauncherVersion", BindingFlags.NonPublic | BindingFlags.Static)!.GetRawConstantValue()!;
+        foreach (var mode in new[] { "DryRun", "LiveApply", "Preflight", "CachePreflight", "WarmCache" })
+        {
+            var args = method.Invoke(window, new object?[] { Enum.Parse(modeType, mode), null })!.ToString()!;
+            var shouldStamp = mode is "DryRun" or "LiveApply";
+            if (args.Contains(" -LauncherVersion ") != shouldStamp || (shouldStamp && !args.Contains(" -LauncherVersion \"" + currentVersion + "\"")))
+                throw new Exception("GUI passed an incorrect menu version for " + mode + ": " + args);
+        }
+        var patch = owner.GetMethod("PatchGameMenuVersionBytes", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var input = Encoding.UTF8.GetBytes("Frontend_PU_Version,P=SC Mod Launcher: 2.1.7 \\nРусификатор RuSC: 4.10.2-v128\r\n");
+        var patched = (byte[])patch.Invoke(null, new object[] { input, "4.10.2-v128" })!;
+        if (!Encoding.UTF8.GetString(patched).Contains("SC Mod Launcher: " + currentVersion + " \\nРусификатор RuSC: 4.10.2-v128"))
+            throw new Exception("RuSC installation and apply use different menu versions.");
+    }
+    catch (Exception ex) { menuFailure = ex; }
+});
+menuThread.SetApartmentState(ApartmentState.STA);
+menuThread.Start();
+menuThread.Join();
+if (menuFailure != null) throw new Exception("Compiled GUI menu version contract failed.", menuFailure);
+Console.WriteLine("PASS: compiled GUI passes current menu version only to dry-run/apply and agrees with RuSC installation");

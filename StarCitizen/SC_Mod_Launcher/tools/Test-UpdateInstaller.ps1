@@ -94,7 +94,7 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\raw-ore-buy-prices-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed raw ore buy cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\wiki-item-passports-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed item passport cache should be installed.'
     $passport = Get-Content -LiteralPath (Join-Path $target "modules\mining\cache\wiki-item-passports-$ReleaseCacheBuild.json") -Encoding UTF8 -Raw | ConvertFrom-Json
-    Assert-True ($passport.requestedGameVersion -eq '4.10.2-LIVE.12881860' -and $passport.versionMatch -eq 'offline-fallback' -and $passport.gameVersion -eq '4.10.0-LIVE.12519617') 'Package retains honest fallback source version.'
+    Assert-True ($passport.requestedGameVersion -eq '4.10.2-LIVE.12881860' -and $passport.versionMatch -eq 'exact' -and $passport.gameVersion -eq '4.10.2-LIVE.12881860' -and @($passport.records).Count -eq 470) 'Package installs the complete exact-build Wiki passport cache.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.old.json') -PathType Leaf)) 'Old quest cache leftovers should be removed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -PathType Leaf)) 'Obsolete Wiki enrichment cache is replaced by the shared SCMDB catalog.'
     $crafting = Get-Content -LiteralPath (Join-Path $target "modules\scmdb\cache\crafting-catalog-$ReleaseCacheBuild.json") -Encoding UTF8 -Raw | ConvertFrom-Json

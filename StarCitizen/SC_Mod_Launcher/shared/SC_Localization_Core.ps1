@@ -651,12 +651,48 @@ function Write-SCJsonReport {
     [System.IO.File]::WriteAllText($ReportPath, $reportJson, $reportEncoding)
 }
 
+function New-SCGameMenuVersionOperations {
+    param(
+        [object]$Context,
+        [string]$LauncherVersion
+    )
+
+    if ([string]::IsNullOrWhiteSpace($LauncherVersion)) {
+        return @()
+    }
+    if ($LauncherVersion -notmatch '^\d+\.\d+\.\d+$') {
+        throw "Invalid launcher version: $LauncherVersion"
+    }
+
+    # Refresh only our existing stamp; preserve RuSC and all other menu text.
+    $stampPattern = New-Object System.Text.RegularExpressions.Regex('(SC Mod Launcher:\s*)\d+\.\d+\.\d+')
+    foreach ($key in @('Frontend_PU_Version,P', 'Frontend_PU_Version')) {
+        if (-not $Context.Values.ContainsKey($key)) {
+            continue
+        }
+        $current = [string]$Context.Values[$key]
+        $updated = $stampPattern.Replace($current, ('${1}' + $LauncherVersion), 1)
+        if ($updated -ne $current) {
+            [pscustomobject]@{
+                ModuleId = 'shared'
+                OptionId = 'gameMenuVersion'
+                Key = $key
+                Operation = 'replaceValue'
+                OriginalValue = $current
+                NewValue = $updated
+                OwnedMarkers = @('SC Mod Launcher:')
+            }
+        }
+    }
+}
+
 function Invoke-SCModPatchPlan {
     param(
         [string]$LivePath,
         [string]$GlobalIniPath,
         [string]$ScriptRoot,
-        [hashtable]$SelectedOptionsByModule
+        [hashtable]$SelectedOptionsByModule,
+        [string]$LauncherVersion
     )
 
     $modulesRoot = Join-Path $ScriptRoot 'modules'
@@ -666,7 +702,7 @@ function Invoke-SCModPatchPlan {
     $context = Read-SCLocalizationData -LivePath $LivePath -GlobalIniPath $GlobalIniPath
     $readStopwatch.Stop()
     Write-Host "Timing: apply read: $($readStopwatch.ElapsedMilliseconds) ms"
-    $sharedOperations = @()
+    $sharedOperations = @(New-SCGameMenuVersionOperations -Context $context -LauncherVersion $LauncherVersion)
 
     $moduleReports = @()
     $moduleOperations = @()
@@ -741,7 +777,8 @@ function Invoke-SCModPatch {
         [string]$BackupDirectory,
         [string]$ReportPrefix = 'sc-mod-launcher',
         [switch]$DryRun,
-        [switch]$NoBackup
+        [switch]$NoBackup,
+        [string]$LauncherVersion
     )
 
     $totalStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -754,7 +791,7 @@ function Invoke-SCModPatch {
     }
 
     $planStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $plan = Invoke-SCModPatchPlan -LivePath $LivePath -GlobalIniPath $GlobalIniPath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $SelectedOptionsByModule
+    $plan = Invoke-SCModPatchPlan -LivePath $LivePath -GlobalIniPath $GlobalIniPath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $SelectedOptionsByModule -LauncherVersion $LauncherVersion
     $planStopwatch.Stop()
     $context = $plan.Context
     $changedLineCount = 0
@@ -863,10 +900,11 @@ function Invoke-SCModDryRun {
         [string]$GlobalIniPath,
         [string]$ScriptRoot,
         [hashtable]$SelectedOptionsByModule,
-        [string]$ReportDirectory
+        [string]$ReportDirectory,
+        [string]$LauncherVersion
     )
 
-    return Invoke-SCModPatch -LivePath $LivePath -GlobalIniPath $GlobalIniPath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $SelectedOptionsByModule -ReportDirectory $ReportDirectory -DryRun
+    return Invoke-SCModPatch -LivePath $LivePath -GlobalIniPath $GlobalIniPath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $SelectedOptionsByModule -ReportDirectory $ReportDirectory -LauncherVersion $LauncherVersion -DryRun
 }
 
 function New-SCStagingLiveCopy {
@@ -899,7 +937,8 @@ function Invoke-SCModStagingApply {
         [string]$LivePath,
         [string]$ScriptRoot,
         [hashtable]$SelectedOptionsByModule,
-        [string]$StagingRoot
+        [string]$StagingRoot,
+        [string]$LauncherVersion
     )
 
     if ([string]::IsNullOrWhiteSpace($StagingRoot)) {
@@ -916,6 +955,7 @@ function Invoke-SCModStagingApply {
         -SelectedOptionsByModule $SelectedOptionsByModule `
         -ReportDirectory $reportDir `
         -BackupDirectory $backupDir `
+        -LauncherVersion $LauncherVersion `
         -ReportPrefix 'sc-mod-launcher-staging'
 
     return [pscustomobject]@{

@@ -6,7 +6,8 @@
     [switch]$WarmCache,
     [switch]$DryRun,
     [switch]$StagingApply,
-    [switch]$ApplyLive
+    [switch]$ApplyLive,
+    [string]$LauncherVersion = '2.1.9'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -1096,7 +1097,7 @@ if ($WarmCache) {
 if ($DryRun) {
     $selected = Read-SelectedOptionsJson -Path $SelectedOptionsJson
     Assert-SCLocalCachesAvailable
-    $result = Invoke-SCModDryRun -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected
+    $result = Invoke-SCModDryRun -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected -LauncherVersion $LauncherVersion
     Write-ConsoleDryRunSummary -Result $result
     exit 0
 }
@@ -1104,7 +1105,7 @@ if ($DryRun) {
 if ($StagingApply) {
     $selected = Read-SelectedOptionsJson -Path $SelectedOptionsJson
     Assert-SCLocalCachesAvailable
-    $result = Invoke-SCModStagingApply -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected
+    $result = Invoke-SCModStagingApply -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected -LauncherVersion $LauncherVersion
     Write-ConsoleStagingSummary -Result $result
     exit 0
 }
@@ -1114,7 +1115,7 @@ if ($ApplyLive) {
     Write-Host 'Progress: apply cache'
     Assert-SCLocalCachesAvailable
     Write-Host 'Progress: apply plan'
-    $result = Invoke-SCModPatch -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected
+    $result = Invoke-SCModPatch -LivePath $LivePath -ScriptRoot $ScriptRoot -SelectedOptionsByModule $selected -LauncherVersion $LauncherVersion
     Write-ConsoleLiveApplySummary -Result $result
     exit 0
 }

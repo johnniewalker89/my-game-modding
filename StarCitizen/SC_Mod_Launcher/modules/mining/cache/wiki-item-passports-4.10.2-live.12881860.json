@@ -5,9 +5,9 @@
     "backendUrl":  "https://api.star-citizen.wiki/api/items",
     "cacheKey":  "4.10.2-live.12881860",
     "requestedGameVersion":  "4.10.2-LIVE.12881860",
-    "gameVersion":  "4.10.0-LIVE.12519617",
-    "versionMatch":  "offline-fallback",
-    "createdAt":  "2026-09-08T14:41:20.9094479+03:00",
+    "gameVersion":  "4.10.2-LIVE.12881860",
+    "versionMatch":  "exact",
+    "createdAt":  "2026-10-13T19:14:16.2767796+03:00",
     "records":  [
                     {
                         "kind":  "cooler",
@@ -139,6 +139,42 @@
                                    ],
                         "blockLines":  [
                                            "охлаждение 34 | IR 7.26K | EM 1.49K"
+                                       ]
+                    },
+                    {
+                        "kind":  "cooler",
+                        "localName":  "COOL_IASI_S01_Name",
+                        "displayName":  "BriskAir IC-10",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "cooliasis01name"
+                                   ],
+                        "blockLines":  [
+                                           "охлаждение 22 | IR 7.26K | EM 1.49K"
+                                       ]
+                    },
+                    {
+                        "kind":  "cooler",
+                        "localName":  "COOL_IASI_S02_Name",
+                        "displayName":  "BriskAir IC-20",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "cooliasis02name"
+                                   ],
+                        "blockLines":  [
+                                           "охлаждение 28.6 | IR 9.44K | EM 2K"
+                                       ]
+                    },
+                    {
+                        "kind":  "cooler",
+                        "localName":  "COOL_IASI_S03_Name",
+                        "displayName":  "BriskAir IC-30",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "cooliasis03name"
+                                   ],
+                        "blockLines":  [
+                                           "охлаждение 35.2 | IR 11.6K | EM 2.48K"
                                        ]
                     },
                     {
@@ -1283,6 +1319,42 @@
                     },
                     {
                         "kind":  "powerPlant",
+                        "localName":  "POWR_S01_IASI_NameA_SCItem",
+                        "displayName":  "Helios IP-10",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "powrs01iasinamea"
+                                   ],
+                        "blockLines":  [
+                                           "энергия 17 | HP 300 | EM 7.92K"
+                                       ]
+                    },
+                    {
+                        "kind":  "powerPlant",
+                        "localName":  "POWR_S02_IASI_NameA_SCItem",
+                        "displayName":  "Helios IP-20",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "powrs02iasinamea"
+                                   ],
+                        "blockLines":  [
+                                           "энергия 21 | HP 840 | EM 9.9K"
+                                       ]
+                    },
+                    {
+                        "kind":  "powerPlant",
+                        "localName":  "POWR_S03_IASI_NameA_SCItem",
+                        "displayName":  "Helios IP-30",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "powrs03iasinamea"
+                                   ],
+                        "blockLines":  [
+                                           "энергия 25 | HP 2.3K | EM 11.9K"
+                                       ]
+                    },
+                    {
+                        "kind":  "powerPlant",
                         "localName":  "POWR_AMRS_S01_HyperGen_SCItem",
                         "displayName":  "HyperGen",
                         "shortName":  "",
@@ -1723,6 +1795,42 @@
                                    ],
                         "blockLines":  [
                                            "энергия 13 | HP 170 | EM 3.25K"
+                                       ]
+                    },
+                    {
+                        "kind":  "powerPlant",
+                        "localName":  "POWR_S01_IASI_Name_SCItem",
+                        "displayName":  "Sovereign IP-10",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "powrs01iasiname"
+                                   ],
+                        "blockLines":  [
+                                           "энергия 16 | HP 310 | EM 7.92K"
+                                       ]
+                    },
+                    {
+                        "kind":  "powerPlant",
+                        "localName":  "POWR_S02_IASI_Name_SCItem",
+                        "displayName":  "Sovereign IP-20",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "powrs02iasiname"
+                                   ],
+                        "blockLines":  [
+                                           "энергия 20 | HP 860 | EM 9.9K"
+                                       ]
+                    },
+                    {
+                        "kind":  "powerPlant",
+                        "localName":  "POWR_S03_IASI_Name_SCItem",
+                        "displayName":  "Sovereign IP-30",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "powrs03iasiname"
+                                   ],
+                        "blockLines":  [
+                                           "энергия 24 | HP 2.4K | EM 11.9K"
                                        ]
                     },
                     {
@@ -2647,6 +2755,18 @@
                                    ],
                         "blockLines":  [
                                            "подавление 5K м | перехват 30K м | заряд 90 с | разряд 30 с"
+                                       ]
+                    },
+                    {
+                        "kind":  "qed",
+                        "localName":  "QDMP_WETK_S02_Raven_X",
+                        "displayName":  "Vertine QD",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "qdmpwetks02ravenx"
+                                   ],
+                        "blockLines":  [
+                                           "подавление 4.75K м | перехват 30K м | заряд 90 с | разряд 30 с"
                                        ]
                     },
                     {
@@ -3880,6 +4000,19 @@
                         "blockLines":  [
                                            "DPS 1841.25 | урон 147.3",
                                            "темп 750/мин | скорость 1350 м/с | пробитие 0.27 м | конденсатор 75"
+                                       ]
+                    },
+                    {
+                        "kind":  "weapon",
+                        "localName":  "KLWE_LaserRepeater_S1_ATLS_NTLS",
+                        "displayName":  "CF-999 \"Akuma\" Repeater",
+                        "shortName":  "",
+                        "tokens":  [
+                                       "klwelaserrepeaters1atlsntls"
+                                   ],
+                        "blockLines":  [
+                                           "DPS 100 | урон 40",
+                                           "темп 150/мин | скорость 1200 м/с | пробитие 0.07 м | конденсатор 70"
                                        ]
                     },
                     {
@@ -5685,7 +5818,5 @@
                                            "темп 750/мин | скорость 1480 м/с | пробитие 0.0425 м | конденсатор 75"
                                        ]
                     }
-                ],
-    "fallbackFromCacheKey":  "4.10.0-live.12568521",
-    "fallbackCopiedAt":  "2026-10-10T01:24:43.7994162+03:00"
+                ]
 }

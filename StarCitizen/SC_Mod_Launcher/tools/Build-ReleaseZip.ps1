@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = '2.1.8'
+    [string]$Version = '2.1.9'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -170,8 +170,28 @@ function Assert-ReleasePackageContents {
     }
 }
 
+function Update-ReleaseCacheSeeds {
+    $refreshStartedUtc = [DateTime]::UtcNow
+    $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $warmupOutput = @(& $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectDir 'SC_Mod_Launcher.ps1') -LivePath $ProjectDir -WarmCache 2>&1 | ForEach-Object { [string]$_ })
+    $warmupExitCode = $LASTEXITCODE
+    $warmupOutput | Out-Host
+    if ($warmupExitCode -ne 0 -or @($warmupOutput | Where-Object { $_ -match '(?i)\bFALLBACK\b' }).Count -gt 0) {
+        throw 'Release requires a fresh successful cache warmup from every source; fallback caches cannot enter a new release.'
+    }
+    foreach ($item in @($releaseSeedItems | Where-Object { $_ -like 'modules\*\cache\*' })) {
+        $seed = Get-Item -LiteralPath (Join-Path $ProjectDir $item) -ErrorAction Stop
+        if ($seed.Length -eq 0 -or $seed.LastWriteTimeUtc -lt $refreshStartedUtc.AddSeconds(-2)) {
+            throw "Release cache was not refreshed in this run: $item"
+        }
+    }
+}
+
 try {
+    & (Join-Path $ScriptDir 'Test-ReleaseCacheFreshness.ps1') | Out-Host
+    Update-ReleaseCacheSeeds
     Save-ReleaseSeedSnapshot
+    & (Join-Path $ScriptDir 'Test-GameMenuVersion.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-CraftingCatalog.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-UnnamedCraftRecipes.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-CatalogPresentation.ps1') | Out-Host
