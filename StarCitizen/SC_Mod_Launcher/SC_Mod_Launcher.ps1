@@ -7,7 +7,7 @@
     [switch]$DryRun,
     [switch]$StagingApply,
     [switch]$ApplyLive,
-    [string]$LauncherVersion = '2.1.9'
+    [string]$LauncherVersion = '2.1.10'
 )
 
 $ErrorActionPreference = 'Stop'

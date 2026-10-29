@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-29T17:16:31.7303529+03:00",
+  "fileName": "global.ini.20261029-171518.starter-clean.bak",
+  "sha256": "5E922A3D8EA8B89399892DA4586BCA93D99BD41C043D301E44AE4E4087102856",
+  "kind": "clean",
+  "rawMiningMarkers": [
+    "Потенциально добываемые ресурсы (корабль):",
+    "Потенциально добываемые ресурсы (наземная техника):",
+    "Потенциально добываемые ресурсы (ручная добыча):"
+  ],
+  "launcherMarkers": [],
+  "localization": {
+    "tagName": "4.10.2-v131",
+    "releaseName": "4.10.2-v131 (for 4.10.2-LIVE)",
+    "releaseUrl": "https://github.com/n1ghter/StarCitizenRu/releases/tag/4.10.2-v131",
+    "publishedAt": "2026-10-24T06:33:40Z",
+    "downloadedAtUtc": "2026-10-29T14:16:31.7606019Z",
+    "languagesSha256": "57047D7D2CBF35D5A5EB409700D52AB7EE380CCAAF83D932856999D565AF2682",
+    "globalIniSha256": "5E922A3D8EA8B89399892DA4586BCA93D99BD41C043D301E44AE4E4087102856"
+  },
+  "sourceUrl": "https://raw.githubusercontent.com/n1ghter/StarCitizenRu/4.10.2-v131/data/Localization/korean_(south_korea)/global.ini",
+  "baseline": {
+    "insertedReputationScopeLines": 1,
+    "passes": 1,
+    "sourceGlobalIniSha256": "857F853E0FAFD63C8EA822A1FCE86A15AF6AC9BE483FD5CEDF47E43087B592F5",
+    "fixedMalformedEmphasisLines": 0,
+    "method": "MainWindow.PatchRuScBaselineBytes",
+    "launcherVersion": "2.1.10"
+  }
+}

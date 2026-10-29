@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = '2.1.9'
+    [string]$Version = '2.1.10'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,16 +31,16 @@ $packageItems = @(
 )
 
 $releaseSeedItems = @(
-    'backups\global.ini.20261010-012624.starter-clean.bak',
-    'backups\global.ini.20261010-012624.starter-clean.bak.meta.json',
-    'modules\scmdb\cache\scmdb-4.10.2-live.12881860.json',
-    'modules\scmdb\cache\scmdb-4.10.2-live.12881860.json.meta.json',
-    'modules\scmdb\cache\crafting-catalog-4.10.2-live.12881860.json',
-    'modules\mining\cache\craft-family-index-4.10.2-live.12881860.json',
-    'modules\mining\cache\mining-data-4.10.2-live.12881860.json',
-    'modules\mining\cache\refinery-yields-4.10.2-live.12881860.json',
-    'modules\mining\cache\raw-ore-buy-prices-4.10.2-live.12881860.json',
-    'modules\mining\cache\wiki-item-passports-4.10.2-live.12881860.json'
+    'backups\global.ini.20261029-171518.starter-clean.bak',
+    'backups\global.ini.20261029-171518.starter-clean.bak.meta.json',
+    'modules\scmdb\cache\scmdb-4.10.2-live.12913470.json',
+    'modules\scmdb\cache\scmdb-4.10.2-live.12913470.json.meta.json',
+    'modules\scmdb\cache\crafting-catalog-4.10.2-live.12913470.json',
+    'modules\mining\cache\craft-family-index-4.10.2-live.12913470.json',
+    'modules\mining\cache\mining-data-4.10.2-live.12913470.json',
+    'modules\mining\cache\refinery-yields-4.10.2-live.12913470.json',
+    'modules\mining\cache\raw-ore-buy-prices-4.10.2-live.12913470.json',
+    'modules\mining\cache\wiki-item-passports-4.10.2-live.12913470.json'
 )
 
 $managedPaths = @('.')
@@ -164,9 +164,9 @@ function Assert-ReleasePackageContents {
     }
     $starter = Join-Path $PackageRoot $releaseSeedItems[0]
     $metadata = Get-Content -LiteralPath ($starter + '.meta.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($metadata.kind -ne 'clean' -or $metadata.localization.tagName -ne '4.10.2-v128' -or
+    if ($metadata.kind -ne 'clean' -or $metadata.localization.tagName -ne '4.10.2-v131' -or
         (Get-FileHash -LiteralPath $starter -Algorithm SHA256).Hash -ne $metadata.sha256) {
-        throw 'Release starter is not the verified clean RuSC v128 backup.'
+        throw 'Release starter is not the verified clean RuSC v131 backup.'
     }
 }
 
@@ -197,6 +197,8 @@ try {
     & (Join-Path $ScriptDir 'Test-CatalogPresentation.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-Scaffold.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-Sc4102.ps1') | Out-Host
+    & (Join-Path $ScriptDir 'Test-PlanetRingSections.ps1') -WorkRoot (Join-Path $StageRoot 'ring-regression') | Out-Host
+    & (Join-Path $ScriptDir 'Test-LoreToggle.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-UpdateTransport.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Build-WpfLauncher.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-WpfLauncher.ps1') | Out-Host

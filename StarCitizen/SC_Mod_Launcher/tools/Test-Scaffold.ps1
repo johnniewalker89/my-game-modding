@@ -822,6 +822,31 @@ $refineryCleaned = [System.IO.File]::ReadAllText($refineryGlobalIni, $encoding)
 Assert-True (-not $refineryCleaned.Contains($refineryYieldLabel)) 'Disabled refinery yield option should remove UEX refinery label.'
 Assert-True ($refineryCleaned.Contains('ARC_L1_station_desc=Located at ArcCorp L1. This description does not repeat the full station name.')) 'Disabled refinery yield option should preserve base station description.'
 
+function Assert-TestRawOrePrices {
+    param([string]$Value, [object[]]$RawBuys)
+    # Live UEX prices change. Check every rendered quote against this run's cache,
+    # independently of the production formatter, including its descending order.
+    $expected = @{}
+    foreach ($quote in $RawBuys) { $expected[[string]$quote.commodity] = [double]$quote.price }
+    $match = [regex]::Match($Value, '<EM4>Руда:</EM4> (?<items>.*?)(?:\\n|$)')
+    Assert-True $match.Success 'Station description must contain the raw ore buy list.'
+    $seen = @{}
+    $previous = [double]::PositiveInfinity
+    foreach ($token in @($match.Groups['items'].Value -split ', ')) {
+        $quote = [regex]::Match($token, '^(?<name>.+?) (?<price>\d+(?:,\d+)?)(?<scale>k?)$')
+        Assert-True $quote.Success ('Invalid displayed raw ore quote: ' + $token)
+        $name = $quote.Groups['name'].Value
+        Assert-True ($expected.ContainsKey($name) -and -not $seen.ContainsKey($name)) ('Unexpected or duplicate raw ore: ' + $name)
+        $price = [double]::Parse($quote.Groups['price'].Value.Replace(',', '.'), [Globalization.CultureInfo]::InvariantCulture)
+        if ($quote.Groups['scale'].Value -eq 'k') { $price *= 1000 }
+        Assert-True ([Math]::Abs($price - $expected[$name]) -le 5.0001) ('Displayed raw ore price differs from fresh UEX data: ' + $name)
+        Assert-True ($expected[$name] -le $previous) 'Raw ore buy list must follow descending source prices.'
+        $previous = $expected[$name]
+        $seen[$name] = $true
+    }
+    Assert-True ($seen.Count -eq $expected.Count -and $seen.Count -gt 0) 'Every cached raw ore quote must be present once.'
+}
+
 $rawOreBuyLabel = 'Скупка сырой руды (UEX, ориентир)'
 $rawOreBuyLegacyLabel = 'Торговля (UEX, ориентир)'
 $rawOreBuyLive = Join-Path $tempRoot 'RawOreBuy\LIVE'
@@ -849,14 +874,16 @@ Assert-True ([int]$rawOreBuyApply.Report.changedLines -eq 3) 'Raw ore buy apply 
 $rawOreBuyPatched = [System.IO.File]::ReadAllText($rawOreBuyGlobalIni, $encoding)
 Assert-True ($rawOreBuyPatched.Contains($rawOreBuyLabel)) 'Raw ore buy apply should add UEX raw ore label.'
 Assert-True ($rawOreBuyPatched.Contains('RR_CRU_L1_desc=CRU-L1 test station card.\n\n<EM4>Крафт-подсказка (SCMDB)</EM4>') -and $rawOreBuyPatched.Contains('Titanium 28.5%') -and $rawOreBuyPatched.Contains('<EM4>Переработка (UEX)</EM4>')) 'Raw ore buy apply should patch CRU-L1 station card with Lagrange resources before refinery block.'
-Assert-True ($rawOreBuyPatched.Contains('Agricium 1,04k')) 'Raw ore buy apply should add CRU-L1 raw ore buy list.'
-Assert-True ($rawOreBuyPatched.Contains('<EM4>Руда:</EM4> Quantainium 6,45k, Taranite 5,53k, Bexalite 5,21k')) 'Raw ore buy list should be sorted by price descending.'
+$rawOreBuyValues = (Read-SCLocalizationData -GlobalIniPath $rawOreBuyGlobalIni).Values
+$rawOreBuySource = Get-SCMiningLocationTradeData
+$cruQuotes = @($rawOreBuySource.locations | Where-Object { $_.name -eq 'CRU-L1 Ambitious Dream Station' })[0]
+Assert-TestRawOrePrices -Value $rawOreBuyValues['RR_CRU_L1_desc'] -RawBuys @($cruQuotes.rawBuys)
 Assert-True ($rawOreBuyPatched.Contains('ui_pregame_port_Levski_desc=Levski pregame location card.\n\n<EM4>Переработка (UEX)</EM4>')) 'Combined refinery/raw ore apply should start Levski card with refinery block.'
 Assert-True ($rawOreBuyPatched.Contains('Ice +10%')) 'Combined refinery/raw ore apply should include Levski refinery bonus.'
 Assert-True ($rawOreBuyPatched.Contains('<EM4>Скупка сырой руды (UEX, ориентир)</EM4>')) 'Combined refinery/raw ore apply should include raw ore block after refinery block.'
 Assert-True ($rawOreBuyPatched.IndexOf('<EM4>Переработка (UEX)</EM4>') -lt $rawOreBuyPatched.IndexOf('<EM4>Скупка сырой руды (UEX, ориентир)</EM4>')) 'Combined refinery/raw ore apply should keep refinery block before raw ore buy block.'
-Assert-True ($rawOreBuyPatched.Contains('Agricium 3k')) 'Raw ore buy apply should add Levski raw ore buy list.'
-Assert-True ($rawOreBuyPatched.Contains('<EM4>Руда:</EM4> Ouratite 18,3k, Bexalite 5,22k, Taranite 4,81k')) 'Levski raw ore buy list should be sorted by price descending.'
+$levskiQuotes = @($rawOreBuySource.locations | Where-Object { $_.name -eq 'Levski' })[0]
+Assert-TestRawOrePrices -Value $rawOreBuyValues['ui_pregame_port_Levski_desc'] -RawBuys @($levskiQuotes.rawBuys)
 Assert-True (-not $rawOreBuyPatched.Contains($rawOreBuyLegacyLabel)) 'Raw ore buy apply should remove legacy trade label.'
 Assert-True (-not $rawOreBuyPatched.Contains('<EM4>Покупают:</EM4>')) 'Raw ore buy apply should not add generic buy list.'
 Assert-True (-not $rawOreBuyPatched.Contains('<EM4>Продают:</EM4>')) 'Raw ore buy apply should not add generic sell list.'
