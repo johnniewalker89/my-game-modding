@@ -1,0 +1,48 @@
+name: sc-discord-trader-local
+services:
+  bot:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TRADER_DATA_DIR: /data
+      TRADER_TRANSLATE_URL: http://translator:5000
+    volumes:
+      - trader_data:/data
+    depends_on:
+      translator:
+        condition: service_healthy
+        required: false
+    restart: "no"
+    logging:
+      driver: json-file
+      options:
+        max-size: "2m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "sc-discord-trader-status", "--check"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+  translator:
+    image: libretranslate/libretranslate:v1.9.6
+    profiles: [local-translation]
+    environment:
+      LT_LOAD_ONLY: en,ru
+      LT_UPDATE_MODELS: "true"
+      LT_DISABLE_WEB_UI: "true"
+      LT_THREADS: "2"
+    volumes:
+      - translator_models:/home/libretranslate/.local
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "./venv/bin/python", "scripts/healthcheck.py"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s
+volumes:
+  trader_data:
+  translator_models:

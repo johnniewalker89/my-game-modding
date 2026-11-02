@@ -1,0 +1,192 @@
+"""Регрессии срока жизни личных окон и гонок при переключении экранов."""
+
+import asyncio
+import unittest
+from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
+
+import discord
+
+from trader.discord_bot import PanelView
+from trader.discord_ui import EphemeralView, close_private_views, render
+from trader.listing_ui import ListingsHome
+
+
+class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
+    """Проверяет очистку через настоящий таймер discord.py без внешних запросов."""
+
+    async def asyncSetUp(self):
+        """Создаёт локальный ViewStore и записи видимых изменений сообщения."""
+        self.client = discord.Client(intents=discord.Intents.none())
+        self.views = []
+        self.visible = {}
+        self.cleared = asyncio.Event()
+
+    async def asyncTearDown(self):
+        """Снимает таймеры созданных окон и закрывает локальный SDK-клиент."""
+        for view in self.views:
+            view.stop()
+        await self.client.close()
+
+    def view(self, *, timeout=600, bot=None):
+        """Создаёт личное окно с действием и заданным простоем в секундах."""
+        view = EphemeralView(timeout=timeout)
+        view.bot = bot
+        view.add_item(discord.ui.Button(label="Действие"))
+        self.views.append(view)
+        return view
+
+    def interaction(self, message_id=10, *, source=False, deferred=False):
+        """Подменяет транспорт Discord, сохраняя настоящий ViewStore и его таймеры."""
+        async def response(**values):
+            """Регистрирует успешно отправленное окно, как это делает SDK после HTTP."""
+            self.visible[message_id] = values["view"]
+            self.client._connection.store_view(values["view"], message_id)
+            return SimpleNamespace(resource=SimpleNamespace(id=message_id))
+
+        async def edit(**values):
+            """Запоминает редактирование и сигнализирует об удалении компонентов."""
+            self.visible[message_id] = values["view"]
+            if values["view"] is None:
+                self.cleared.set()
+            else:
+                self.client._connection.store_view(values["view"], message_id)
+            return SimpleNamespace(id=message_id)
+
+        return SimpleNamespace(
+            message=SimpleNamespace(id=message_id, flags=SimpleNamespace(ephemeral=True)) if source else None,
+            response=SimpleNamespace(is_done=Mock(return_value=deferred),
+                                     send_message=AsyncMock(side_effect=response), edit_message=AsyncMock(side_effect=response)),
+            edit_original_response=AsyncMock(side_effect=edit),
+            expires_at=discord.utils.utcnow() + timedelta(minutes=15),
+        )
+
+    async def test_sdk_timeout_removes_buttons_and_preserves_message_content(self):
+        """Настоящий таймер SDK сам удаляет компоненты, не перезаписывая текст."""
+        interaction = self.interaction()
+        view = self.view(timeout=0.02)
+        await render(interaction, content="Объявление создано", view=view)
+        await asyncio.wait_for(self.cleared.wait(), timeout=1)
+        interaction.edit_original_response.assert_awaited_once_with(view=None)
+        self.assertIsNone(self.visible[10])
+        self.assertNotIn(10, EphemeralView._active)
+
+    async def test_replaced_view_cannot_remove_new_screen(self):
+        """Таймер старого экрана отменяется и не удаляет новую панель."""
+        first, second = self.interaction(), self.interaction(source=True)
+        old, new = self.view(), self.view()
+        await render(first, view=old)
+        await render(second, view=new)
+        self.assertTrue(old.is_finished())
+        await old.on_timeout()
+        first.edit_original_response.assert_not_awaited()
+        self.assertIs(self.visible[10], new)
+        self.assertIs(EphemeralView._active[10], new)
+        self.assertTrue(set(item.custom_id for item in old.children).isdisjoint(
+            item.custom_id for item in new.children))
+        clicked = asyncio.Event()
+        new.children[0].callback = AsyncMock(side_effect=lambda interaction: clicked.set())
+        second.data = {"custom_id": new.children[0].custom_id}
+        self.client._connection._view_store.dispatch_view(2, new.children[0].custom_id, second)
+        await asyncio.wait_for(clicked.wait(), 1)
+        new.children[0].callback.assert_awaited_once_with(second)
+
+    async def test_render_waits_for_cleanup_already_in_flight(self):
+        """Если очистка началась первой, новый экран устанавливается после неё."""
+        first, second = self.interaction(), self.interaction(source=True)
+        old, new = self.view(), self.view()
+        await render(first, view=old)
+        entered, release = asyncio.Event(), asyncio.Event()
+        original_edit = first.edit_original_response.side_effect
+
+        async def slow_edit(**values):
+            """Задерживает очистку до разрешения тестом, не меняя её результата."""
+            entered.set()
+            await release.wait()
+            return await original_edit(**values)
+
+        first.edit_original_response.side_effect = slow_edit
+        cleanup = asyncio.create_task(old.on_timeout())
+        await asyncio.wait_for(entered.wait(), 1)
+        update = asyncio.create_task(render(second, view=new))
+        await asyncio.sleep(0)
+        second.response.edit_message.assert_not_awaited()
+        release.set()
+        await asyncio.wait_for(asyncio.gather(cleanup, update), 1)
+        self.assertIs(self.visible[10], new)
+
+    async def test_cleanup_waits_for_replacement_already_in_flight(self):
+        """Если новый экран отправляется первым, старый таймер больше его не трогает."""
+        first, second = self.interaction(), self.interaction(source=True)
+        old, new = self.view(), self.view()
+        await render(first, view=old)
+        entered, release = asyncio.Event(), asyncio.Event()
+        original_edit = second.response.edit_message.side_effect
+
+        async def slow_edit(**values):
+            """Удерживает замену окна, чтобы запустить старый таймер одновременно."""
+            entered.set()
+            await release.wait()
+            return await original_edit(**values)
+
+        second.response.edit_message.side_effect = slow_edit
+        update = asyncio.create_task(render(second, view=new))
+        await asyncio.wait_for(entered.wait(), 1)
+        cleanup = asyncio.create_task(old.on_timeout())
+        await asyncio.sleep(0)
+        first.edit_original_response.assert_not_awaited()
+        release.set()
+        await asyncio.wait_for(asyncio.gather(update, cleanup), 1)
+        first.edit_original_response.assert_not_awaited()
+        self.assertIs(self.visible[10], new)
+
+    async def test_expired_webhook_is_reported_without_leaking_error_body(self):
+        """Удалённое или уже недоступное окно не вызывает необработанное исключение."""
+        interaction, view = self.interaction(), self.view()
+        await render(interaction, view=view)
+        interaction.edit_original_response.side_effect = discord.NotFound(
+            SimpleNamespace(status=404, reason="Not Found"), {"code": 10015, "message": "private-fixture"})
+        with self.assertLogs("trader.discord_ui", level="WARNING") as captured:
+            await view.on_timeout()
+        self.assertNotIn("private-fixture", " ".join(captured.output))
+        self.assertTrue(view.is_finished())
+        self.assertNotIn(10, EphemeralView._active)
+
+    async def test_owner_check_refreshes_cleanup_token(self):
+        """Разрешённое нажатие продлевает окно и даёт очистке свежий токен."""
+        bot = SimpleNamespace(interaction_allowed=Mock(return_value=True))
+        view = ListingsHome(bot, "123")
+        self.views.append(view)
+        first, second = self.interaction(), self.interaction(source=True)
+        second.user = SimpleNamespace(id=123)
+        await render(first, view=view)
+        self.assertTrue(await view.interaction_check(second))
+        await view.on_timeout()
+        first.edit_original_response.assert_not_awaited()
+        second.edit_original_response.assert_awaited_once_with(view=None)
+
+    async def test_cleanup_respects_token_deadline(self):
+        """Очистка назначается раньше окончания токена, даже после долгого запроса."""
+        interaction, view = self.interaction(), self.view()
+        interaction.expires_at = discord.utils.utcnow() + timedelta(seconds=60)
+        await render(interaction, view=view)
+        self.assertGreater(view.timeout, 25)
+        self.assertLessEqual(view.timeout, 30)
+
+    async def test_shutdown_cleans_only_this_bots_private_views(self):
+        """Остановка убирает личные кнопки своего бота, общая панель остаётся постоянной."""
+        own_bot, other_bot = object(), object()
+        own, other = self.view(bot=own_bot), self.view(bot=other_bot)
+        public = PanelView(own_bot)
+        self.views.append(public)
+        first, second = self.interaction(10), self.interaction(20)
+        await render(first, view=own)
+        await render(second, view=other)
+        await close_private_views(own_bot)
+        first.edit_original_response.assert_awaited_once_with(view=None)
+        second.edit_original_response.assert_not_awaited()
+        self.assertTrue(public.is_persistent())
+        self.assertEqual([item.custom_id for item in public.children],
+                         ["scdt:connect", "scdt:deals", "scdt:listings"])
+        self.assertIs(EphemeralView._active[20], other)

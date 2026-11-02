@@ -1,0 +1,12 @@
+include README.md DEPLOYMENT.md LICENSE LICENSE-SCOPE.md BRANDING.md THIRD_PARTY_NOTICES.md SECURITY.md
+include requirements.in requirements.lock Dockerfile compose.yaml compose.http.yaml .dockerignore .gitignore
+recursive-include trader *.py *.html
+recursive-include tests *.py
+global-exclude .env .env.* *.key *.pem *.p12 *.pfx *.sqlite* *.db *.db-* *.log *.pyc runtime-status-*.json runtime-status-*.tmp
+include .env.example
+prune data
+prune .venv
+prune .secrets
+prune secrets
+prune build
+prune dist

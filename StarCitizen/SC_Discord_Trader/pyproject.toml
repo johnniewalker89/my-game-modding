@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sc-discord-trader"
+version = "0.1.0"
+description = "Личный торговый помощник UEX в Discord"
+readme = "README.md"
+authors = [{name = "johnniewalker89"}]
+license = "AGPL-3.0-only"
+license-files = ["LICENSE", "LICENSE-SCOPE.md", "BRANDING.md", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.12"
+dynamic = ["dependencies"]
+
+[project.scripts]
+sc-discord-trader = "trader.app:main"
+sc-discord-trader-worker = "trader.worker:main"
+sc-discord-trader-status = "trader.diagnostics:main"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.in"]}
+
+[tool.setuptools.packages.find]
+include = ["trader*"]
+
+[tool.setuptools.package-data]
+trader = ["static/*"]

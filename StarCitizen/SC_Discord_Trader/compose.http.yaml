@@ -1,0 +1,5 @@
+services:
+  bot:
+    command: ["sc-discord-trader"]
+    ports:
+      - "127.0.0.1:8765:8765"

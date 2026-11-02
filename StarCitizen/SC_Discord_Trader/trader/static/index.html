@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SC Discord Trader · локальная проверка</title>
+<style>
+:root{color-scheme:dark;--bg:#10151e;--panel:#19212d;--line:#303d4f;--muted:#a7b4c8;--blue:#8ebcff;--green:#8bddba}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#edf2fa;font:16px/1.5 system-ui,sans-serif}main{max-width:1150px;margin:auto;padding:30px 24px}header{display:flex;justify-content:space-between;gap:20px;align-items:start}h1{font-size:26px;margin:0}h2{font-size:18px;margin:0 0 16px}p{margin:8px 0}.muted,small{color:var(--muted)}.tag{color:var(--green);font-size:13px;border:1px solid var(--line);padding:6px 10px;border-radius:30px;white-space:nowrap}.intro{max-width:780px;margin:16px 0 24px}.grid{display:grid;grid-template-columns:330px 1fr;gap:20px}.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}label{display:block;color:var(--muted);font-size:13px;margin-bottom:12px}input,select,textarea,button{font:inherit}input,select,textarea{width:100%;margin-top:5px;background:#111923;color:#edf2fa;border:1px solid #425269;border-radius:7px;padding:9px 11px}textarea{resize:vertical;min-height:86px}button{border:1px solid #566c89;border-radius:7px;background:#253954;color:#edf2fa;padding:8px 12px;cursor:pointer}button:hover{background:#334e70}button:disabled{opacity:.45;cursor:wait}button.primary{background:#8ebcff;color:#11233c;border-color:#8ebcff;font-weight:600}button.secondary{background:transparent}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:3px}.deal{display:block;text-align:left;width:100%;margin-top:8px}.deal.active{border-color:var(--blue);background:#253954}.deal span{display:block;color:var(--muted);font-size:12px}#conversation{min-height:260px}.message{background:#111923;border-left:3px solid var(--blue);padding:12px 14px;margin-bottom:12px;border-radius:5px}.message.outgoing{border-color:var(--green)}.message header{font-size:12px;color:var(--muted);gap:10px}.message p{white-space:pre-wrap;overflow-wrap:anywhere}details{font-size:14px;color:var(--muted)}details p{color:#d1dae8}summary{cursor:pointer}.row{display:flex;justify-content:space-between;align-items:center;gap:12px}.empty{color:var(--muted);padding:25px 0}#status{min-height:28px;margin:8px 0;color:var(--blue);white-space:pre-wrap}#status.error{color:#ffb4a7}[hidden]{display:none!important}footer{font-size:13px;color:var(--muted);margin-top:16px}#threadTitle{overflow-wrap:anywhere}@media(max-width:760px){main{padding:20px 14px}.grid{grid-template-columns:1fr}header{flex-wrap:wrap}.tag{white-space:normal}}
+</style>
+<main>
+<header><div><h1>SC Discord Trader</h1><p class="muted">Переписки о сделках — на твоём языке</p></div><span class="tag" id="mode">Подключаемся…</span></header>
+<p class="intro muted" id="intro">Локальная проверка: площадка и личные ветки здесь тестовые, перевод — настоящий. Сообщения с этой страницы остаются на твоём компьютере.</p>
+<p id="status" role="status" aria-live="polite"></p>
+<div class="grid" id="demo">
+<aside>
+<div class="box"><label>Тестовый участник<select id="owner"><option value="demo-1">Участник 1</option><option value="demo-2">Участник 2</option></select></label><small>У каждого свой список и своя история.</small></div>
+<form class="box" id="newDeal"><h2>Новая переписка</h2><label>Сценарий<select id="direction"><option value="sell">Я продаю — покупатель пишет мне</option><option value="buy">Я покупаю — продавец отвечает мне</option></select></label><label>Товар<input id="title" value="Karna Rifle" maxlength="200" required></label><label>Собеседник<input id="peer" value="SpaceBuyer" maxlength="100" required></label><button class="primary" type="submit">Создать тестовую сделку</button></form>
+<div class="box"><div class="row"><h2>Мои сделки</h2><button id="refresh" type="button" class="secondary" aria-label="Обновить список">↻</button></div><div id="deals"></div></div>
+</aside>
+<section class="box"><div class="row"><h2 id="threadTitle">Выбери или создай сделку</h2><button id="close" class="secondary" hidden>Имитировать закрытие</button></div><p class="muted" id="threadMeta"></p><div id="conversation"><p class="empty">Здесь будут русский перевод и полный оригинал каждого сообщения.</p></div>
+<div id="forms" hidden>
+<form id="incoming"><label>Сообщение собеседника на английском<textarea id="english" maxlength="2000" required>Hi! Is Karna Rifle still available? I can pay 25000 aUEC.</textarea></label><button type="submit">Имитировать входящее</button></form><hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+<form id="reply"><label>Твой ответ на русском<textarea id="russian" maxlength="2000" required>Да, товар в наличии. Цена 25000 aUEC. Я готов встретиться.</textarea></label><button class="primary" type="submit">Перевести и ответить</button></form>
+</div></section>
+</div>
+<footer>В Discord каждой переписке соответствует приватная ветка. Объявлениями и завершением настоящих сделок управляй на сайте UEX. В демо действия только имитируются.</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let selected=null, state={deals:[],messages:[]}, busy=false;
+const statuses={delivered:'Доставлено в тестовый диалог',translation_failed:'Перевод недоступен — не отправлено',unknown:'Исход неизвестен — автоматического повтора нет',failed:'Не отправлено',pending:'Ожидает обработки',sending:'Отправляется',baseline:'История / собственное эхо'};
+function say(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error)}
+function el(tag,text,cls){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node}
+async function api(path,method='GET',body){const response=await fetch(path,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const data=await response.json();if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Не удалось выполнить запрос');return data}
+function render(){
+  $('deals').replaceChildren();
+  if(!state.deals.length)$('deals').append(el('p','Пока нет сделок.','muted'));
+  for(const deal of state.deals){const b=el('button',deal.title,'deal'+(selected===deal.id?' active':''));b.type='button';b.append(el('span',`${deal.peer} · ${deal.direction==='sell'?'продажа':'покупка'} · ${deal.own_closed?'архив':'открыта'}`));b.onclick=()=>{selected=deal.id;render()};$('deals').append(b)}
+  const deal=state.deals.find(d=>d.id===selected);
+  $('forms').hidden=!deal||deal.own_closed;$('close').hidden=!deal||deal.own_closed;
+  $('threadTitle').textContent=deal?deal.title:'Выбери или создай сделку';
+  $('threadMeta').textContent=deal?`${deal.peer} · ${deal.own_closed?'Тестовая сделка завершена, история сохранена':'Личная тестовая переписка'}`:'';
+  $('conversation').replaceChildren();
+  const messages=state.messages.filter(m=>m.deal_id===selected&&m.status!=='baseline').sort((a,b)=>a.created_at-b.created_at);
+  if(!messages.length)$('conversation').append(el('p','Сообщений пока нет. Сымитируй входящее или напиши ответ.','empty'));
+  for(const message of messages){const card=el('article',undefined,'message '+message.source);const heading=el('header');heading.append(el('span',message.source==='incoming'?'Собеседник → русский':'Ты → английский'),el('span',statuses[message.status]||message.status));card.append(heading,el('p',message.translated||'Перевод пока не получен'));const original=el('details');original.append(el('summary','Полный оригинал'),el('p',message.original));card.append(original);$('conversation').append(card)}
+}
+async function refresh(){state=await api('/demo/state?owner='+encodeURIComponent($('owner').value));if(!state.deals.some(d=>d.id===selected))selected=state.deals[0]?.id||null;render()}
+async function action(work){if(busy)return;busy=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);say('Обрабатываем… первый перевод может занять больше времени.');try{await work();await refresh();say('Готово.')}catch(error){say(error.message,true);try{await refresh()}catch{}}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false)}}
+$('newDeal').onsubmit=event=>{event.preventDefault();action(async()=>{const deal=await api('/demo/deals','POST',{owner:$('owner').value,direction:$('direction').value,title:$('title').value,peer:$('peer').value});selected=deal.id})};
+$('incoming').onsubmit=event=>{event.preventDefault();if(selected)action(()=>api(`/demo/deals/${selected}/incoming`,'POST',{owner:$('owner').value,text:$('english').value,request_id:crypto.randomUUID()}))};
+$('reply').onsubmit=event=>{event.preventDefault();if(selected)action(()=>api(`/demo/deals/${selected}/reply`,'POST',{owner:$('owner').value,text:$('russian').value,request_id:crypto.randomUUID()}))};
+$('close').onclick=()=>action(()=>api(`/demo/deals/${selected}/close?owner=${$('owner').value}`,'POST'));
+$('refresh').onclick=()=>action(async()=>{});
+$('owner').onchange=()=>{selected=null;action(async()=>{})};
+(async()=>{try{const health=await api('/health');if(health.mode==='demo'){$('mode').textContent='Локальный стенд · настоящий перевод';await refresh()}else{$('mode').textContent=health.discord_connected?'Discord подключён':'Ожидаем Discord';$('intro').textContent='Бот работает с UEX через Discord. Вызови /подключить или /сделки на сервере. Тестовый стенд в этом режиме отключён.';$('demo').hidden=true}}catch(error){say(error.message,true)}})();
+</script>
+</html>
