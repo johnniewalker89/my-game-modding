@@ -153,7 +153,10 @@ class DiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         """Администратор видит счётчики с запуска и время последнего HTTP-отказа."""
         text = status_text({"state": "degraded", "discord_connected": True,
             "discord_http": {"requests": 12, "recent_requests": 4, "errors": {"429": 2, "403": 1},
-                             "last_error": {"at": 1000, "status": "429", "source": "webhook"}}})
+                             "last_error": {"at": 1000, "status": "429", "source": "interaction",
+                                            "request_ms": 2750, "interaction_age_ms": 320}}})
         self.assertIn("запросов 12, ошибки — 403: 1, 429: 2", text)
-        self.assertIn("Последний отказ: 429 · webhook · <t:1000:R>", text)
+        self.assertIn("Последний отказ: 429 · interaction · <t:1000:R>", text)
         self.assertIn("Запросов за ≈10 минут: 4", text)
+        self.assertIn("Запрос к Discord: 2750 мс", text)
+        self.assertIn("Возраст действия перед HTTP-запросом: 320 мс", text)

@@ -6,6 +6,7 @@ import logging
 import tempfile
 import time
 import unittest
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
@@ -79,6 +80,47 @@ class DiscordHealthTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(before["discord_http"]["errors"], {"429": 1})
                     with patch("trader.runtime.time.time", return_value=time.time() + 301):
                         self.assertEqual(runtime.status_provider()["state"], "ok")
+
+    async def test_interaction_trace_separates_age_before_request_and_http_duration(self):
+        """Реальные callback-запросы сохраняют оба замера при HTTP- и сетевом отказе."""
+        async def reply(request):
+            """Имитирует задержанный отказ Discord и потерю соединения на loopback."""
+            await asyncio.sleep(0.03)
+            if request.match_info["token"] == "private-fixture-network":
+                request.transport.close()
+                return web.Response()
+            return web.json_response({"code": 10062, "message": "private-fixture-body"}, status=404)
+
+        created_at = discord.utils.utcnow() - timedelta(seconds=2)
+        interaction_id = discord.utils.time_snowflake(created_at)
+        app = web.Application()
+        app.router.add_post("/api/v10/interactions/{interaction_id}/{token}/callback", reply)
+        async with TraderBot(Settings(), Mock()) as bot, TestServer(app) as server:
+            health = bot.http_health
+            with self.assertLogs("trader.discord_health", level="WARNING") as logs:
+                async with aiohttp.ClientSession(trace_configs=[health.trace]) as session:
+                    for token, status in (("private-fixture-token", "404"), ("private-fixture-network", "network")):
+                        before_age = (time.time() - created_at.timestamp()) * 1000
+                        url = server.make_url(f"/api/v10/interactions/{interaction_id}/{token}/callback")
+                        if status == "network":
+                            with self.assertRaises(aiohttp.ClientConnectionError):
+                                await session.post(url)
+                        else:
+                            async with session.post(url) as response:
+                                self.assertEqual(response.status, 404)
+                                await response.read()
+                        error = health.snapshot()["last_error"]
+                        self.assertEqual((error["status"], error["source"]), (status, "interaction"))
+                        self.assertGreaterEqual(error["request_ms"], 20)
+                        self.assertGreaterEqual(error["interaction_age_ms"], before_age - 2)
+                        self.assertLessEqual(error["interaction_age_ms"],
+                                             (time.time() - created_at.timestamp()) * 1000 + 2)
+            self.assertEqual(health.snapshot()["errors"], {"404": 1, "network": 1})
+            self.assertEqual(health.snapshot()["requests"], 2)
+            self.assertIn("request_ms=", logs.output[0])
+            self.assertIn("interaction_age_ms=", logs.output[0])
+            self.assertNotIn("private-fixture", json.dumps(health.snapshot()) + str(logs.output))
+            self.assertNotIn(str(interaction_id), json.dumps(health.snapshot()) + str(logs.output))
 
     async def test_sdk_error_log_keeps_code_without_html_or_webhook_token(self):
         """Прямой и обёрнутый HTTP-отказ сохраняет причину без большого приватного traceback."""

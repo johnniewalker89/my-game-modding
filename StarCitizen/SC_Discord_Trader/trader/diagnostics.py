@@ -58,6 +58,10 @@ def status_text(snapshot: dict[str, Any]) -> str:
         last_error = http.get("last_error")
         if last_error:
             http_text += f"Последний отказ: {last_error['status']} · {last_error['source']} · <t:{int(last_error['at'])}:R>.\n"
+            if last_error.get("request_ms") is not None:
+                http_text += f"Запрос к Discord: {last_error['request_ms']} мс.\n"
+            if last_error.get("interaction_age_ms") is not None:
+                http_text += f"Возраст действия перед HTTP-запросом: {last_error['interaction_age_ms']} мс.\n"
     return (f"**Состояние бота: {labels.get(snapshot['state'], 'неизвестно')}**\n"
             f"Discord: {discord_state}.\n{http_text}UEX: проверено после запуска {checked}/{accounts} подключений.\n"
             f"Самая давняя успешная сверка: {last_text}.\nОшибки UEX: {errors}.\n"
