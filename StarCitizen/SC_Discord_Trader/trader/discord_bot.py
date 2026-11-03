@@ -127,7 +127,7 @@ class ConnectModal(discord.ui.Modal, title="Подключить свой UEX"):
         self.bot.start_account_scan(str(interaction.user.id))
         await render(interaction,
             content=f"Подключён **{discord.utils.escape_markdown(username)}** через своё API-приложение. Сделки подгрузятся автоматически. Старые сообщения не рассылаются уведомлениями.",
-            view=PanelView(self.bot))
+            view=PanelView(self.bot, self.owner_id))
 
 
 class ConnectGuideView(EphemeralView):
@@ -160,16 +160,23 @@ class ConnectGuideView(EphemeralView):
 
 
 class PanelView(EphemeralView):
-    """Постоянная общая панель, которая открывает только личные действия."""
+    """Общая панель и личное меню участника с отключением UEX."""
 
-    def __init__(self, bot: "TraderBot"):
-        """Создаёт панель с устойчивыми custom_id для перезапусков."""
+    def __init__(self, bot: "TraderBot", owner_id: str | None = None):
+        """Создаёт общую панель либо личное меню owner_id с отключением UEX."""
         super().__init__(timeout=None)
-        self.bot = bot
+        self.bot, self.owner_id = bot, owner_id
+        if owner_id is not None:
+            button = discord.ui.Button(label="Отключить UEX", row=1)
+            button.callback = bot.begin_disconnect
+            self.add_item(button)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Блокирует старые панели вне рабочего канала бота."""
+        """Проверяет рабочий канал и владельца личного меню."""
         if not await self.bot.check_channel(interaction):
+            return False
+        if self.owner_id is not None and str(interaction.user.id) != self.owner_id:
+            await notice(interaction, "Это личное меню другого участника.")
             return False
         return await super().interaction_check(interaction)
 
@@ -188,6 +195,40 @@ class PanelView(EphemeralView):
     async def listings_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         """Открывает личный мастер объявлений после проверки подключения."""
         await self.bot.show_listings(interaction)
+
+
+class DisconnectView(EphemeralView):
+    """Подтверждает отключение только своего UEX, сохраняя историю переписок."""
+
+    def __init__(self, bot: "TraderBot", owner_id: str):
+        """Привязывает подтверждение к Discord ID владельца личного меню."""
+        super().__init__(timeout=300)
+        self.bot, self.owner_id = bot, owner_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Проверяет владельца, рабочий канал и роль перед действием."""
+        if str(interaction.user.id) != self.owner_id or not self.bot.interaction_allowed(interaction):
+            await notice(interaction, "Это чужое личное меню или у тебя нет нужной роли.")
+            return False
+        return await super().interaction_check(interaction)
+
+    @discord.ui.button(label="Отключить", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        """После актуальной проверки роли удаляет оба ключа владельца."""
+        await interaction.response.defer()
+        if not await self.bot.allowed(self.owner_id):
+            await notice(interaction, "Нужна разрешённая роль.")
+            return
+        self.bot.service.disconnect(self.owner_id)
+        await render(interaction, content="UEX отключён. Оба ключа удалены, история сохранена.\n"
+                     "Чтобы снова получать сообщения, нажми «Подключить UEX».",
+                     view=PanelView(self.bot, self.owner_id))
+
+    @discord.ui.button(label="Отмена")
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        """Возвращает личное меню без изменения подключения."""
+        await self.bot.show_menu(interaction, replace=True)
+
 
 class OriginalView(discord.ui.View):
     """Возвращает полный оригинал только владельцу сообщения с нужной ролью."""
@@ -456,7 +497,8 @@ class TraderBot(discord.Client):
                           else "Для нового подключения введи оба ключа.\n\n")
         await render(interaction, content=connected + "**Подключение твоего UEX**\n"
             "1. Открой профиль UEX и скопируй свой **Secret Key**.\n"
-            "2. В «API-приложениях UEX» создай своё приложение и скопируй его **токен**. Название любое.\n"
+            "2. В «API-приложениях UEX» создай своё приложение и скопируй его **токен**. "
+            "Название будет видно собеседнику в переписке UEX. Например: SC Discord Trader.\n"
             "3. Нажми «Ввести ключи» и вставь оба ключа в личную форму.\n\n"
             "При каждом подключении вводятся оба ключа.\n"
             "После проверки ключей сообщения и новые ветки будут появляться автоматически.",
@@ -522,7 +564,18 @@ class TraderBot(discord.Client):
         if not self.interaction_allowed(interaction):
             await notice(interaction, "Нужна разрешённая роль на нашем сервере.")
             return
-        await render(interaction, content=panel_text(self.settings.send_mode), view=PanelView(self), replace=replace)
+        await render(interaction, content=panel_text(self.settings.send_mode),
+                     view=PanelView(self, str(interaction.user.id)), replace=replace)
+
+    async def begin_disconnect(self, interaction: discord.Interaction) -> None:
+        """Открывает личное подтверждение отключения UEX нажавшего участника."""
+        if not self.interaction_allowed(interaction):
+            await notice(interaction, "Нужна разрешённая роль на нашем сервере.")
+            return
+        await render(interaction, content="**Отключить твой аккаунт UEX?**\n"
+                     "Бот удалит оба сохранённых ключа и перестанет получать и отправлять твои сообщения UEX.\n"
+                     "История переписок останется. Подключиться заново можно в любой момент.",
+                     view=DisconnectView(self, str(interaction.user.id)))
 
     async def show_listings(self, interaction: discord.Interaction) -> None:
         """Открывает личное управление объявлениями, не изменяя общую панель."""
@@ -563,7 +616,7 @@ class TraderBot(discord.Client):
             text = ("Сделки ещё загружаются. Проверка идёт автоматически. Открой «Мои сделки» чуть позже."
                     if self.service.is_scanning(owner) else
                     "Открытых переписок с сообщениями пока нет. Новые сообщения проверяются автоматически.")
-            await render(interaction, content=text, view=PanelView(self))
+            await render(interaction, content=text, view=PanelView(self, owner))
             return
         await render(interaction, content="Открытые переписки. Личное скрытие в UEX пока не учитывается.",
                      view=DealsView(self, owner, deals))
@@ -592,15 +645,10 @@ class TraderBot(discord.Client):
             """Показывает личные сделки вызывающего участника."""
             await self.show_deals(interaction)
 
-        @self.tree.command(name="отключить", description="Удалить сохранённый личный ключ UEX", guild=guild)
+        @self.tree.command(name="отключить", description="Отключить свой аккаунт UEX", guild=guild)
         async def disconnect_command(interaction: discord.Interaction) -> None:
-            """Удаляет только ключ вызывающего участника, сохраняя историю."""
-            await interaction.response.defer(ephemeral=True)
-            if interaction.guild_id != self.settings.guild_id or not await self.allowed(str(interaction.user.id)):
-                await notice(interaction, "Нужна разрешённая роль.")
-                return
-            self.service.disconnect(str(interaction.user.id))
-            await notice(interaction, "Оба ключа удалены. Новые действия остановлены, история сохранена.")
+            """Открывает то же подтверждение, что кнопка в личном меню."""
+            await self.begin_disconnect(interaction)
 
         @self.tree.command(name="панель", description="Разместить панель в настроенном канале", guild=guild)
         @app_commands.default_permissions(administrator=True)

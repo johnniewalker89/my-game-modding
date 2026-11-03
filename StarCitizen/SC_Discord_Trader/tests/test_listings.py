@@ -457,7 +457,8 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         bot = TraderBot(Settings(guild_id=1, role_id=2), self.store)
         bot.interaction_allowed = Mock(return_value=True)
         response = SimpleNamespace(is_done=lambda: False, send_message=AsyncMock(), edit_message=AsyncMock())
-        interaction = SimpleNamespace(response=response, message=SimpleNamespace(flags=SimpleNamespace(ephemeral=False)))
+        interaction = SimpleNamespace(user=SimpleNamespace(id=123), response=response,
+                                      message=SimpleNamespace(flags=SimpleNamespace(ephemeral=False)))
         try:
             await bot.show_menu(interaction)
             self.assertTrue(response.send_message.await_args.kwargs["ephemeral"])
