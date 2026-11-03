@@ -3,15 +3,18 @@
 import asyncio
 import io
 import logging
+import time
 from decimal import Decimal
 from typing import Any, Callable
 from urllib.parse import quote
 
+import aiohttp
 import discord
 from discord import app_commands
 
 from trader.config import Settings
 from trader.diagnostics import status_text
+from trader.discord_health import DiscordHttpHealth
 from trader.discord_ui import EphemeralView, close_private_views, render
 from trader.listings import ListingService
 from trader.listing_ui import ListingsHome, report_error
@@ -113,6 +116,8 @@ class ConnectModal(discord.ui.Modal, title="Подключить свой UEX"):
         if str(interaction.user.id) != self.owner_id:
             await notice(interaction, "Это не твоя форма подключения.")
             return
+        if not await self.bot.check_channel(interaction):
+            return
         try:
             username = await self.bot.service.connect(self.owner_id, str(self.secret), str(self.app_token))
         except Exception as exc:
@@ -161,6 +166,12 @@ class PanelView(EphemeralView):
         """Создаёт панель с устойчивыми custom_id для перезапусков."""
         super().__init__(timeout=None)
         self.bot = bot
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Блокирует старые панели вне рабочего канала бота."""
+        if not await self.bot.check_channel(interaction):
+            return False
+        return await super().interaction_check(interaction)
 
     @discord.ui.button(label="Подключить UEX", style=discord.ButtonStyle.primary,
                        custom_id="scdt:connect")
@@ -367,6 +378,14 @@ class DealsView(EphemeralView):
         await self.bot.show_menu(interaction, replace=True)
 
 
+class TraderCommandTree(app_commands.CommandTree):
+    """Принимает команды только в рабочем канале и его ветках."""
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Проверяет канал до запуска любой команды interaction."""
+        return await self.client.check_channel(interaction)
+
+
 class TraderBot(discord.Client):
     """Получает сообщения Discord и реализует приватную доставку сервиса."""
 
@@ -374,13 +393,43 @@ class TraderBot(discord.Client):
         """Включает содержимое сообщений; историю хранит в SQLite вместо кэша сообщений SDK."""
         intents = discord.Intents.default()
         intents.message_content = True
-        super().__init__(intents=intents, max_messages=None, allowed_mentions=discord.AllowedMentions.none())
+        self.http_health = DiscordHttpHealth()
+        super().__init__(intents=intents, max_messages=None, allowed_mentions=discord.AllowedMentions.none(),
+                         http_trace=self.http_health.trace)
         self.settings, self.store = settings, store
         self.service: TraderService
         self.listings: ListingService
-        self.tree = app_commands.CommandTree(self)
+        self.tree = TraderCommandTree(self)
         self._account_scan_tasks: dict[str, asyncio.Task] = {}
         self.status_provider: Callable[[], dict[str, Any]] | None = None
+        self._hosting_reminder = None
+        if settings.hosting_reminder_user_id:
+            owner = str(settings.hosting_reminder_user_id)
+            self._hosting_reminder = store.get("hosting_reminder", owner) or {
+                "id": owner, "owner_id": owner, "next_at": 0.0,
+            }
+
+    async def remind_hosting(self) -> None:
+        """Напоминает настроенному владельцу о хостинге раз в десять дней; срок сохраняется в базе."""
+        reminder = self._hosting_reminder
+        now = time.time()
+        if not reminder or not self.is_ready() or now < reminder["next_at"]:
+            return
+        try:
+            user = await self.fetch_user(self.settings.hosting_reminder_user_id)
+            await user.send("Пора зайти в панель хостинга под своим аккаунтом, "
+                            "чтобы бесплатный сервер продолжал работать:\n"
+                            f"{self.settings.hosting_reminder_url}\n\n"
+                            "Ничего продлевать кнопками не нужно — достаточно зайти в личный кабинет.",
+                            suppress_embeds=True)
+        except (discord.HTTPException, aiohttp.ClientError, OSError) as exc:
+            reminder["next_at"] = now + 86400
+            LOGGER.warning("Напоминание о хостинге не доставлено user=%s error_type=%s; повтор через сутки", reminder["owner_id"], type(exc).__name__)
+        else:
+            reminder["last_sent_at"] = now
+            reminder["next_at"] = now + 10 * 86400
+            LOGGER.info("Напоминание о хостинге отправлено user=%s; следующее через 10 дней", reminder["owner_id"])
+        self.store.put("hosting_reminder", reminder)
 
     async def allowed(self, owner_id: str) -> bool:
         """Проверяет роль через актуального участника единственного настроенного сервера."""
@@ -446,9 +495,25 @@ class TraderBot(discord.Client):
         await close_private_views(self)
         await super().close()
 
-    def interaction_allowed(self, interaction: discord.Interaction) -> bool:
-        """Быстро проверяет роли из текущего взаимодействия; перед отправкой есть REST-проверка."""
+    def in_trade_channel(self, interaction: discord.Interaction) -> bool:
+        """Принимает interaction только из настроенного канала или его ветки."""
         return (interaction.guild_id == self.settings.guild_id
+                and (interaction.channel_id == self.settings.channel_id
+                     or (isinstance(interaction.channel, discord.Thread)
+                         and interaction.channel.parent_id == self.settings.channel_id)))
+
+    async def check_channel(self, interaction: discord.Interaction) -> bool:
+        """Отклоняет interaction вне рабочего канала без сообщения пользователю."""
+        if self.in_trade_channel(interaction):
+            return True
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.delete_original_response()
+        return False
+
+    def interaction_allowed(self, interaction: discord.Interaction) -> bool:
+        """Проверяет канал и текущую роль; перед отправкой есть REST-проверка роли."""
+        return (self.in_trade_channel(interaction)
                 and isinstance(interaction.user, discord.Member)
                 and any(role.id == self.settings.role_id for role in interaction.user.roles))
 

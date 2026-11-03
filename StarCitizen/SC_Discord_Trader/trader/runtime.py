@@ -11,6 +11,7 @@ import httpx
 
 from trader.config import Settings
 from trader.discord_bot import TraderBot
+from trader.discord_health import DiscordHttpErrorFilter, ERROR_WINDOW_SECONDS
 from trader.diagnostics import status_path, write_status
 from trader.listings import ListingService
 from trader.marketplace import DemoMarketplace, MarketError, UexMarketplace
@@ -36,11 +37,14 @@ class TraderRuntime:
 
 
 def configure_logging() -> None:
-    """Настраивает прежний формат журналов один раз в точке запуска приложения."""
+    """Настраивает журнал и сокращает HTTP-ошибки SDK без HTML и адресов токенов."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("discord.client").setLevel(logging.WARNING)
     logging.getLogger("discord.gateway").setLevel(logging.WARNING)
+    for handler in logging.getLogger().handlers:
+        if not any(isinstance(item, DiscordHttpErrorFilter) for item in handler.filters):
+            handler.addFilter(DiscordHttpErrorFilter())
 
 
 @asynccontextmanager
@@ -132,6 +136,15 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
 
             tasks.append(asyncio.create_task(refresh_catalog(), name="catalog"))
 
+            if settings.hosting_reminder_user_id:
+                async def remind_hosting() -> None:
+                    """Проверяет срок раз в минуту, не задерживая сверки и heartbeat отправкой DM."""
+                    while True:
+                        await bot.remind_hosting()
+                        await asyncio.sleep(STATUS_SECONDS)
+
+                tasks.append(asyncio.create_task(remind_hosting(), name="hosting-reminder"))
+
         def snapshot() -> dict:
             """Собирает техническое состояние из памяти; не делает внешних запросов."""
             nonlocal ready_seen
@@ -139,11 +152,14 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
             connected = bool(bot and bot.is_ready())
             ready_seen = ready_seen or connected
             scans = service.diagnostics()
+            discord_http = bot.http_health.snapshot() if bot else None
+            http_error = discord_http["last_error"] if discord_http else None
+            recent_http_error = http_error and now - http_error["at"] < ERROR_WINDOW_SECONDS
             oldest = scans["uex_oldest_success_at"]
             pending = scans["uex_checked"] < scans["uex_accounts"]
             stale_scan = bool(oldest and now - oldest > 300)
             degraded = (bool(scans["uex_errors"]) or pending or stale_scan or cleanup_error
-                        or (bot is not None and not connected))
+                        or (bot is not None and not connected) or recent_http_error)
             state = "ok"
             if any(task.done() for task in tasks):
                 state = "failed"
@@ -154,6 +170,7 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
             return {"schema_version": 1, "mode": settings.mode, "state": state,
                     "started_at": started_at, "updated_at": now, "discord_connected": connected,
                     "translator": settings.translator, "poll_interval_seconds": POLL_SECONDS,
+                    "discord_http": discord_http,
                     "cleanup_at": cleanup_at, "cleanup_error": cleanup_error, **scans}
 
         if bot:

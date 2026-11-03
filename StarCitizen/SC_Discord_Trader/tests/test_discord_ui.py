@@ -8,7 +8,8 @@ from unittest.mock import AsyncMock, Mock
 
 import discord
 
-from trader.discord_bot import PanelView
+from trader.config import Settings
+from trader.discord_bot import PanelView, TraderBot
 from trader.discord_ui import EphemeralView, close_private_views, render
 from trader.listing_ui import ListingsHome
 
@@ -190,3 +191,37 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item.custom_id for item in public.children],
                          ["scdt:connect", "scdt:deals", "scdt:listings"])
         self.assertIs(EphemeralView._active[20], other)
+
+    async def test_commands_and_panel_use_only_configured_channel_and_its_threads(self):
+        """Старое меню другого канала не открывает действия боевого бота."""
+        bot = TraderBot(Settings(guild_id=1, channel_id=10, role_id=99), Mock())
+        self.addAsyncCleanup(bot.close)
+        view = PanelView(bot)
+        self.views.append(view)
+        member = Mock(spec=discord.Member, roles=[SimpleNamespace(id=99)])
+        own_thread = Mock(spec=discord.Thread, parent_id=10)
+        other_thread = Mock(spec=discord.Thread, parent_id=20)
+        for guild_id, channel_id, channel, accepted in (
+            (1, 10, None, True),
+            (1, 11, own_thread, True),
+            (1, 20, None, False),
+            (1, 21, other_thread, False),
+            (2, 10, None, False),
+            (None, 10, None, False),
+        ):
+            with self.subTest(guild=guild_id, channel=channel_id):
+                interaction = SimpleNamespace(
+                    guild_id=guild_id, channel_id=channel_id, channel=channel,
+                    user=member, response=SimpleNamespace(
+                        is_done=Mock(return_value=False), send_message=AsyncMock(), defer=AsyncMock()),
+                    delete_original_response=AsyncMock())
+                self.assertEqual(await bot.tree.interaction_check(interaction), accepted)
+                self.assertEqual(await view.interaction_check(interaction), accepted)
+                self.assertEqual(bot.interaction_allowed(interaction), accepted)
+                interaction.response.send_message.assert_not_awaited()
+                if accepted:
+                    interaction.response.defer.assert_not_awaited()
+                    interaction.delete_original_response.assert_not_awaited()
+                else:
+                    interaction.response.defer.assert_awaited_with(ephemeral=True, thinking=True)
+                    interaction.delete_original_response.assert_awaited()

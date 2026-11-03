@@ -49,8 +49,17 @@ def status_text(snapshot: dict[str, Any]) -> str:
     last = snapshot.get("uex_oldest_success_at")
     last_text = f"<t:{int(last)}:R>" if last else "ещё не было"
     errors = ", ".join(snapshot.get("uex_errors", [])) or "нет"
+    http = snapshot.get("discord_http")
+    http_text = ""
+    if http:
+        counts = ", ".join(f"{code}: {count}" for code, count in sorted(http["errors"].items())) or "нет"
+        http_text = f"Discord HTTP с запуска: запросов {http['requests']}, ошибки — {counts}.\n"
+        http_text += f"Запросов за ≈10 минут: {http['recent_requests']}.\n"
+        last_error = http.get("last_error")
+        if last_error:
+            http_text += f"Последний отказ: {last_error['status']} · {last_error['source']} · <t:{int(last_error['at'])}:R>.\n"
     return (f"**Состояние бота: {labels.get(snapshot['state'], 'неизвестно')}**\n"
-            f"Discord: {discord_state}.\nUEX: проверено после запуска {checked}/{accounts} подключений.\n"
+            f"Discord: {discord_state}.\n{http_text}UEX: проверено после запуска {checked}/{accounts} подключений.\n"
             f"Самая давняя успешная сверка: {last_text}.\nОшибки UEX: {errors}.\n"
             f"Переводчик: {snapshot.get('translator', 'неизвестно')} — ошибки перевода смотри в логах.")
 

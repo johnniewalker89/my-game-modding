@@ -148,3 +148,12 @@ class DiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await bot.close()
             store.close()
+
+    async def test_status_includes_http_error_codes_without_private_request_data(self):
+        """Администратор видит счётчики с запуска и время последнего HTTP-отказа."""
+        text = status_text({"state": "degraded", "discord_connected": True,
+            "discord_http": {"requests": 12, "recent_requests": 4, "errors": {"429": 2, "403": 1},
+                             "last_error": {"at": 1000, "status": "429", "source": "webhook"}}})
+        self.assertIn("запросов 12, ошибки — 403: 1, 429: 2", text)
+        self.assertIn("Последний отказ: 429 · webhook · <t:1000:R>", text)
+        self.assertIn("Запросов за ≈10 минут: 4", text)

@@ -24,6 +24,8 @@ class Settings:
     azure_region: str = ""
     groq_key: str = field(default="", repr=False)
     groq_model: str = "openai/gpt-oss-120b"
+    hosting_reminder_user_id: int = 0
+    hosting_reminder_url: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -44,6 +46,8 @@ class Settings:
             azure_region=os.getenv("TRADER_AZURE_REGION", ""),
             groq_key=os.getenv("TRADER_GROQ_API_KEY", ""),
             groq_model=os.getenv("TRADER_GROQ_MODEL", "openai/gpt-oss-120b"),
+            hosting_reminder_user_id=int(os.getenv("TRADER_HOSTING_REMINDER_USER_ID") or 0),
+            hosting_reminder_url=os.getenv("TRADER_HOSTING_REMINDER_URL", ""),
         )
         if settings.mode not in {"demo", "live"}:
             raise ValueError("TRADER_MODE должен быть demo или live")
@@ -62,4 +66,6 @@ class Settings:
             raise ValueError("Для Azure нужен TRADER_AZURE_KEY")
         if settings.translator == "groq" and not (settings.groq_key and settings.groq_model):
             raise ValueError("Для Groq нужны TRADER_GROQ_API_KEY и TRADER_GROQ_MODEL")
+        if bool(settings.hosting_reminder_user_id) != bool(settings.hosting_reminder_url):
+            raise ValueError("Для напоминания нужны TRADER_HOSTING_REMINDER_USER_ID и TRADER_HOSTING_REMINDER_URL")
         return settings
