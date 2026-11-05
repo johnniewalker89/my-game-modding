@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import discord
 
+from trader.discord_health import DiscordBackoff
 from trader.discord_ui import EphemeralView, render
 from trader.listings import DEFAULT_LOCATION, HOURS, MAX_PHOTO, OPERATIONS, UNITS, listing_payload
 from trader.marketplace import MarketError
@@ -24,7 +25,7 @@ STATUSES = {"created": "Создано · проверь модерацию", "a
 
 async def report_error(interaction: discord.Interaction, error: Exception) -> None:
     """Показывает безопасную причину, отдельно предупреждая о неизвестном результате записи."""
-    if isinstance(error, (ValueError, PermissionError)):
+    if isinstance(error, (ValueError, PermissionError, DiscordBackoff)):
         text = str(error)
     elif isinstance(error, MarketError) and error.uncertain:
         text = "UEX не подтвердил результат. Запрос мог выполниться: проверь свои объявления на сайте. Автоматического повтора не будет."

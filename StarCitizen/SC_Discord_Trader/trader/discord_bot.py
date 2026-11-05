@@ -14,7 +14,7 @@ from discord import app_commands
 
 from trader.config import Settings
 from trader.diagnostics import status_text
-from trader.discord_health import DiscordHttpHealth
+from trader.discord_health import DiscordBackoff, DiscordHttpHealth, retry_seconds
 from trader.discord_ui import EphemeralView, close_private_views, render
 from trader.listings import ListingService
 from trader.listing_ui import ListingsHome, report_error
@@ -121,6 +121,9 @@ class ConnectModal(discord.ui.Modal, title="Подключить свой UEX"):
         try:
             username = await self.bot.service.connect(self.owner_id, str(self.secret), str(self.app_token))
         except Exception as exc:
+            if isinstance(exc, DiscordBackoff):
+                await notice(interaction, str(exc))
+                return
             LOGGER.warning("Подключение не удалось owner=%s error_type=%s", interaction.user.id, type(exc).__name__)
             await notice(interaction, "Не удалось подключиться. Проверь Secret Key, токен API-приложения и доступность UEX.")
             return
@@ -295,7 +298,7 @@ class DealView(discord.ui.View):
         try:
             await self.bot.service.archive_thread(str(interaction.user.id), self.deal_id,
                                                   str(interaction.channel_id))
-        except (PermissionError, ValueError) as exc:
+        except (PermissionError, ValueError, DiscordBackoff) as exc:
             await interaction.edit_original_response(content=str(exc))
         except Exception as exc:
             LOGGER.warning("Ветка не архивирована deal=%s error_type=%s", self.deal_id, type(exc).__name__)
@@ -337,7 +340,7 @@ class ArchivedDealView(EphemeralView):
         await interaction.response.defer()
         try:
             deal = await self.bot.service.restore_thread(str(interaction.user.id), self.deal_id)
-        except (PermissionError, ValueError) as exc:
+        except (PermissionError, ValueError, DiscordBackoff) as exc:
             await interaction.edit_original_response(content=str(exc))
         except Exception as exc:
             LOGGER.warning("Ветка не возвращена из архива deal=%s error_type=%s", self.deal_id, type(exc).__name__)
@@ -400,6 +403,9 @@ class DealsView(EphemeralView):
                 return
             await notice(interaction, f"Твоя ветка: <#{deal['thread_id']}>\nОткрой её и напиши сообщение по-русски.")
         except Exception as exc:
+            if isinstance(exc, DiscordBackoff):
+                await notice(interaction, str(exc))
+                return
             LOGGER.warning("Ветка не открыта owner=%s error_type=%s", self.owner_id, type(exc).__name__)
             await notice(interaction, "Не удалось открыть ветку. Обнови «Мои сделки»; проверь актуальность сделки и права бота.")
 
@@ -425,6 +431,14 @@ class TraderCommandTree(app_commands.CommandTree):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Проверяет канал до запуска любой команды interaction."""
         return await self.client.check_channel(interaction)
+
+    async def on_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+        """Объясняет временную паузу Discord; остальные ошибки оставляет штатному обработчику."""
+        original = getattr(error, "original", error)
+        if isinstance(original, DiscordBackoff):
+            await notice(interaction, str(original))
+            return
+        await super().on_error(interaction, error)
 
 
 class TraderBot(discord.Client):
@@ -472,14 +486,24 @@ class TraderBot(discord.Client):
             LOGGER.info("Напоминание о хостинге отправлено user=%s; следующее через 10 дней", reminder["owner_id"])
         self.store.put("hosting_reminder", reminder)
 
+    async def _member(self, guild: discord.Guild, owner_id: str) -> discord.Member:
+        """Читает свежую роль owner_id; временный429 не выдаёт за потерю доступа."""
+        try:
+            return await guild.fetch_member(int(owner_id))
+        except discord.HTTPException as exc:
+            if exc.status == 429:
+                delay = retry_seconds(exc.response.headers)
+                raise DiscordBackoff(delay if delay is not None else 1) from None
+            raise
+
     async def allowed(self, owner_id: str) -> bool:
         """Проверяет роль через актуального участника единственного настроенного сервера."""
         guild = self.get_guild(self.settings.guild_id)
         if guild is None:
             return False
         try:
-            member = await guild.fetch_member(int(owner_id))
-        except (ValueError, discord.HTTPException):
+            member = await self._member(guild, owner_id)
+        except (ValueError, discord.Forbidden, discord.NotFound):
             return False
         return any(role.id == self.settings.role_id for role in member.roles)
 
@@ -512,7 +536,7 @@ class TraderBot(discord.Client):
         async def run() -> None:
             try:
                 await self.service.scan(owner_id)
-            except PermissionError:
+            except (PermissionError, DiscordBackoff):
                 return
             except Exception as exc:
                 self.service.last_error = type(exc).__name__
@@ -609,7 +633,7 @@ class TraderBot(discord.Client):
         owner = str(interaction.user.id)
         try:
             deals = await self.service.current_deals(owner)
-        except PermissionError as exc:
+        except (PermissionError, DiscordBackoff) as exc:
             await notice(interaction, str(exc))
             return
         if not deals:
@@ -713,7 +737,7 @@ class TraderBot(discord.Client):
         parent = await self.fetch_channel(self.settings.channel_id)
         if not isinstance(parent, discord.TextChannel) or parent.guild.id != self.settings.guild_id:
             raise PermissionError("Нужен текстовый канал настроенного сервера")
-        owner = await parent.guild.fetch_member(int(deal["owner_id"]))
+        owner = await self._member(parent.guild, deal["owner_id"])
         if not any(role.id == self.settings.role_id for role in owner.roles):
             raise PermissionError("Роль участника снята")
         thread = None
@@ -829,7 +853,7 @@ class TraderBot(discord.Client):
             return
         try:
             result = await self.service.reply(str(message.author.id), deal["id"], str(message.id), message.content)
-        except (PermissionError, ValueError) as exc:
+        except (PermissionError, ValueError, DiscordBackoff) as exc:
             await message.reply(str(exc), mention_author=False)
             return
         except Exception as exc:

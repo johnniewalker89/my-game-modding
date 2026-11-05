@@ -18,7 +18,7 @@ from aiohttp.test_utils import TestServer
 
 from trader.config import Settings
 from trader.discord_bot import TraderBot
-from trader.discord_health import DiscordHttpErrorFilter
+from trader.discord_health import DiscordBackoff, DiscordHttpErrorFilter
 from trader.runtime import open_runtime
 
 
@@ -55,7 +55,7 @@ class DiscordHealthTests(unittest.IsolatedAsyncioTestCase):
                     for _ in range(50):
                         await health._connection_error(None, None, SimpleNamespace(url=server.make_url("/ok")))
             self.assertEqual(health.snapshot()["errors"], {"429": 1, "network": 50})
-            self.assertEqual(set(health.snapshot()), {"requests", "recent_requests", "errors", "last_error"})
+            self.assertGreater(health.snapshot()["paused_until"], time.time())
             with patch("trader.discord_health.time.monotonic", return_value=time.monotonic() + 661):
                 self.assertEqual(health.snapshot()["recent_requests"], 0)
                 self.assertEqual(health.snapshot()["requests"], 52)
@@ -80,6 +80,81 @@ class DiscordHealthTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(before["discord_http"]["errors"], {"429": 1})
                     with patch("trader.runtime.time.time", return_value=time.time() + 301):
                         self.assertEqual(runtime.status_provider()["state"], "ok")
+                    with patch.object(runtime.bot.http_health, "snapshot", return_value={
+                        **before["discord_http"], "paused_until": time.time() + 3600}):
+                        with patch("trader.runtime.time.time", return_value=time.time() + 301):
+                            self.assertEqual(runtime.status_provider()["state"], "degraded")
+
+    async def test_sdk_429_pauses_network_and_recovers_with_fresh_role_check(self):
+        """Реальный SDK уважает часовой отказ без повтора сети и заново проверяет роль после паузы."""
+        for global_limit in (False, True):
+            with self.subTest(global_limit=global_limit):
+                calls = []
+                limited = True
+                roles = []
+
+                async def reply(request):
+                    """Даёт ненормативный429, который SDK сам не ждёт; реального Discord нет."""
+                    calls.append(request.path)
+                    if "/members/" in request.path and limited:
+                        return web.Response(body=json.dumps({"message": "private-fixture-body", "code": 0}).encode(),
+                            status=429, content_type="application/json",
+                            headers={"Retry-After": "3600", "X-RateLimit-Scope": "global" if global_limit else "user",
+                                     "X-RateLimit-Limit": "5", "X-RateLimit-Remaining": "0",
+                                     "X-RateLimit-Reset-After": "3600"})
+                    return web.Response(body=json.dumps({"id": "100", "roles": roles}).encode(),
+                                        content_type="application/json")
+
+                app = web.Application()
+                app.router.add_route("*", "/{path:.*}", reply)
+                async with TraderBot(Settings(guild_id=1, role_id=2), Mock()) as bot, TestServer(app) as server:
+                    guild = Mock(spec=discord.Guild)
+
+                    async def member(owner):
+                        """Использует настоящий HTTP-клиент SDK, возвращая проверяемые роли из ответа."""
+                        data = await bot.http.get_member(1, owner)
+                        return SimpleNamespace(roles=[SimpleNamespace(id=int(value)) for value in data["roles"]])
+
+                    guild.fetch_member = AsyncMock(side_effect=member)
+                    bot.get_guild = Mock(return_value=guild)
+                    with patch("discord.http.Route.BASE", str(server.make_url("/api/v10"))):
+                        await bot.http.static_login("private-fixture-token")
+                        with self.assertLogs("trader.discord_health", level="WARNING") as logs:
+                            with self.assertRaises(DiscordBackoff):
+                                await bot.allowed("123")
+                        error = bot.http_health.snapshot()["last_error"]
+                        self.assertEqual(error["route"], "/guilds/{id}/members/{id}")
+                        self.assertEqual(error["method"], "GET")
+                        self.assertEqual(error["scope"], "global" if global_limit else "user")
+                        self.assertEqual((error["limit"], error["remaining"], error["reset_after"]), (5, 0, 3600))
+                        self.assertEqual((error["response_type"], error["via"]), ("json", False))
+                        wire_calls = len(calls)
+                        for _ in range(3):
+                            with self.assertRaises(DiscordBackoff):
+                                await bot.allowed("123")
+                        self.assertEqual(len(calls), wire_calls)
+                        if global_limit:
+                            with self.assertRaises(DiscordBackoff):
+                                await bot.http.get_channel(7)
+                        else:
+                            await bot.http.get_channel(7)
+                        async with aiohttp.ClientSession(trace_configs=[bot.http_health.trace]) as session:
+                            for path in ("/interactions/123/private-fixture-token/callback",
+                                         "/webhooks/123/private-fixture-token"):
+                                async with session.post(server.make_url("/api/v10" + path)) as response:
+                                    self.assertEqual(response.status, 200)
+                        self.assertEqual(bot.http_health.snapshot()["errors"], {"429": 1})
+                        self.assertEqual(bot.http_health.snapshot()["requests"], len(calls))
+                        self.assertNotIn("private-fixture", json.dumps(bot.http_health.snapshot()) + str(logs.output))
+                        limited = False
+                        clock = time.monotonic
+                        with patch("trader.discord_health.time", SimpleNamespace(monotonic=lambda: clock() + 3601,
+                                                                                time=time.time)):
+                            self.assertFalse(await bot.allowed("123"))
+                            roles = ["2"]
+                            self.assertTrue(await bot.allowed("123"))
+                            self.assertNotIn("paused_until", bot.http_health.snapshot())
+                        self.assertGreater(len(calls), wire_calls)
 
     async def test_interaction_trace_separates_age_before_request_and_http_duration(self):
         """Реальные callback-запросы сохраняют оба замера при HTTP- и сетевом отказе."""

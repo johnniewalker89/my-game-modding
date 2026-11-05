@@ -55,9 +55,15 @@ def status_text(snapshot: dict[str, Any]) -> str:
         counts = ", ".join(f"{code}: {count}" for code, count in sorted(http["errors"].items())) or "нет"
         http_text = f"Discord HTTP с запуска: запросов {http['requests']}, ошибки — {counts}.\n"
         http_text += f"Запросов за ≈10 минут: {http['recent_requests']}.\n"
+        if http.get("paused_until"):
+            http_text += f"Некоторые запросы Discord на паузе до <t:{int(http['paused_until'])}:t>.\n"
         last_error = http.get("last_error")
         if last_error:
             http_text += f"Последний отказ: {last_error['status']} · {last_error['source']} · <t:{int(last_error['at'])}:R>.\n"
+            if last_error.get("method") and last_error.get("route"):
+                http_text += f"Операция: {last_error['method']} {last_error['route']}.\n"
+            if last_error["status"] == "429" and last_error.get("scope"):
+                http_text += f"Область ограничения: {last_error['scope']}.\n"
             if last_error.get("request_ms") is not None:
                 http_text += f"Запрос к Discord: {last_error['request_ms']} мс.\n"
             if last_error.get("interaction_age_ms") is not None:

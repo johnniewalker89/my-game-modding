@@ -9,6 +9,8 @@ from weakref import WeakValueDictionary
 
 import discord
 
+from trader.discord_health import DiscordBackoff
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -54,6 +56,14 @@ class EphemeralView(discord.ui.View):
         if self._private:
             self.prepare_private(interaction)
         return True
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
+        """Объясняет паузу без повторной отправки действия; прочие ошибки сохраняет в SDK."""
+        if not isinstance(error, DiscordBackoff):
+            await super().on_error(interaction, error, item)
+            return
+        sender = interaction.followup.send if interaction.response.is_done() else interaction.response.send_message
+        await sender(str(error), ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
 
     async def on_timeout(self) -> None:
         """Удаляет только свои текущие компоненты; новый экран не затрагивает."""

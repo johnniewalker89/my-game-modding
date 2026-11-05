@@ -10,6 +10,7 @@ import discord
 
 from trader.config import Settings
 from trader.discord_bot import DisconnectView, PanelView, TraderBot
+from trader.discord_health import DiscordBackoff
 from trader.discord_ui import EphemeralView, close_private_views, render
 from trader.listing_ui import ListingsHome
 
@@ -23,6 +24,23 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         self.views = []
         self.visible = {}
         self.cleared = asyncio.Event()
+
+    async def test_backoff_is_explained_privately_for_buttons_and_commands(self):
+        """Временный отказ не выдаётся за снятую роль; кнопка и slash дают понятный срок."""
+        error = DiscordBackoff(61)
+        interaction = SimpleNamespace(response=SimpleNamespace(is_done=lambda: False, send_message=AsyncMock()),
+                                      followup=SimpleNamespace(send=AsyncMock()))
+        view = EphemeralView()
+        await view.on_error(interaction, error, Mock())
+        view.stop()
+        self.assertIn("2 мин.", interaction.response.send_message.await_args.args[0])
+        self.assertTrue(interaction.response.send_message.await_args.kwargs["ephemeral"])
+        interaction.response.is_done = lambda: True
+        async with TraderBot(Settings(), Mock()) as bot:
+            wrapped = discord.app_commands.CommandInvokeError(Mock(), error)
+            await bot.tree.on_error(interaction, wrapped)
+        self.assertIn("Discord временно", interaction.followup.send.await_args.args[0])
+        self.assertTrue(interaction.followup.send.await_args.kwargs["ephemeral"])
 
     async def asyncTearDown(self):
         """Снимает таймеры созданных окон и закрывает локальный SDK-клиент."""

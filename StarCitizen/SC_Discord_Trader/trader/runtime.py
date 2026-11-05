@@ -11,7 +11,7 @@ import httpx
 
 from trader.config import Settings
 from trader.discord_bot import TraderBot
-from trader.discord_health import DiscordHttpErrorFilter, ERROR_WINDOW_SECONDS
+from trader.discord_health import DiscordBackoff, DiscordHttpErrorFilter, ERROR_WINDOW_SECONDS
 from trader.diagnostics import status_path, write_status
 from trader.listings import ListingService
 from trader.marketplace import DemoMarketplace, MarketError, UexMarketplace
@@ -105,7 +105,7 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
                         continue
                     try:
                         await service.scan(account["owner_id"])
-                    except PermissionError:
+                    except (PermissionError, DiscordBackoff):
                         continue
                     except Exception as exc:
                         if isinstance(exc, MarketError) and str(exc) in {"requests_limit_reached", "uex_http_429"}:
@@ -159,7 +159,8 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
             pending = scans["uex_checked"] < scans["uex_accounts"]
             stale_scan = bool(oldest and now - oldest > 300)
             degraded = (bool(scans["uex_errors"]) or pending or stale_scan or cleanup_error
-                        or (bot is not None and not connected) or recent_http_error)
+                        or (bot is not None and not connected) or recent_http_error
+                        or (discord_http and discord_http.get("paused_until", 0) > now))
             state = "ok"
             if any(task.done() for task in tasks):
                 state = "failed"
