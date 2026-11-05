@@ -1161,7 +1161,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await bot.setup_hook()
         import discord
         self.assertEqual({c.name for c in bot.tree.get_commands(guild=discord.Object(id=123))},
-                         {"подключить", "сделки", "отключить", "панель", "меню", "объявления", "статус"})
+                         {"подключить", "сделки", "отключить", "панель", "меню", "объявления", "статус", "подписка"})
         self.assertTrue(any(item.custom_id == "scdt:archive:persistent-deal"
                             for view in bot.persistent_views for item in view.children))
 

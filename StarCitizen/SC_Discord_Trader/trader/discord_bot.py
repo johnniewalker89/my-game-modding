@@ -4,6 +4,7 @@ import asyncio
 import io
 import logging
 import time
+from datetime import date
 from decimal import Decimal
 from typing import Any, Callable
 from urllib.parse import quote
@@ -463,30 +464,61 @@ class TraderBot(discord.Client):
         if settings.hosting_reminder_user_id:
             owner = str(settings.hosting_reminder_user_id)
             self._hosting_reminder = store.get("hosting_reminder", owner) or {
-                "id": owner, "owner_id": owner, "next_at": 0.0,
+                "id": owner, "owner_id": owner,
             }
 
     async def remind_hosting(self) -> None:
-        """Напоминает настроенному владельцу о хостинге раз в десять дней; срок сохраняется в базе."""
+        """Пишет владельцу за три, два и один день до указанной даты, не проверяя оплату хостинга."""
         reminder = self._hosting_reminder
-        now = time.time()
-        if not reminder or not self.is_ready() or now < reminder["next_at"]:
+        if not reminder or not reminder.get("expires_on") or not self.is_ready():
             return
+        today = date.fromtimestamp(time.time())
+        days_left = (date.fromisoformat(reminder["expires_on"]) - today).days
+        if days_left not in {1, 2, 3} or reminder.get("last_attempt_on") == today.isoformat():
+            return
+        # До HTTP: перезапуск после отправки или неизвестного результата не повторяет DM сегодня.
+        reminder["last_attempt_on"] = today.isoformat()
+        self.store.put("hosting_reminder", reminder)
         try:
             user = await self.fetch_user(self.settings.hosting_reminder_user_id)
-            await user.send("Пора зайти в панель хостинга под своим аккаунтом, "
-                            "чтобы бесплатный сервер продолжал работать:\n"
+            remaining = {1: "1 день", 2: "2 дня", 3: "3 дня"}[days_left]
+            await user.send(f"До продления хостинга осталось **{remaining}**.\n"
+                            f"Указанная дата: **{reminder['expires_on']}**.\n"
                             f"{self.settings.hosting_reminder_url}\n\n"
-                            "Ничего продлевать кнопками не нужно — достаточно зайти в личный кабинет.",
+                            "После оплаты обнови дату командой /подписка. Оплата автоматически не проверяется.",
                             suppress_embeds=True)
         except (discord.HTTPException, aiohttp.ClientError, OSError) as exc:
-            reminder["next_at"] = now + 86400
-            LOGGER.warning("Напоминание о хостинге не доставлено user=%s error_type=%s; повтор через сутки", reminder["owner_id"], type(exc).__name__)
+            LOGGER.warning("Напоминание о подписке не доставлено user=%s error_type=%s; повтор в следующий день окна", reminder["owner_id"], type(exc).__name__)
         else:
-            reminder["last_sent_at"] = now
-            reminder["next_at"] = now + 10 * 86400
-            LOGGER.info("Напоминание о хостинге отправлено user=%s; следующее через 10 дней", reminder["owner_id"])
+            LOGGER.info("Напоминание о подписке отправлено user=%s days_left=%s", reminder["owner_id"], days_left)
+
+    async def set_subscription_date(self, interaction: discord.Interaction, date_text: str) -> None:
+        """Сохраняет дату продления date_text только по команде администратора своего сервера."""
+        await interaction.response.defer(ephemeral=True)
+        if (interaction.guild_id != self.settings.guild_id or not isinstance(interaction.user, discord.Member)
+                or not interaction.user.guild_permissions.administrator):
+            await notice(interaction, "Дату подписки меняет только администратор сервера.")
+            return
+        if self._hosting_reminder is None:
+            await notice(interaction, "Получатель напоминаний не настроен. Нужны ID владельца и ссылка на хостинг в конфигурации.")
+            return
+        try:
+            expires_on = date.fromisoformat(date_text)
+        except ValueError:
+            await notice(interaction, "Введи дату в формате ГГГГ-ММ-ДД, например 2026-12-05.")
+            return
+        if expires_on < date.fromtimestamp(time.time()):
+            await notice(interaction, "Эта дата уже прошла. Укажи текущую или будущую дату продления.")
+            return
+        old = self._hosting_reminder
+        reminder = {"id": old["id"], "owner_id": old["owner_id"], "expires_on": expires_on.isoformat()}
+        if old.get("expires_on") == reminder["expires_on"] and old.get("last_attempt_on"):
+            reminder["last_attempt_on"] = old["last_attempt_on"]
         self.store.put("hosting_reminder", reminder)
+        self._hosting_reminder = reminder
+        LOGGER.info("Дата подписки обновлена expires_on=%s", reminder["expires_on"])
+        await notice(interaction, f"Дата продления: **{reminder['expires_on']}**.\n"
+                     "Напишу владельцу за 3, 2 и 1 день до неё. Оплата на хостинге автоматически не проверяется.")
 
     async def _member(self, guild: discord.Guild, owner_id: str) -> discord.Member:
         """Читает свежую роль owner_id; временный429 не выдаёт за потерю доступа."""
@@ -720,6 +752,14 @@ class TraderBot(discord.Client):
                 await notice(interaction, "Не удалось прочитать состояние. Проверь логи процесса.")
                 return
             await notice(interaction, text)
+
+        @self.tree.command(name="подписка", description="Обновить дату продления хостинга", guild=guild)
+        @app_commands.default_permissions(administrator=True)
+        @app_commands.rename(date_text="дата")
+        @app_commands.describe(date_text="Дата продления в формате ГГГГ-ММ-ДД")
+        async def subscription_command(interaction: discord.Interaction, date_text: str) -> None:
+            """Принимает новую дату администратора без перезапуска бота и обращения к хостингу."""
+            await self.set_subscription_date(interaction, date_text)
 
         self.add_view(PanelView(self))
         for deal in self.store.all("deal"):
