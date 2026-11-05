@@ -25,6 +25,7 @@ LOGGER = logging.getLogger(__name__)
 UEX_MANAGE = "https://uexcorp.space/marketplace/manage/"
 UEX_ACCOUNT = "https://uexcorp.space/account/"
 UEX_APPS = "https://uexcorp.space/api/apps"
+ACCESS_CACHE_SECONDS = 300
 
 
 def panel_text(send_mode: str) -> str:
@@ -456,6 +457,7 @@ class TraderBot(discord.Client):
         self.listings: ListingService
         self.tree = TraderCommandTree(self)
         self._account_scan_tasks: dict[str, asyncio.Task] = {}
+        self._access_cache: dict[str, tuple[float, bool]] = {}
         self.status_provider: Callable[[], dict[str, Any]] | None = None
         self._hosting_reminder = None
         if settings.hosting_reminder_user_id:
@@ -496,16 +498,25 @@ class TraderBot(discord.Client):
                 raise DiscordBackoff(delay if delay is not None else 1) from None
             raise
 
-    async def allowed(self, owner_id: str) -> bool:
-        """Проверяет роль через актуального участника единственного настроенного сервера."""
+    async def allowed(self, owner_id: str, *, refresh: bool = True) -> bool:
+        """Проверяет роль; refresh=False использует до пяти минут кеша только в фоновом опросе."""
+        now = time.monotonic()
+        cached = self._access_cache.get(owner_id)
+        if not refresh and cached and cached[0] > now:
+            return cached[1]
+        self._access_cache = {owner: entry for owner, entry in self._access_cache.items()
+                              if owner != owner_id and entry[0] > now}
         guild = self.get_guild(self.settings.guild_id)
         if guild is None:
             return False
         try:
             member = await self._member(guild, owner_id)
         except (ValueError, discord.Forbidden, discord.NotFound):
-            return False
-        return any(role.id == self.settings.role_id for role in member.roles)
+            allowed = False
+        else:
+            allowed = any(role.id == self.settings.role_id for role in member.roles)
+        self._access_cache[owner_id] = (time.monotonic() + ACCESS_CACHE_SECONDS, allowed)
+        return allowed
 
     async def begin_connect(self, interaction: discord.Interaction) -> None:
         """Показывает участнику весь путь подключения, включая ссылку на свой UEX."""
@@ -836,6 +847,13 @@ class TraderBot(discord.Client):
             await self._unarchive_thread(thread)
         await self._refresh_deal_card(thread, deal)
 
+    async def _reply_feedback(self, message: discord.Message, text: str) -> None:
+        """Отвечает на message; отказ Discord фиксирует без повторной отправки сообщения в UEX."""
+        try:
+            await message.reply(text, mention_author=False)
+        except (DiscordBackoff, discord.HTTPException) as exc:
+            LOGGER.warning("Уведомление Discord не доставлено message=%s error_type=%s http=%s", message.id, type(exc).__name__, getattr(exc, "status", None))
+
     async def on_message(self, message: discord.Message) -> None:
         """Переводит обычный ответ владельца только в его активной приватной ветке."""
         if message.author.bot or not message.guild or message.guild.id != self.settings.guild_id:
@@ -849,16 +867,16 @@ class TraderBot(discord.Client):
         if deal["owner_id"] != str(message.author.id):
             return
         if message.attachments and not message.content:
-            await message.reply("Пока поддерживаются текстовые ответы.", mention_author=False)
+            await self._reply_feedback(message, "Пока поддерживаются текстовые ответы.")
             return
         try:
             result = await self.service.reply(str(message.author.id), deal["id"], str(message.id), message.content)
         except (PermissionError, ValueError, DiscordBackoff) as exc:
-            await message.reply(str(exc), mention_author=False)
+            await self._reply_feedback(message, str(exc))
             return
         except Exception as exc:
             LOGGER.error("Ошибка ответа message=%s error_type=%s", message.id, type(exc).__name__)
-            await message.reply("Ошибка обработки. Автоматически повторно не отправляю.", mention_author=False)
+            await self._reply_feedback(message, "Ошибка обработки. Автоматически повторно не отправляю.")
             return
         labels = {"delivered": "UEX подтвердил запрос", "unknown": "Результат отправки неизвестен; автоповтор отключён",
                   "translation_failed": "Перевод недоступен, сообщение не отправлено", "failed": "UEX не подтвердил отправку"}
@@ -867,4 +885,4 @@ class TraderBot(discord.Client):
             label = "🧪 Тестовый режим UEX · " + label
         feedback = label + ("\n" + result["translated"] if result["translated"] else "")
         for piece in chunks(feedback):
-            await message.reply(piece, mention_author=False)
+            await self._reply_feedback(message, piece)

@@ -6,6 +6,7 @@ import logging
 import tempfile
 import time
 import unittest
+from contextlib import closing
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,11 +20,96 @@ from aiohttp.test_utils import TestServer
 from trader.config import Settings
 from trader.discord_bot import TraderBot
 from trader.discord_health import DiscordBackoff, DiscordHttpErrorFilter
+from trader.marketplace import DemoMarketplace
 from trader.runtime import open_runtime
+from trader.service import TraderService
+from trader.store import Store, Vault
 
 
 class DiscordHealthTests(unittest.IsolatedAsyncioTestCase):
     """Не подключается к Discord/UEX; HTTP-сервер доступен только на loopback."""
+
+    async def test_idle_scans_reuse_roles_but_actions_and_delivery_check_fresh_access(self):
+        """Тридцать пустых сверок используют одну проверку; снятая роль блокирует действия и входящее."""
+        with tempfile.TemporaryDirectory() as folder, closing(Store(Path(folder) / "state.sqlite3")) as store:
+            async with TraderBot(Settings(guild_id=1, role_id=2), store) as bot:
+                roles = [SimpleNamespace(id=2)]
+                guild = Mock(spec=discord.Guild)
+                guild.fetch_member = AsyncMock(side_effect=lambda owner: SimpleNamespace(roles=roles))
+                bot.get_guild = Mock(return_value=guild)
+                market = DemoMarketplace(store)
+                translator = SimpleNamespace(translate=AsyncMock(return_value="Перевод"))
+                service = TraderService(store, Vault(Path(folder) / "key"), market, translator, bot)
+                clock = 1000.0
+                with patch("trader.discord_bot.time", SimpleNamespace(monotonic=lambda: clock, time=time.time)):
+                    for owner in ("123", "124", "125"):
+                        await service.connect(owner, "fixture-secret")
+                    clock += 301
+                    guild.fetch_member.reset_mock()
+                    for tick in range(30):
+                        clock = 1301 + tick * 10
+                        for owner in ("123", "124", "125"):
+                            await service.scan(owner)
+                    self.assertEqual(guild.fetch_member.await_count, 3)
+                    clock = 1601
+                    await service.scan("123")
+                    self.assertEqual(guild.fetch_member.await_count, 4)
+                    await service.scan("123", force=True)
+                    self.assertEqual(guild.fetch_member.await_count, 5)
+                    roles = []
+                    with self.assertRaises(PermissionError):
+                        await service.account("123")
+                    roles = [SimpleNamespace(id=2)]
+                    await service.account("123")
+                    # Снятие роли во время перевода не обходится разрешением из фонового кеша.
+                    row = market.add_deal("123", "sell", "Fixture", "Buyer")
+                    market.add_message("123", row["id"], "Buyer", "Hello")
+                    async def translate(*args, **kwargs):
+                        """Снимает роль между чтением UEX и публикацией перевода."""
+                        nonlocal roles
+                        roles = []
+                        return "Перевод"
+                    translator.translate.side_effect = translate
+                    bot.thread = AsyncMock()
+                    with self.assertRaises(PermissionError):
+                        await service.scan("123")
+                    bot.thread.assert_not_awaited()
+                    roles = [SimpleNamespace(id=2)]
+                    await service.account("123")
+                    roles = []
+                    with self.assertRaises(PermissionError):
+                        await service.reply("123", store.all("deal")[0]["id"], "outgoing-fixture", "Беру")
+                    self.assertFalse(any(message["source"] == "outgoing" for message in store.all("message")))
+                    roles = [SimpleNamespace(id=2)]
+                    await service.account("123")
+                    guild.fetch_member.side_effect = DiscordBackoff(300)
+                    with self.assertRaises(DiscordBackoff):
+                        await service.account("123")
+                    with self.assertRaises(DiscordBackoff):
+                        await service.scan("123")
+
+    async def test_blocked_feedback_does_not_raise_or_repeat_outgoing_message(self):
+        """Недоступный Discord не вызывает вторую отправку UEX и вложенный traceback уведомления."""
+        with tempfile.TemporaryDirectory() as folder, closing(Store(Path(folder) / "state.sqlite3")) as store:
+            store.put("deal", {"id": "fixture", "owner_id": "123", "thread_id": "200"})
+            async with TraderBot(Settings(guild_id=1, channel_id=100), store) as bot:
+                channel = Mock(spec=discord.Thread, id=200, parent_id=100)
+                message = Mock(id=300, guild=SimpleNamespace(id=1), channel=channel,
+                               author=SimpleNamespace(id=123, bot=False), attachments=[], content="Беру")
+                for delivered in (False, True):
+                    for error in (DiscordBackoff(300), discord.HTTPException(
+                            SimpleNamespace(status=429, reason="Too Many Requests"), "fixture")):
+                        with self.subTest(delivered=delivered, error_type=type(error).__name__):
+                            result = AsyncMock(return_value={"status": "delivered", "translated": "English"})
+                            if not delivered:
+                                result.side_effect = DiscordBackoff(300)
+                            bot.service = SimpleNamespace(reply=result)
+                            message.reply = AsyncMock(side_effect=error)
+                            with self.assertLogs("trader.discord_bot", level="WARNING") as logs:
+                                await bot.on_message(message)
+                            bot.service.reply.assert_awaited_once()
+                            message.reply.assert_awaited_once()
+                            self.assertIn("message=300", logs.output[0])
 
     async def test_sdk_trace_counts_responses_without_retaining_private_urls_or_bodies(self):
         """Существующая сессия получает два ответа; счётчик не делает своих запросов."""

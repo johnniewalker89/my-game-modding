@@ -31,8 +31,9 @@ class RecordingSink(DemoSink):
         self.archive_modes = []
         self.events = []
 
-    async def allowed(self, owner_id):
-        return owner_id not in self.denied and await super().allowed(owner_id)
+    async def allowed(self, owner_id, *, refresh=True):
+        """Учитывает снятую роль; refresh принимает тот же режим, что и живой адаптер."""
+        return owner_id not in self.denied and await super().allowed(owner_id, refresh=refresh)
 
     async def incoming(self, deal, message):
         self.received.append((deal["id"], message["id"]))

@@ -35,7 +35,7 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         self.post_fault = self.delete_fault = None
         self.denied = set()
         self.sink = DemoSink()
-        self.sink.allowed = AsyncMock(side_effect=lambda owner: owner not in self.denied)
+        self.sink.allowed = AsyncMock(side_effect=lambda owner, **kwargs: owner not in self.denied)
         self.client = httpx.AsyncClient(transport=httpx.MockTransport(self.http))
         self.market = UexMarketplace(self.client, "application-fixture", "test", interval=0, catalog_store=self.store)
         translator = SimpleNamespace(translate=AsyncMock(side_effect=lambda text, *args, **kwargs: "Translated " + text))

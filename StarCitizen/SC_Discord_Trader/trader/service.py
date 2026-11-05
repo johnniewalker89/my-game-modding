@@ -15,10 +15,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Sink(Protocol):
-    """Определяет отправку в личную ветку; роли проверяются на каждом входе."""
+    """Определяет личную доставку; только пустой фоновый опрос допускает кеш роли."""
 
-    async def allowed(self, owner_id: str) -> bool:
-        """Проверяет актуальное право owner_id пользоваться сервисом."""
+    async def allowed(self, owner_id: str, *, refresh: bool = True) -> bool:
+        """Проверяет право owner_id; refresh=False допускает короткий кеш для фоновой сверки."""
         ...
 
     async def thread(self, deal: dict[str, Any]) -> str:
@@ -41,8 +41,8 @@ class Sink(Protocol):
 class DemoSink:
     """Представляет личные ветки в локальном стенде без отправок в Discord."""
 
-    async def allowed(self, owner_id: str) -> bool:
-        """Разрешает только два выделенных тестовых аккаунта."""
+    async def allowed(self, owner_id: str, *, refresh: bool = True) -> bool:
+        """Разрешает два тестовых аккаунта; refresh сохраняет контракт живого адаптера."""
         return owner_id in {"demo-1", "demo-2"}
 
     async def thread(self, deal: dict[str, Any]) -> str:
@@ -93,9 +93,9 @@ class TraderService:
                 message["status"] = "unknown"
                 store.put("message", message)
 
-    async def account(self, owner_id: str) -> dict[str, Any]:
-        """Проверяет роль и подключение владельца перед каждым действием."""
-        if not await self.sink.allowed(owner_id):
+    async def account(self, owner_id: str, *, refresh_access: bool = True) -> dict[str, Any]:
+        """Проверяет подключение и роль; refresh_access=False разрешён только для фонового чтения."""
+        if not await self.sink.allowed(owner_id, refresh=refresh_access):
             raise PermissionError("Нет разрешённой роли на сервере")
         account = self.store.get("account", owner_id)
         if (not account or not account.get("secret")
@@ -254,7 +254,7 @@ class TraderService:
         if lock.locked():
             return 0
         async with lock, self._observe_scan(owner_id):
-            account = await self.account(owner_id)
+            account = await self.account(owner_id, refresh_access=force)
             secret = self.vault.decrypt(account["secret"])
             market = self.market_for(account)
             rows = await market.negotiations(account, secret)
