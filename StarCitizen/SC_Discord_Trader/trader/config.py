@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass, field
+from datetime import time
 from pathlib import Path
 
 
@@ -26,6 +27,7 @@ class Settings:
     groq_model: str = "openai/gpt-oss-120b"
     hosting_reminder_user_id: int = 0
     hosting_reminder_url: str = ""
+    backup_time: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -48,6 +50,7 @@ class Settings:
             groq_model=os.getenv("TRADER_GROQ_MODEL", "openai/gpt-oss-120b"),
             hosting_reminder_user_id=int(os.getenv("TRADER_HOSTING_REMINDER_USER_ID") or 0),
             hosting_reminder_url=os.getenv("TRADER_HOSTING_REMINDER_URL", ""),
+            backup_time=os.getenv("TRADER_BACKUP_TIME", ""),
         )
         if settings.mode not in {"demo", "live"}:
             raise ValueError("TRADER_MODE должен быть demo или live")
@@ -68,4 +71,8 @@ class Settings:
             raise ValueError("Для Groq нужны TRADER_GROQ_API_KEY и TRADER_GROQ_MODEL")
         if bool(settings.hosting_reminder_user_id) != bool(settings.hosting_reminder_url):
             raise ValueError("Для напоминания нужны TRADER_HOSTING_REMINDER_USER_ID и TRADER_HOSTING_REMINDER_URL")
+        if settings.backup_time:
+            if len(settings.backup_time) != 5:
+                raise ValueError("TRADER_BACKUP_TIME задаётся как ЧЧ:ММ в часовом поясе процесса")
+            time.fromisoformat(settings.backup_time)
         return settings

@@ -5,11 +5,13 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from typing import AsyncIterator, Callable
 
 import httpx
 
 from trader.config import Settings
+from trader.backup import backup_due, create_snapshot, recovery_path, restore_if_missing
 from trader.discord_bot import TraderBot
 from trader.discord_health import DiscordBackoff, DiscordHttpErrorFilter, ERROR_WINDOW_SECONDS
 from trader.diagnostics import status_path, write_status
@@ -51,12 +53,18 @@ def configure_logging() -> None:
 async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTransport | None = None
                        ) -> AsyncIterator[TraderRuntime]:
     """Открывает состояние и фоновые задачи; settings и необязательный транспорт задаёт вызывающий."""
-    store = Store(settings.data_dir / f"trader-{settings.mode}.sqlite3")
+    database = settings.data_dir / f"trader-{settings.mode}.sqlite3"
+    saved_database = recovery_path(database)
+    if settings.backup_time and restore_if_missing(database):
+        LOGGER.info("База восстановлена из согласованной резервной копии")
+    store = Store(database)
     vault = Vault(settings.data_dir / "master.key")
     started_at = time.time()
     ready_seen = settings.mode == "demo"
     cleanup_at = None
     cleanup_error = None
+    backup_at = saved_database.stat().st_mtime if settings.backup_time and saved_database.exists() else None
+    backup_error = None
     report_path = status_path(settings.data_dir, settings.mode)
     async with httpx.AsyncClient(timeout=90, transport=http_transport) as client:
         translator = Translator(client, settings.translator, settings.translate_url,
@@ -158,7 +166,7 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
             oldest = scans["uex_oldest_success_at"]
             pending = scans["uex_checked"] < scans["uex_accounts"]
             stale_scan = bool(oldest and now - oldest > 300)
-            degraded = (bool(scans["uex_errors"]) or pending or stale_scan or cleanup_error
+            degraded = (bool(scans["uex_errors"]) or pending or stale_scan or cleanup_error or backup_error
                         or (bot is not None and not connected) or recent_http_error
                         or (discord_http and discord_http.get("paused_until", 0) > now))
             state = "ok"
@@ -172,7 +180,8 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
                     "started_at": started_at, "updated_at": now, "discord_connected": connected,
                     "translator": settings.translator, "poll_interval_seconds": POLL_SECONDS,
                     "discord_http": discord_http,
-                    "cleanup_at": cleanup_at, "cleanup_error": cleanup_error, **scans}
+                    "cleanup_at": cleanup_at, "cleanup_error": cleanup_error,
+                    "backup_at": backup_at, "backup_error": backup_error, **scans}
 
         if bot:
             bot.status_provider = snapshot
@@ -183,8 +192,21 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
 
         async def report_status() -> None:
             """Раз в минуту обновляет heartbeat; пишет лог только при смене состояния или ошибок."""
+            nonlocal backup_at, backup_error
             previous = None
+            next_backup_attempt = 0.0
             while True:
+                if settings.backup_time and time.monotonic() >= next_backup_attempt:
+                    try:
+                        if backup_due(saved_database, settings.backup_time, datetime.now()):
+                            next_backup_attempt = time.monotonic() + 300
+                            await asyncio.to_thread(create_snapshot, database, saved_database)
+                            backup_at, backup_error = time.time(), None
+                            LOGGER.info("Согласованная резервная копия базы обновлена")
+                    except Exception as exc:
+                        next_backup_attempt = time.monotonic() + 300
+                        backup_error = type(exc).__name__
+                        LOGGER.warning("Резервная копия базы не обновлена error_type=%s", backup_error)
                 await asyncio.sleep(STATUS_SECONDS)
                 current = snapshot()
                 try:
