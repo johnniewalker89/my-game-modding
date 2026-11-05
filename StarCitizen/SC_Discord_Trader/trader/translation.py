@@ -113,7 +113,17 @@ class Translator:
                     translations = [translations]
         except (httpx.HTTPError, KeyError, ValueError, TypeError, IndexError) as exc:
             status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
-            LOGGER.warning("Переводчик недоступен provider=%s http=%s error_type=%s", self.provider, status, type(exc).__name__)
+            code = None
+            if self.provider == "groq" and isinstance(exc, httpx.HTTPStatusError):
+                try:
+                    candidate = exc.response.json()["error"]["code"]
+                    if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", candidate):
+                        code = candidate
+                except (ValueError, KeyError, TypeError):
+                    pass
+            LOGGER.warning("Переводчик недоступен provider=%s http=%s error_type=%s code=%s model=%s",
+                           self.provider, status, type(exc).__name__, code,
+                           self.groq_model if self.provider == "groq" else None)
             raise TranslationError("Перевод недоступен; исходящий текст не отправлен") from exc
         if not isinstance(translations, list) or len(translations) != 1 or not all(
             isinstance(t, str) and t.strip() for t in translations

@@ -12,6 +12,7 @@ from trader.discord_health import DiscordBackoff
 from trader.discord_ui import EphemeralView, render
 from trader.listings import DEFAULT_LOCATION, HOURS, MAX_PHOTO, OPERATIONS, UNITS, listing_payload
 from trader.marketplace import MarketError
+from trader.translation import TranslationError
 
 if TYPE_CHECKING:
     from trader.discord_bot import TraderBot
@@ -281,7 +282,8 @@ class DraftView(PersonalView):
 
     async def conditions(self, interaction: discord.Interaction) -> None:
         """Открывает форму количества, цены, качества, места и описания."""
-        await interaction.response.send_modal(ConditionsModal(self.bot, self.draft))
+        current = await self.bot.listings.draft(self.owner, self.draft["id"])
+        await interaction.response.send_modal(ConditionsModal(self.bot, current))
 
     async def photo(self, interaction: discord.Interaction) -> None:
         """Открывает штатную загрузку фото в личной форме Discord."""
@@ -303,7 +305,7 @@ class DraftView(PersonalView):
 class ConditionsModal(PersonalModal):
     """Количество и цена задаются целыми, цена всегда за выбранную единицу."""
 
-    def __init__(self, bot: "TraderBot", draft: dict[str, Any]):
+    def __init__(self, bot: "TraderBot", draft: dict[str, Any], *, values: dict[str, str] | None = None):
         """Заполняет форму уже введёнными значениями черновика."""
         super().__init__(bot, draft["owner_id"], "Условия объявления")
         self.draft = draft
@@ -314,6 +316,8 @@ class ConditionsModal(PersonalModal):
                  ("description", "Описание по-русски / условия обмена", draft["description_ru"] or None, False, 1000)]
         self.fields = {}
         for key, label, default, required, limit in specs:
+            if values is not None:
+                default = values[key]
             item = discord.ui.TextInput(label=label[:45], default=default, required=required, max_length=limit,
                                         placeholder="Пусто — By arrangement" if key == "location" else None,
                                         style=discord.TextStyle.paragraph if key == "description" else discord.TextStyle.short)
@@ -323,9 +327,32 @@ class ConditionsModal(PersonalModal):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         """Проверяет числа и переводит условия до показа предпросмотра."""
         await interaction.response.defer()
-        updated = await self.bot.listings.edit(self.owner, self.draft["id"], self.draft["revision"],
-                                               {"conditions": {key: str(item) for key, item in self.fields.items()}})
+        values = {key: str(item) for key, item in self.fields.items()}
+        try:
+            updated = await self.bot.listings.edit(self.owner, self.draft["id"], self.draft["revision"],
+                                                   {"conditions": values})
+        except TranslationError:
+            await render(interaction, content="Переводчик временно недоступен. Введённые условия сохранены в этом окне. "
+                         "Нажми «Повторить условия» и отправь форму ещё раз. Объявление не публиковалось.",
+                         view=RetryConditions(self.bot, self.draft, values))
+            return
         await show_draft(self.bot, interaction, updated)
+
+
+class RetryConditions(PersonalView):
+    """Сохраняет введённую форму на время сбоя перевода, не публикуя карточку."""
+
+    def __init__(self, bot: "TraderBot", draft: dict[str, Any], values: dict[str, str]):
+        """Оставляет повтор явным действием игрока в личном окне."""
+        super().__init__(bot, draft["owner_id"])
+        self.draft, self.values = draft, values
+        self.button("Повторить условия", self.retry, row=0, style=discord.ButtonStyle.primary)
+        self.menu_button(0)
+
+    async def retry(self, interaction: discord.Interaction) -> None:
+        """Открывает введённые значения с актуальной версией того же черновика."""
+        current = await self.bot.listings.draft(self.owner, self.draft["id"])
+        await interaction.response.send_modal(ConditionsModal(self.bot, current, values=self.values))
 
 
 class PhotoModal(PersonalModal):

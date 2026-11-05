@@ -96,6 +96,19 @@ class GroqTests(unittest.IsolatedAsyncioTestCase):
                         await Translator(client, "groq", "http://unused", groq_key="test-key").translate(
                             "Цена 25000 aUEC", "ru", "en")
 
+    async def test_provider_log_contains_code_without_response_body_or_message(self):
+        """404 различим по коду Groq; ключ и текст отказа с пользовательскими данными не логируются."""
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(
+                404, json={"error": {"code": "model_not_found", "message": "private text test-key"}}))) as client:
+            with self.assertLogs("trader.translation", level="WARNING") as captured:
+                with self.assertRaises(TranslationError):
+                    await Translator(client, "groq", "", groq_key="test-key").translate("Привет", "ru", "en")
+        log = " ".join(captured.output)
+        self.assertIn("http=404", log)
+        self.assertIn("code=model_not_found", log)
+        self.assertNotIn("private text", log)
+        self.assertNotIn("test-key", log)
+
     async def test_application_uses_groq_settings_and_passes_deal_context(self):
         """HTTP-приложение передаёт выбранный Groq, ключ и контекст в настоящий адаптер."""
         requests = []

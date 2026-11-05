@@ -20,6 +20,7 @@ from trader.listing_ui import CatalogView, ConditionsModal, DraftView, ListingsH
 from trader.marketplace import MarketError, UexMarketplace
 from trader.service import DemoSink, TraderService
 from trader.store import Store, Vault
+from trader.translation import TranslationError
 
 PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD7sAAAAASUVORK5CYII=")
 
@@ -451,6 +452,47 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(embed["description"], listing_payload(draft)["description"])
         self.assertIn("60000000", embed["description"])
         self.assertEqual(len(PreviewView(bot, draft).children), 3)
+
+    async def test_conditions_open_current_revision_after_a_setting_changes(self):
+        """Нажатие во время обновления экрана открывает актуальные условия, без ложного конфликта."""
+        draft = await self.ready()
+        bot = SimpleNamespace(listings=self.service)
+        view = DraftView(bot, draft)
+        changed = await self.service.edit("demo-1", draft["id"], draft["revision"], {"operation": "sell"})
+        interaction = SimpleNamespace(response=SimpleNamespace(send_modal=AsyncMock()))
+        await view.conditions(interaction)
+        modal = interaction.response.send_modal.await_args.args[0]
+        self.assertEqual(modal.draft["revision"], changed["revision"])
+        self.assertEqual(modal.draft["operation"], "sell")
+        saved = await self.service.edit("demo-1", modal.draft["id"], modal.draft["revision"],
+                                        {"conditions": {key: str(item) for key, item in modal.fields.items()}})
+        self.assertEqual(saved["operation"], "sell")
+        self.assertEqual(self.writes(), [])
+
+    async def test_conditions_survive_translation_failure_and_retry_without_publication(self):
+        """Отказ Groq оставляет введённые значения в личном повторе, без сохранения частичного перевода."""
+        draft = await self.ready()
+        bot = SimpleNamespace(listings=self.service)
+        modal = ConditionsModal(bot, draft)
+        values = {"quantity": "13", "price": "5000000", "quality": "958",
+                  "location": "Area18", "description": "Нужна руда"}
+        modal.fields = values
+        interaction = SimpleNamespace(response=SimpleNamespace(defer=AsyncMock(), is_done=lambda: True),
+                                      edit_original_response=AsyncMock())
+        self.core.translator.translate.side_effect = TranslationError("fixture unavailable")
+        await modal.on_submit(interaction)
+        self.assertEqual(self.store.get("listing_draft", draft["id"]), draft)
+        retry = interaction.edit_original_response.await_args.kwargs["view"]
+        opened = SimpleNamespace(response=SimpleNamespace(send_modal=AsyncMock()))
+        await retry.retry(opened)
+        repeated = opened.response.send_modal.await_args.args[0]
+        self.assertEqual({key: str(item) for key, item in repeated.fields.items()}, values)
+        self.core.translator.translate.side_effect = lambda text, *args, **kwargs: "Translated " + text
+        await repeated.on_submit(interaction)
+        saved = self.store.get("listing_draft", draft["id"])
+        self.assertEqual((saved["quantity"], saved["price"], saved["description_ru"]), (13, 5000000, "Нужна руда"))
+        self.assertEqual(saved["status"], "draft")
+        self.assertEqual(self.writes(), [])
 
     async def test_menu_is_personal_and_render_never_overwrites_public_panel(self):
         """/меню работает без UEX-ключа, личные шаги обновляются на месте, общая панель сохраняется."""
