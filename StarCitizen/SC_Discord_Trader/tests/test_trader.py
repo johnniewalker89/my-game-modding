@@ -824,7 +824,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         bot.service = SimpleNamespace(scan=AsyncMock(), last_error=None)
         response = SimpleNamespace(send_message=AsyncMock(), send_modal=AsyncMock(),
                                    is_done=lambda: False)
-        interaction = SimpleNamespace(user=SimpleNamespace(id=1234), response=response, message=None)
+        interaction = SimpleNamespace(user=SimpleNamespace(id=1234), response=response, message=None, extras={})
         await bot.begin_connect(interaction)
         call = response.send_message.await_args
         self.assertTrue(call.kwargs["ephemeral"])

@@ -274,6 +274,8 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         """Чужой участник, смена UEX, потеря роли и старый просмотр не могут публиковать."""
         draft = await self.ready()
         with self.assertRaises(PermissionError):
+            self.service.draft_snapshot("demo-2", draft["id"])
+        with self.assertRaises(PermissionError):
             await self.service.publish("demo-2", draft["id"], draft["revision"])
         newer = await self.service.edit("demo-1", draft["id"], draft["revision"], {"hidden": True})
         with self.assertRaises(ValueError):
@@ -283,6 +285,8 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
             await self.service.publish("demo-1", draft["id"], newer["revision"])
         self.denied.clear()
         await self.core.connect("demo-1", "secret-two", "application-two")
+        with self.assertRaises(PermissionError):
+            self.service.draft_snapshot("demo-1", draft["id"])
         with self.assertRaises(PermissionError):
             await self.service.publish("demo-1", draft["id"], newer["revision"])
         self.assertEqual(self.writes(), [])
@@ -462,13 +466,20 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         view = DraftView(bot, draft)
         changed = await self.service.edit("demo-1", draft["id"], draft["revision"], {"operation": "sell"})
         interaction = SimpleNamespace(response=SimpleNamespace(send_modal=AsyncMock()))
+        self.sink.allowed.reset_mock()
         await view.conditions(interaction)
+        self.sink.allowed.assert_not_awaited()
         modal = interaction.response.send_modal.await_args.args[0]
         self.assertEqual(modal.draft["revision"], changed["revision"])
         self.assertEqual(modal.draft["operation"], "sell")
         saved = await self.service.edit("demo-1", modal.draft["id"], modal.draft["revision"],
                                         {"conditions": {key: str(item) for key, item in modal.fields.items()}})
         self.assertEqual(saved["operation"], "sell")
+        self.sink.allowed.assert_awaited()
+        self.sink.allowed.reset_mock()
+        await view.photo(interaction)
+        self.sink.allowed.assert_not_awaited()
+        self.assertEqual(interaction.response.send_modal.await_args.args[0].draft["revision"], saved["revision"])
         self.assertEqual(self.writes(), [])
 
     async def test_conditions_survive_translation_failure_and_retry_without_publication(self):
@@ -486,7 +497,9 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.get("listing_draft", draft["id"]), draft)
         retry = interaction.edit_original_response.await_args.kwargs["view"]
         opened = SimpleNamespace(response=SimpleNamespace(send_modal=AsyncMock()))
+        self.sink.allowed.reset_mock()
         await retry.retry(opened)
+        self.sink.allowed.assert_not_awaited()
         repeated = opened.response.send_modal.await_args.args[0]
         self.assertEqual({key: str(item) for key, item in repeated.fields.items()}, values)
         self.core.translator.translate.side_effect = lambda text, *args, **kwargs: "Translated " + text

@@ -169,12 +169,18 @@ class ListingService:
             return draft
 
     async def draft(self, owner: str, draft_id: str) -> dict[str, Any]:
-        """Проверяет владельца, текущий аккаунт и срок жизни черновика."""
-        account = await self.core.account(owner)
+        """Проверяет доступ через Discord перед операцией с черновиком."""
+        await self.core.account(owner)
+        return self.draft_snapshot(owner, draft_id)
+
+    def draft_snapshot(self, owner: str, draft_id: str) -> dict[str, Any]:
+        """Читает актуальные поля для уже проверенного личного окна без сетевого ожидания."""
+        account = self.store.get("account", owner)
         draft = self.store.get("listing_draft", draft_id)
         if not draft:
             raise ValueError("Черновик больше недоступен. Начни новое объявление.")
-        if draft["owner_id"] != owner or draft["account"] != account["username"]:
+        if (not account or not account.get("secret") or draft["owner_id"] != owner
+                or draft["account"] != account["username"]):
             raise PermissionError("Это не твой черновик или подключён другой UEX.")
         return draft
 

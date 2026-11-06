@@ -467,6 +467,28 @@ class TraderBot(discord.Client):
                 "id": owner, "owner_id": owner,
             }
 
+    async def on_interaction(self, interaction: discord.Interaction) -> None:
+        """Подтверждает потерявшее обработчик личное нажатие, не повторяя его действие."""
+        if interaction.type != discord.InteractionType.component:
+            return
+        custom_id = (interaction.data or {}).get("custom_id", "")
+        if (not custom_id.startswith("scdt:private:") or interaction.response.is_done()
+                or interaction.extras.get("scdt_private_handled")):
+            return
+        message_id = interaction.message.id if interaction.message else None
+        view = EphemeralView._active.get(message_id)
+        if view and view.is_finished():
+            view = None
+        if view and any(getattr(child, "custom_id", None) == custom_id for child in view.children):
+            return
+        if not self.interaction_allowed(interaction) or (view and view.bot is not self):
+            return
+        LOGGER.warning("Нажатие устаревшего личного окна message=%s current_screen=%s", message_id,
+                       type(view).__name__ if view else "expired")
+        text = ("Это окно обновилось. Повтори нажатие на текущей карточке." if view else
+                "Это окно устарело. Открой /меню заново.")
+        await notice(interaction, text)
+
     async def remind_hosting(self) -> None:
         """Пишет владельцу за три, два и один день до указанной даты, не проверяя оплату хостинга."""
         reminder = self._hosting_reminder

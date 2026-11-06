@@ -54,6 +54,7 @@ class EphemeralView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Обновляет токен очистки при нажатии на действующее личное окно."""
         if self._private:
+            interaction.extras["scdt_private_handled"] = True
             self.prepare_private(interaction)
         return True
 

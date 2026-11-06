@@ -282,12 +282,13 @@ class DraftView(PersonalView):
 
     async def conditions(self, interaction: discord.Interaction) -> None:
         """Открывает форму количества, цены, качества, места и описания."""
-        current = await self.bot.listings.draft(self.owner, self.draft["id"])
+        current = self.bot.listings.draft_snapshot(self.owner, self.draft["id"])
         await interaction.response.send_modal(ConditionsModal(self.bot, current))
 
     async def photo(self, interaction: discord.Interaction) -> None:
         """Открывает штатную загрузку фото в личной форме Discord."""
-        await interaction.response.send_modal(PhotoModal(self.bot, self.draft))
+        current = self.bot.listings.draft_snapshot(self.owner, self.draft["id"])
+        await interaction.response.send_modal(PhotoModal(self.bot, current))
 
     async def visibility(self, interaction: discord.Interaction) -> None:
         """Меняет видимость будущей карточки, не публикуя её."""
@@ -351,7 +352,7 @@ class RetryConditions(PersonalView):
 
     async def retry(self, interaction: discord.Interaction) -> None:
         """Открывает введённые значения с актуальной версией того же черновика."""
-        current = await self.bot.listings.draft(self.owner, self.draft["id"])
+        current = self.bot.listings.draft_snapshot(self.owner, self.draft["id"])
         await interaction.response.send_modal(ConditionsModal(self.bot, current, values=self.values))
 
 

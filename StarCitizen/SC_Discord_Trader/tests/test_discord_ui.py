@@ -74,6 +74,7 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
             return SimpleNamespace(id=message_id)
 
         return SimpleNamespace(
+            extras={},
             message=SimpleNamespace(id=message_id, flags=SimpleNamespace(ephemeral=True)) if source else None,
             response=SimpleNamespace(is_done=Mock(return_value=deferred),
                                      send_message=AsyncMock(side_effect=response), edit_message=AsyncMock(side_effect=response)),
@@ -110,6 +111,45 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         self.client._connection._view_store.dispatch_view(2, new.children[0].custom_id, second)
         await asyncio.wait_for(clicked.wait(), 1)
         new.children[0].callback.assert_awaited_once_with(second)
+
+    async def test_stale_component_gets_private_notice_without_replaying_or_double_acknowledgement(self):
+        """SDK молча теряет старый custom_id; бот поясняет смену экрана и не исполняет действие повторно."""
+        async with TraderBot(Settings(), Mock()) as bot:
+            bot.interaction_allowed = Mock(return_value=True)
+            old, new = self.view(bot=bot), self.view(bot=bot)
+            old.children[0].callback = AsyncMock()
+            await render(self.interaction(), view=old)
+            await render(self.interaction(source=True), view=new)
+            click = self.interaction(source=True)
+            click.type = discord.InteractionType.component
+            click.data = {"custom_id": old.children[0].custom_id}
+            click.response.send_message = AsyncMock()
+            self.client._connection._view_store.dispatch_view(2, click.data["custom_id"], click)
+            await asyncio.sleep(0)
+            old.children[0].callback.assert_not_awaited()
+            click.response.send_message.assert_not_awaited()
+            with self.assertLogs("trader.discord_bot", level="WARNING"):
+                await bot.on_interaction(click)
+            click.response.send_message.assert_awaited_once()
+            self.assertTrue(click.response.send_message.await_args.kwargs["ephemeral"])
+            self.assertIn("обновилось", click.response.send_message.await_args.args[0])
+            click.response.send_message.reset_mock()
+            click.data["custom_id"] = new.children[0].custom_id
+            await bot.on_interaction(click)
+            click.response.send_message.assert_not_awaited()
+            click.data["custom_id"] = old.children[0].custom_id
+            click.extras["scdt_private_handled"] = True
+            await bot.on_interaction(click)
+            click.response.send_message.assert_not_awaited()
+            click.extras.clear()
+            bot.interaction_allowed.return_value = False
+            await bot.on_interaction(click)
+            click.response.send_message.assert_not_awaited()
+            bot.interaction_allowed.return_value = True
+            new.stop()
+            with self.assertLogs("trader.discord_bot", level="WARNING"):
+                await bot.on_interaction(click)
+            self.assertIn("/меню", click.response.send_message.await_args.args[0])
 
     async def test_render_waits_for_cleanup_already_in_flight(self):
         """Если очистка началась первой, новый экран устанавливается после неё."""
@@ -181,6 +221,7 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         second.user = SimpleNamespace(id=123)
         await render(first, view=view)
         self.assertTrue(await view.interaction_check(second))
+        self.assertTrue(second.extras["scdt_private_handled"])
         await view.on_timeout()
         first.edit_original_response.assert_not_awaited()
         second.edit_original_response.assert_awaited_once_with(view=None)
