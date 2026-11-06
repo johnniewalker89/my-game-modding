@@ -50,8 +50,6 @@ def listing_payload(draft: dict[str, Any]) -> dict[str, Any]:
     title = re.sub(r"[^A-Za-z0-9 -]", " ", f"{prefix} {name}{quality} - {draft['quantity']} {draft['unit']}")
     description = (f"{prefix} {name}. Quantity: {draft['quantity']} {draft['unit']}.\n"
                    f"Quality: {draft['quality'] if draft['quality'] is not None else 'not specified'}.\n"
-                   f"Price: {draft['price']} UEC per {draft['unit']}; "
-                   f"{draft['price'] * draft['quantity']} UEC total.\n"
                    f"Trade location: {location}.\n{draft['description_en']}").strip()
     payload = {"id_category": draft["item"]["id_category"], "id_item": draft["item"]["id"],
                "operation": draft["operation"], "type": "item", "language": "en_US",

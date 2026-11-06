@@ -206,7 +206,8 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         request = self.writes()[0]
         body = json.loads(request.content)
         self.assertEqual((body["quality"], body["in_stock"], body["price"], body["unit"]), (958, 2, 30000000, "scu"))
-        self.assertIn("60000000 UEC total", body["description"])
+        self.assertNotIn("Price:", body["description"])
+        self.assertNotIn("UEC total", body["description"])
         self.assertEqual(base64.b64decode(body["image_data"]), PNG)
         self.assertEqual(request.headers["secret-key"], "secret-one")
         self.assertEqual(request.headers["Authorization"], "Bearer application-one")
@@ -259,7 +260,7 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         draft = await self.service.edit("demo-1", draft["id"], draft["revision"], {"conditions": values})
         body = listing_payload(draft)
         self.assertEqual(body["location"], "By arrangement")
-        self.assertIn("65000000 UEC total", body["description"])
+        self.assertIn("Quantity: 13 scu.", body["description"])
         draft = await self.service.edit("demo-1", draft["id"], draft["revision"],
                                         {"conditions": {**values, "location": "Ориса, по договорённости"}})
         self.assertEqual(listing_payload(draft)["location"], "Ориса, по договорённости")
@@ -450,7 +451,8 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         embed = draft_embed(draft, preview=True).to_dict()
         self.assertIn("Q958", embed["title"])
         self.assertEqual(embed["description"], listing_payload(draft)["description"])
-        self.assertIn("60000000", embed["description"])
+        self.assertNotIn("Price:", embed["description"])
+        self.assertIn({"inline": True, "name": "Всего", "value": "60 000 000 UEC"}, embed["fields"])
         self.assertEqual(len(PreviewView(bot, draft).children), 3)
 
     async def test_conditions_open_current_revision_after_a_setting_changes(self):
