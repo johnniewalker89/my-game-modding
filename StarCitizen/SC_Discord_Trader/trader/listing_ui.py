@@ -70,11 +70,12 @@ class PersonalView(EphemeralView):
         await report_error(interaction, error)
 
     def button(self, label: str, callback, *, row: int, disabled: bool = False,
-               style: discord.ButtonStyle = discord.ButtonStyle.secondary) -> None:
-        """Добавляет кнопку действия в указанную строку мастера."""
+               style: discord.ButtonStyle = discord.ButtonStyle.secondary) -> discord.ui.Button:
+        """Добавляет кнопку с подписью и обработчиком в строку мастера и возвращает её."""
         button = discord.ui.Button(label=label, row=row, disabled=disabled, style=style)
         button.callback = callback
         self.add_item(button)
+        return button
 
     def menu_button(self, row: int = 4) -> None:
         """Возвращает личную панель в том же сообщении."""
@@ -233,28 +234,37 @@ def draft_embed(draft: dict[str, Any], *, preview: bool = False) -> discord.Embe
 
 
 async def show_draft(bot: "TraderBot", interaction: discord.Interaction, draft: dict[str, Any], *, preview: bool = False) -> None:
-    """Показывает черновик и сохраняет уже загруженное личное превью фото между шагами."""
+    """Обновляет карточку draft, сохраняя кнопки того же черновика и загруженное фото."""
     embed = draft_embed(draft, preview=preview)
+    source = getattr(interaction, "message", None)
     attachments: list = []
     if draft.get("photo"):
         data = base64.b64decode(draft["photo"])
         suffix = ".png" if data.startswith(b"\x89PNG") else ".jpg"
         filename = "listing-" + hashlib.sha256(data).hexdigest()[:16] + suffix
-        existing = next((a for a in (interaction.message.attachments if interaction.message else []) if a.filename == filename), None)
+        existing = next((a for a in (source.attachments if source else []) if a.filename == filename), None)
         attachments = [existing or discord.File(io.BytesIO(data), filename=filename)]
         embed.set_image(url="attachment://" + filename)
+    message_id = getattr(source, "id", None)
+    current = EphemeralView._active.get(message_id)
+    if (not preview and isinstance(current, DraftView) and not current.is_finished() and current.bot is bot
+            and current.owner == draft["owner_id"] and current.draft["id"] == draft["id"]):
+        current.refresh(draft)
+        view = current
+    else:
+        view = PreviewView(bot, draft) if preview else DraftView(bot, draft)
     await render(interaction, content="Проверь карточку перед отправкой." if preview else "Твоё объявление · пока черновик",
-                 embed=embed, attachments=attachments,
-                 view=PreviewView(bot, draft) if preview else DraftView(bot, draft))
+                 embed=embed, attachments=attachments, view=view)
 
 
 class DraftView(PersonalView):
     """Настройки карточки без записи на UEX."""
 
     def __init__(self, bot: "TraderBot", draft: dict[str, Any]):
-        """Привязывает элементы к версии показанного черновика."""
+        """Создаёт элементы для draft; их обработчики сохраняются при обновлении того же черновика."""
         super().__init__(bot, draft["owner_id"])
         self.draft = draft
+        self._selections: dict[str, discord.ui.Select] = {}
         for field, options, placeholder, row in (
             ("operation", OPERATIONS, "Купить / продать / обменять", 0),
             ("unit", UNITS, "Единицы количества и цены", 1),
@@ -264,11 +274,20 @@ class DraftView(PersonalView):
                 label=label, value=value, default=str(draft[field]) == value) for value, label in options.items()])
             select.callback = self.selection_callback(field, select)
             self.add_item(select)
+            self._selections[field] = select
         self.button("Условия", self.conditions, row=3, style=discord.ButtonStyle.primary)
         self.button("Фото", self.photo, row=3)
-        self.button("Сделать обычным" if draft["hidden"] else "Сделать скрытым", self.visibility, row=3)
+        self._visibility = self.button("Сделать обычным" if draft["hidden"] else "Сделать скрытым", self.visibility, row=3)
         self.button("Предпросмотр", self.preview, row=4, style=discord.ButtonStyle.success)
         self.menu_button(4)
+
+    def refresh(self, draft: dict[str, Any]) -> None:
+        """Показывает свежие поля того же draft без замены уже видимых кнопок."""
+        self.draft = draft
+        for field, select in self._selections.items():
+            for option in select.options:
+                option.default = str(draft[field]) == option.value
+        self._visibility.label = "Сделать обычным" if draft["hidden"] else "Сделать скрытым"
 
     def selection_callback(self, field: str, select: discord.ui.Select):
         """Создаёт обработчик одного значения списка без доверия к произвольным полям."""

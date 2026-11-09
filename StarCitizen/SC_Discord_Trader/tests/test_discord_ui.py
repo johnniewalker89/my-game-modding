@@ -12,7 +12,7 @@ from trader.config import Settings
 from trader.discord_bot import DisconnectView, PanelView, TraderBot
 from trader.discord_health import DiscordBackoff
 from trader.discord_ui import EphemeralView, close_private_views, render
-from trader.listing_ui import ListingsHome
+from trader.listing_ui import DraftView, ListingsHome, show_draft
 
 
 class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
@@ -150,6 +150,64 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
             with self.assertLogs("trader.discord_bot", level="WARNING"):
                 await bot.on_interaction(click)
             self.assertIn("/меню", click.response.send_message.await_args.args[0])
+
+    async def test_draft_refresh_keeps_visible_buttons_dispatchable(self):
+        """Условия, фото и предпросмотр принимают первое нажатие по кнопкам до обновления черновика."""
+        draft = {"id": "draft-fixture", "owner_id": "123", "revision": 0,
+                 "item": {"id": 1, "id_category": 3, "name": "TAU Plus LL 4x Telescopic"},
+                 "operation": "sell", "unit": "unit",
+                 "hours": 0, "quantity": 5, "price": 100, "quality": None, "location": "Area18",
+                 "hidden": False, "photo": None, "description_ru": "", "description_en": ""}
+        async with TraderBot(Settings(), Mock()) as bot:
+            bot.interaction_allowed = Mock(return_value=True)
+            bot.listings = SimpleNamespace(draft_snapshot=Mock(), review=AsyncMock(), mode="production")
+            view = DraftView(bot, draft)
+            self.views.append(view)
+            await render(self.interaction(), view=view)
+            visible_ids = {item.label: item.custom_id for item in view.children if isinstance(item, discord.ui.Button)}
+            for revision, label in enumerate(("Условия", "Фото"), start=1):
+                with self.subTest(button=label):
+                    current = {**draft, "revision": revision, "hours": 24, "hidden": True}
+                    bot.listings.draft_snapshot.return_value = current
+                    await show_draft(bot, self.interaction(source=True), current)
+                    self.views.append(self.visible[10])
+                    click = self.interaction(source=True)
+                    click.user = SimpleNamespace(id=123)
+                    click.type = discord.InteractionType.component
+                    click.data = {"custom_id": visible_ids[label], "component_type": 2}
+                    opened = asyncio.Event()
+                    click.response.send_modal = AsyncMock(side_effect=lambda modal: opened.set())
+                    click.response.send_message = AsyncMock()
+                    self.client._connection._view_store.dispatch_view(2, click.data["custom_id"], click)
+                    await bot.on_interaction(click)
+                    await asyncio.wait_for(opened.wait(), 1)
+                    click.response.send_modal.assert_awaited_once()
+                    self.assertEqual(click.response.send_modal.await_args.args[0].draft["revision"], revision)
+                    click.response.send_message.assert_not_awaited()
+                    active = self.visible[10]
+                    self.assertTrue(next(item for item in active.children if isinstance(item, discord.ui.Select)).options[1].default)
+                    self.assertIn("Сделать обычным", [getattr(item, "label", "") for item in active.children])
+            bot.listings.review.return_value = current
+            preview_click = self.interaction(source=True, deferred=True)
+            preview_click.user = SimpleNamespace(id=123)
+            preview_click.type = discord.InteractionType.component
+            preview_click.data = {"custom_id": visible_ids["Предпросмотр"], "component_type": 2}
+            preview_click.response.defer = AsyncMock()
+            preview_shown = asyncio.Event()
+            original_edit = preview_click.edit_original_response.side_effect
+
+            async def show_preview(**values):
+                """Сигнализирует о показе предпросмотра после регистрации его компонентов SDK."""
+                result = await original_edit(**values)
+                preview_shown.set()
+                return result
+
+            preview_click.edit_original_response.side_effect = show_preview
+            self.client._connection._view_store.dispatch_view(2, preview_click.data["custom_id"], preview_click)
+            await bot.on_interaction(preview_click)
+            await asyncio.wait_for(preview_shown.wait(), 1)
+            bot.listings.review.assert_awaited_once_with("123", draft["id"], current["revision"])
+            self.views.append(self.visible[10])
 
     async def test_render_waits_for_cleanup_already_in_flight(self):
         """Если очистка началась первой, новый экран устанавливается после неё."""

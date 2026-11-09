@@ -34,7 +34,7 @@ def number(value: str, label: str, *, minimum: int = 0) -> int:
 
 
 def listing_payload(draft: dict[str, Any]) -> dict[str, Any]:
-    """Собирает только разрешённые поля из проверенного черновика, без режима записи."""
+    """Собирает поля UEX из черновика; количество передаёт только как запас in_stock."""
     if draft["price"] is None:
         raise ValueError("Заполни количество и цену в «Условиях».")
     location = draft.get("location", "").strip() or DEFAULT_LOCATION
@@ -47,8 +47,8 @@ def listing_payload(draft: dict[str, Any]) -> dict[str, Any]:
     prefix = OPERATIONS[draft["operation"]].split(" · ")[0]
     quality = f" Q{draft['quality']}" if draft["quality"] is not None else ""
     name = draft["item"]["name"]
-    title = re.sub(r"[^A-Za-z0-9 -]", " ", f"{prefix} {name}{quality} - {draft['quantity']} {draft['unit']}")
-    description = (f"{prefix} {name}. Quantity: {draft['quantity']} {draft['unit']}.\n"
+    title = re.sub(r"[^A-Za-z0-9 -]", " ", f"{prefix} {name}{quality}")
+    description = (f"{prefix} {name}.\n"
                    f"Quality: {draft['quality'] if draft['quality'] is not None else 'not specified'}.\n"
                    f"Trade location: {location}.\n{draft['description_en']}").strip()
     payload = {"id_category": draft["item"]["id_category"], "id_item": draft["item"]["id"],

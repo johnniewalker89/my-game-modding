@@ -206,6 +206,8 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         request = self.writes()[0]
         body = json.loads(request.content)
         self.assertEqual((body["quality"], body["in_stock"], body["price"], body["unit"]), (958, 2, 30000000, "scu"))
+        self.assertEqual(body["title"], "WTB Copper Q958")
+        self.assertNotIn("Quantity:", body["description"])
         self.assertNotIn("Price:", body["description"])
         self.assertNotIn("UEC total", body["description"])
         self.assertEqual(base64.b64decode(body["image_data"]), PNG)
@@ -260,7 +262,9 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
         draft = await self.service.edit("demo-1", draft["id"], draft["revision"], {"conditions": values})
         body = listing_payload(draft)
         self.assertEqual(body["location"], "By arrangement")
-        self.assertIn("Quantity: 13 scu.", body["description"])
+        self.assertEqual(body["title"], "WTB Copper")
+        self.assertEqual(body["in_stock"], 13)
+        self.assertNotIn("Quantity:", body["description"])
         draft = await self.service.edit("demo-1", draft["id"], draft["revision"],
                                         {"conditions": {**values, "location": "Ориса, по договорённости"}})
         self.assertEqual(listing_payload(draft)["location"], "Ориса, по договорённости")
