@@ -182,6 +182,18 @@ class UexMarketplace:
             raise MarketError("uex_invalid_listings")
         return data
 
+    async def offers(self, item_id: int) -> list[dict[str, Any]]:
+        """Читает продажи одного товара; сочетание фильтров даёт лимит UEX до 1000 строк."""
+        if type(item_id) is not int or item_id <= 0:
+            raise ValueError("Выбери товар из каталога UEX.")
+        data = await self._request("GET", "marketplace_listings", None,
+                                   params={"id_item": item_id, "operation": "sell"})
+        if data is None or data is False:
+            return []
+        if not isinstance(data, list) or not all(isinstance(row, dict) and "id" in row for row in data):
+            raise MarketError("uex_invalid_listings")
+        return data
+
     async def advertise(self, secret: str, payload: dict[str, Any], *, production: bool) -> dict[str, Any]:
         """Создаёт карточку один раз; режим объявлений независим от отправки сообщений."""
         data = await self._request("POST", "marketplace_advertise", secret,

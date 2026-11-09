@@ -947,7 +947,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         stranger = SimpleNamespace(user=SimpleNamespace(id=9999), response=response)
         self.assertFalse(await guide.interaction_check(stranger))
         self.assertIsNone(store.get("account", "1234"))
-        self.assertEqual([b.custom_id for b in PanelView(bot).children], ["scdt:connect", "scdt:deals", "scdt:listings"])
+        self.assertEqual([b.custom_id for b in PanelView(bot).children], ["scdt:connect", "scdt:deals", "scdt:listings", "scdt:search"])
         bot.start_account_scan("1234")
         bot.start_account_scan("1234")
         await asyncio.sleep(0)
@@ -1262,7 +1262,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await bot.setup_hook()
         import discord
         self.assertEqual({c.name for c in bot.tree.get_commands(guild=discord.Object(id=123))},
-                         {"подключить", "сделки", "отключить", "панель", "меню", "объявления", "статус", "подписка"})
+                         {"подключить", "сделки", "отключить", "панель", "меню", "объявления", "поиск", "статус", "подписка"})
         self.assertTrue(any(item.custom_id == "scdt:archive:persistent-deal"
                             for view in bot.persistent_views for item in view.children))
 

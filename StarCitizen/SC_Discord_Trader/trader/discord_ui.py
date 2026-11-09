@@ -87,9 +87,11 @@ class EphemeralView(discord.ui.View):
 
 
 async def render(interaction: discord.Interaction, *, content: str = "", view: discord.ui.View,
-                 embed: discord.Embed | None = None, attachments: list | None = None,
+                 embed: discord.Embed | None = None, embeds: list[discord.Embed] | None = None, attachments: list | None = None,
                  replace: bool = True) -> None:
-    """Обновляет личное окно с таймером; replace=False открывает новое вместо замены."""
+    """Обновляет личное окно с одной или несколькими карточками; replace=False открывает новое."""
+    if embed is not None and embeds is not None:
+        raise ValueError("Передай одну карточку или список карточек.")
     source = getattr(interaction, "message", None)
     source_private = getattr(getattr(source, "flags", None), "ephemeral", False)
     editing = interaction.response.is_done() or (replace and source_private)
@@ -99,8 +101,9 @@ async def render(interaction: discord.Interaction, *, content: str = "", view: d
         view._edit_lock if isinstance(view, EphemeralView) else asyncio.Lock())
     if isinstance(view, EphemeralView):
         view.prepare_private(interaction)
-    values: dict[str, Any] = {"content": content, "embed": embed, "view": view,
+    values: dict[str, Any] = {"content": content, "view": view,
                               "attachments": attachments or [], "allowed_mentions": discord.AllowedMentions.none()}
+    values.update({"embeds": embeds} if embeds is not None else {"embed": embed})
     async with lock:
         if interaction.response.is_done():
             result = await interaction.edit_original_response(**values)

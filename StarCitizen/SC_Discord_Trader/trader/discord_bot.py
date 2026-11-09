@@ -19,6 +19,7 @@ from trader.discord_health import DiscordBackoff, DiscordHttpHealth, retry_secon
 from trader.discord_ui import EphemeralView, close_private_views, render
 from trader.listings import ListingService
 from trader.listing_ui import ListingsHome, report_error
+from trader.search_ui import FindModal
 from trader.service import TraderService
 from trader.store import Store
 
@@ -33,6 +34,7 @@ def panel_text(send_mode: str) -> str:
     """Даёт короткие подсказки к кнопкам без повтора имени бота."""
     text = ("**Подключить UEX** — подключить свой аккаунт.\n"
             "**Мои сделки** — открыть свои переписки.\n"
+            "**Найти товар** — посмотреть продажи на UEX.\n"
             "**Объявления** — создать или удалить своё объявление.\n\n"
             "Чтобы вернуть панель, введи **/меню**.")
     if send_mode == "test":
@@ -200,6 +202,11 @@ class PanelView(EphemeralView):
     async def listings_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         """Открывает личный мастер объявлений после проверки подключения."""
         await self.bot.show_listings(interaction)
+
+    @discord.ui.button(label="Найти товар", custom_id="scdt:search")
+    async def search_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        """Сразу открывает личную форму поиска чужих предложений."""
+        await self.bot.begin_search(interaction)
 
 
 class DisconnectView(EphemeralView):
@@ -690,6 +697,18 @@ class TraderBot(discord.Client):
         except Exception as exc:
             await report_error(interaction, exc)
 
+    async def begin_search(self, interaction: discord.Interaction) -> None:
+        """Открывает форму без сетевого ожидания, проверив роль и наличие подключения."""
+        if not self.interaction_allowed(interaction):
+            await notice(interaction, "Нужна разрешённая роль на нашем сервере.")
+            return
+        owner = str(interaction.user.id)
+        account = self.store.get("account", owner)
+        if not account or not account.get("secret") or not account.get("app_token"):
+            await notice(interaction, "Сначала подключи свой аккаунт через «Подключить UEX» в /меню.")
+            return
+        await interaction.response.send_modal(FindModal(self, owner))
+
     async def show_deals(self, interaction: discord.Interaction) -> None:
         """Возвращает личный список по текущему подключённому аккаунту."""
         if not self.interaction_allowed(interaction):
@@ -727,6 +746,11 @@ class TraderBot(discord.Client):
         async def listings_command(interaction: discord.Interaction) -> None:
             """Открывает личный мастер без поиска общей панели."""
             await self.show_listings(interaction)
+
+        @self.tree.command(name="поиск", description="Найти продажи товара на UEX", guild=guild)
+        async def search_command(interaction: discord.Interaction) -> None:
+            """Открывает тот же личный поиск без обращения к общей панели."""
+            await self.begin_search(interaction)
 
         @self.tree.command(name="подключить", description="Подключить свой личный аккаунт UEX", guild=guild)
         async def connect_command(interaction: discord.Interaction) -> None:

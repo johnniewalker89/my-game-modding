@@ -306,7 +306,7 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         second.edit_original_response.assert_not_awaited()
         self.assertTrue(public.is_persistent())
         self.assertEqual([item.custom_id for item in public.children],
-                         ["scdt:connect", "scdt:deals", "scdt:listings"])
+                         ["scdt:connect", "scdt:deals", "scdt:listings", "scdt:search"])
         self.assertIs(EphemeralView._active[20], other)
 
     async def test_commands_and_panel_use_only_configured_channel_and_its_threads(self):
