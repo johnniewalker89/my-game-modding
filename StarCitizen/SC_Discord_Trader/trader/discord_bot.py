@@ -33,7 +33,7 @@ ACCESS_CACHE_SECONDS = 300
 def panel_text(send_mode: str) -> str:
     """Даёт короткие подсказки к кнопкам без повтора имени бота."""
     text = ("**Подключить UEX** — подключить свой аккаунт.\n"
-            "**Отключить UEX** — отключить свой аккаунт, сохранив переписки.\n"
+            "**Отключить UEX** — отключить свой аккаунт.\n"
             "**Мои сделки** — открыть свои переписки.\n"
             "**Найти товар** — посмотреть продажи на UEX.\n"
             "**Объявления** — создать или удалить своё объявление.\n\n"
@@ -190,7 +190,7 @@ class PanelView(EphemeralView):
         """Открывает подключение личного аккаунта после проверки роли."""
         await self.bot.begin_connect(interaction)
 
-    @discord.ui.button(label="Отключить UEX", style=discord.ButtonStyle.danger,
+    @discord.ui.button(label="Отключить UEX", style=discord.ButtonStyle.secondary,
                        custom_id="scdt:disconnect", row=0)
     async def disconnect_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         """Открывает личное подтверждение, не отключая аккаунт одним нажатием."""

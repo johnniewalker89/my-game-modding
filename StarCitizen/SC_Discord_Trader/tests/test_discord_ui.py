@@ -364,7 +364,7 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         self.views.append(public)
         self.assertEqual([[item["label"] for item in row["components"]] for row in public.to_components()],
                          [["Подключить UEX", "Отключить UEX"], ["Мои сделки", "Найти товар", "Объявления"]])
-        self.assertEqual(public.disconnect_button.style, discord.ButtonStyle.danger)
+        self.assertEqual(public.disconnect_button.style, discord.ButtonStyle.secondary)
         disconnect = next(item for item in panel.children if item.label == "Отключить UEX")
 
         interaction = self.interaction(source=True)
