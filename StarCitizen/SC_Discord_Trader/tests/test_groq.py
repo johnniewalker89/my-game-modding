@@ -23,6 +23,56 @@ def completion(text, finish_reason="stop"):
 class GroqTests(unittest.IsolatedAsyncioTestCase):
     """Проверяет настоящий адаптер и общие проверки защищённых значений."""
 
+    async def test_numeric_quantity_stays_exact_when_russian_would_use_a_word(self):
+        """Groq получает значение количества для смысла и возвращает маркер вместо склонённого числительного."""
+        def respond(request):
+            data = json.loads(json.loads(request.content)["messages"][1]["content"])
+            self.assertEqual(data["placeholders"], {"ZXQ0QXZ": "6"})
+            self.assertNotIn("6", data["text"])
+            return httpx.Response(200, json=completion("Отложите по ZXQ0QXZ образцов каждого вида, пожалуйста."))
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            translated = await Translator(client, "groq", "", groq_key="fixture").translate(
+                "Reserve 6 samples of every variant, please.", "en", "ru")
+        self.assertEqual(translated, "Отложите по 6 образцов каждого вида, пожалуйста.")
+
+    async def test_amount_quantity_units_and_time_keep_original_digits_and_format(self):
+        """Числа не меняются местами и восстанавливаются вместе с исходными разделителями."""
+        def respond(request):
+            data = json.loads(json.loads(request.content)["messages"][1]["content"])
+            self.assertEqual(list(data["placeholders"].values()), ["25,000", "aUEC", "2", "SCU", "19:30"])
+            return httpx.Response(200, json=completion(
+                "Цена ZXQ0QXZ ZXQ1QXZ за ZXQ2QXZ ZXQ3QXZ. Встреча в ZXQ4QXZ."))
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            translated = await Translator(client, "groq", "", groq_key="fixture").translate(
+                "Price 25,000 aUEC for 2 SCU. Meet at 19:30.", "en", "ru")
+        self.assertEqual(translated, "Цена 25,000 aUEC за 2 SCU. Встреча в 19:30.")
+
+    async def test_numeric_markers_cannot_be_lost_duplicated_reordered_or_augmented(self):
+        """Защита суммы/количества сохраняется; модель не может добавить ещё одно число."""
+        for output, code in (("ZXQ0QXZ", "protected_values_changed"),
+                             ("ZXQ0QXZ ZXQ0QXZ ZXQ1QXZ", "protected_values_changed"),
+                             ("ZXQ1QXZ ZXQ0QXZ", "protected_values_changed"),
+                             ("ZXQ0QXZ ZXQ1QXZ extra 999", "numeric_values_changed")):
+            with self.subTest(output=output):
+                async with httpx.AsyncClient(transport=httpx.MockTransport(
+                    lambda request: httpx.Response(200, json=completion(output)))) as client:
+                    with self.assertRaises(TranslationError) as raised:
+                        await Translator(client, "groq", "", groq_key="fixture").translate(
+                            "Reserve 8 samples for 46000.", "en", "ru")
+                self.assertEqual(raised.exception.code, code)
+
+    async def test_rejection_reasons_are_bounded_and_truncation_is_distinguishable(self):
+        """Диагностический код не содержит текст провайдера или сообщения участника."""
+        self.assertEqual(TranslationError("private fixture", code="private-fixture-code").code, "translation_failed")
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json=completion("private fixture", "length")))) as client:
+            with self.assertRaises(TranslationError) as raised:
+                await Translator(client, "groq", "", groq_key="fixture").translate("Fixture text", "en", "ru")
+        self.assertEqual(raised.exception.code, "output_truncated")
+        self.assertNotIn("private fixture", str(raised.exception))
+
     async def test_request_context_and_restored_names_numbers_and_units(self):
         """Контекст передаётся как данные, а ключ только в заголовке запроса."""
         def respond(request):
@@ -37,9 +87,10 @@ class GroqTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(data["context"], {"item": "Janalite", "quality": 964})
             self.assertEqual(data["source_language"], "ru")
             self.assertNotIn("Janalite", data["text"])
-            self.assertEqual(data["placeholders"], {"ZXQ0QXZ": "Seller", "ZXQ1QXZ": "Janalite", "ZXQ2QXZ": "aUEC"})
+            self.assertEqual(data["placeholders"], {"ZXQ0QXZ": "Seller", "ZXQ1QXZ": "Janalite", "ZXQ2QXZ": "964",
+                                                  "ZXQ3QXZ": "25000", "ZXQ4QXZ": "aUEC"})
             return httpx.Response(200, json=completion(
-                "Hi, ZXQ0QXZ! Is ZXQ1QXZ of quality 964 available for 25000 ZXQ2QXZ?"))
+                "Hi, ZXQ0QXZ! Is ZXQ1QXZ of quality ZXQ2QXZ available for ZXQ3QXZ ZXQ4QXZ?"))
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             result = await Translator(client, "groq", "http://unused", groq_key="test-groq-key").translate(
@@ -120,7 +171,7 @@ class GroqTests(unittest.IsolatedAsyncioTestCase):
             body = json.loads(request.content)
             data = json.loads(body["messages"][1]["content"])
             self.assertEqual(data["context"], {"item": "Janalite", "quality": None, "player_action": "WTB"})
-            return httpx.Response(200, json=completion("The price is 25000 ZXQ0QXZ."))
+            return httpx.Response(200, json=completion("The price is ZXQ0QXZ ZXQ1QXZ."))
 
         with tempfile.TemporaryDirectory() as temp:
             app = create_app(Settings(data_dir=Path(temp), translator="groq", groq_key="app-groq-key"),

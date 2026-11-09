@@ -20,6 +20,7 @@ GROQ_TRANSLATION_PROMPT = (
     "Interpret WTB/WTS/WTT as wanting to buy/sell/trade in the speaker's context; preserve reported speech. "
     "Keep every ZXQ...QXZ placeholder exactly once and in its original order. "
     "Use placeholder meanings to choose grammar, but output the placeholder tokens, not their values. "
+    "Placeholders also protect numeric quantities, prices and times; never spell their values out as words. "
     "Keep all numbers, their formatting and their order exactly as in the text; do not spell them out. "
     "Do not translate names or expand placeholders. Preserve the distinction between unit price and total price."
 )
@@ -46,6 +47,12 @@ def expand_trade_terms(text: str, source: str) -> str:
 class TranslationError(Exception):
     """Обозначает недоступность перевода без раскрытия текста запроса или ключа."""
 
+    def __init__(self, message: str = "Перевод недоступен", *, code: str = "translation_failed"):
+        """Сохраняет только разрешённый код причины для журнала, без пользовательского текста."""
+        super().__init__(message)
+        self.code = code if code in {"translation_failed", "provider_error", "incomplete_result",
+            "protected_values_changed", "numeric_values_changed", "output_truncated", "incomplete_completion"} else "translation_failed"
+
 
 class Translator:
     """Переводит через выбранный сервис с проверкой имён, чисел и единиц."""
@@ -68,12 +75,15 @@ class Translator:
         pattern = "|".join(re.escape(p) for p in literals)
         numbers = re.compile(r"[+-]?\d+(?:[.,:\u00a0 ]\d+)*")
         units = r"\b(?:aUEC|UEC|SCU|USD|EUR)\b"
-        tokens = re.compile(f"{pattern}|{units}" if pattern else units, re.IGNORECASE)
+        token_patterns = [pattern, units] if pattern else [units]
+        if self.provider == "groq":
+            token_patterns.append(numbers.pattern)
+        tokens = re.compile("|".join(token_patterns), re.IGNORECASE)
         if not re.search(r"[^\W\d_]", numbers.sub("", tokens.sub("", text))):
             return text
-        # Переводим фразу целиком: раздельный перевод вокруг цены теряет смысл
-        # «куплю ... за ...». Названия/единицы маскируем; числа и время оставляем
-        # в контексте, затем сверяем значения и восстанавливаем исходное написание.
+        # Переводим фразу целиком. Groq получает значения чисел в карте маркеров:
+        # это сохраняет смысл количества/цены и не позволяет заменить цифры словами.
+        # Провайдерам без такой карты оставляем числа в тексте и сверяем результат.
         prefix = "ZXQ"
         while prefix in text:
             prefix += "Z"
@@ -124,16 +134,16 @@ class Translator:
             LOGGER.warning("Переводчик недоступен provider=%s http=%s error_type=%s code=%s model=%s",
                            self.provider, status, type(exc).__name__, code,
                            self.groq_model if self.provider == "groq" else None)
-            raise TranslationError("Перевод недоступен; исходящий текст не отправлен") from exc
+            raise TranslationError("Перевод недоступен; исходящий текст не отправлен", code="provider_error") from exc
         if not isinstance(translations, list) or len(translations) != 1 or not all(
             isinstance(t, str) and t.strip() for t in translations
         ):
-            raise TranslationError("Переводчик вернул неполный результат")
+            raise TranslationError("Переводчик вернул неполный результат", code="incomplete_result")
         result = translations[0].strip()
         positions = []
         for marker, value in protected_values:
             if result.count(marker) != 1:
-                raise TranslationError("Переводчик изменил защищённые значения; сообщение не отправлено")
+                raise TranslationError("Переводчик изменил защищённые значения; сообщение не отправлено", code="protected_values_changed")
             positions.append(result.index(marker))
         def without_markers(value: str) -> str:
             for marker, _ in protected_values:
@@ -141,7 +151,7 @@ class Translator:
             return value
 
         if positions != sorted(positions) or prefix in without_markers(result):
-            raise TranslationError("Переводчик изменил защищённые значения; сообщение не отправлено")
+            raise TranslationError("Переводчик изменил защищённые значения; сообщение не отправлено", code="protected_values_changed")
         original_numbers = list(numbers.finditer(without_markers(fragments[0])))
         translated_numbers = list(numbers.finditer(without_markers(result)))
 
@@ -150,7 +160,7 @@ class Translator:
 
         if ([canonical(n.group()) for n in original_numbers]
                 != [canonical(n.group()) for n in translated_numbers]):
-            raise TranslationError("Переводчик изменил числа; сообщение не отправлено")
+            raise TranslationError("Переводчик изменил числа; сообщение не отправлено", code="numeric_values_changed")
         for original, translated in reversed(list(zip(original_numbers, translated_numbers, strict=True))):
             result = result[:translated.start()] + original.group() + result[translated.end():]
         for marker, value in protected_values:
@@ -178,5 +188,6 @@ class Translator:
         response.raise_for_status()
         choice = response.json()["choices"][0]
         if not isinstance(choice, dict) or choice.get("finish_reason") != "stop":
-            raise TranslationError("Переводчик не закончил ответ; сообщение не отправлено")
+            code = "output_truncated" if isinstance(choice, dict) and choice.get("finish_reason") == "length" else "incomplete_completion"
+            raise TranslationError("Переводчик не закончил ответ; сообщение не отправлено", code=code)
         return json.loads(choice["message"]["content"])["translation"]

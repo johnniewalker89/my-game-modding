@@ -368,10 +368,10 @@ class TraderService:
                 record["original"], "en", "ru", (deal["title"], deal["peer"]),
                 context={"item": deal["title"], "quality": deal.get("quality"),
                          "player_action": deal.get("trade_type")})
-        except TranslationError:
+        except TranslationError as exc:
             record["status"] = "translation_failed"
             self.store.put("message", record)
-            LOGGER.warning("Перевод входящего недоступен message=%s", record["id"])
+            LOGGER.warning("Перевод входящего недоступен message=%s reason=%s", record["id"], exc.code)
             return 0
         current = await self.account(account["owner_id"])
         if current["username"] != deal["account"]:

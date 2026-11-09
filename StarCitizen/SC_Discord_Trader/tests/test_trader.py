@@ -538,7 +538,10 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
                     self.store.put("remote_deal", remote_deal)
                 archive_count = len(self.sink.archived)
                 self.translator.fail = True
-                self.assertEqual(await self.core.scan("demo-1", force=True), 0)
+                with self.assertLogs("trader.service", level="WARNING") as logs:
+                    self.assertEqual(await self.core.scan("demo-1", force=True), 0)
+                self.assertIn("reason=translation_failed", " ".join(logs.output))
+                self.assertNotIn("Final", " ".join(logs.output))
                 saved = self.store.get("deal", deal["id"])
                 self.assertTrue(saved["own_closed"] or saved["peer_closed"])
                 self.assertFalse(saved.get("archived", False))
