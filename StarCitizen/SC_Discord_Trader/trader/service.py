@@ -420,8 +420,10 @@ class TraderService:
                 self.store.put("message", record)
                 record["remote_id"] = await self.market_for(account).send(account, self.vault.decrypt(account["secret"]),
                                                               deal["external_id"], record["translated"])
-            except TranslationError:
+            except TranslationError as exc:
                 record["status"] = "translation_failed"
+                record["error"] = exc.code
+                LOGGER.warning("Перевод исходящего не выполнен message=%s reason=%s", message_id, exc.code)
             except MarketError as exc:
                 record["status"] = "unknown" if exc.uncertain else "failed"
                 record["error"] = str(exc)

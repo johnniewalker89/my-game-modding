@@ -23,6 +23,20 @@ def completion(text, finish_reason="stop"):
 class GroqTests(unittest.IsolatedAsyncioTestCase):
     """Проверяет настоящий адаптер и общие проверки защищённых значений."""
 
+    async def test_alphanumeric_locations_and_model_names_are_protected_whole(self):
+        """Буквы, дефисы и цифры обозначения защищаются одним маркером, а не раздельно."""
+        def respond(request):
+            """Возвращает искусственные обозначения только через полученные маркеры."""
+            data = json.loads(json.loads(request.content)["messages"][1]["content"])
+            self.assertEqual(data["placeholders"], {"ZXQ0QXZ": "TEST-K8", "ZXQ1QXZ": "TestDrill-7",
+                "ZXQ2QXZ": "TestDrill-8", "ZXQ3QXZ": "C2"})
+            return httpx.Response(200, json=completion("Storage at ZXQ0QXZ: ZXQ1QXZ, ZXQ2QXZ and ZXQ3QXZ."))
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            translated = await Translator(client, "groq", "", groq_key="fixture").translate(
+                "Склад на TEST-K8: TestDrill-7, TestDrill-8 и C2.", "ru", "en")
+        self.assertEqual(translated, "Storage at TEST-K8: TestDrill-7, TestDrill-8 and C2.")
+
     async def test_numeric_quantity_stays_exact_when_russian_would_use_a_word(self):
         """Groq получает значение количества для смысла и возвращает маркер вместо склонённого числительного."""
         def respond(request):

@@ -70,13 +70,16 @@ class Translator:
 
     async def translate(self, text: str, source: str, target: str,
                         protected: tuple[str, ...] = (), *, context: dict[str, Any] | None = None) -> str:
-        """Переводит text, защищая protected и числа; context уточняет сделку для Groq."""
+        """Переводит text, защищая имена, числа и обозначения; context уточняет сделку для Groq."""
         literals = sorted({p for p in protected if p}, key=len, reverse=True)
         pattern = "|".join(re.escape(p) for p in literals)
         numbers = re.compile(r"[+-]?\d+(?:[.,:\u00a0 ]\d+)*")
         units = r"\b(?:aUEC|UEC|SCU|USD|EUR)\b"
         token_patterns = [pattern, units] if pattern else [units]
         if self.provider == "groq":
+            # Обозначение защищаем целиком: отдельный маркер цифры оставляет
+            # буквы локации/модели доступными для случайного изменения переводчиком.
+            token_patterns.append(r"\b(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*\b")
             token_patterns.append(numbers.pattern)
         tokens = re.compile("|".join(token_patterns), re.IGNORECASE)
         if not re.search(r"[^\W\d_]", numbers.sub("", tokens.sub("", text))):

@@ -305,10 +305,16 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
             await self.core.open_thread("demo-1", deal["id"])
 
     async def test_translation_failure_never_sends_original(self):
+        """Отказ перевода не отправляет оригинал и оставляет безопасную причину в записи и журнале."""
         deal = await self.make_deal()
-        self.translator.fail = True
-        result = await self.core.reply("demo-1", deal["id"], "no-translation", "Цена прежняя")
+        self.translator.translate = AsyncMock(side_effect=TranslationError("private fixture message", code="protected_values_changed"))
+        with self.assertLogs("trader.service", level="WARNING") as captured:
+            result = await self.core.reply("demo-1", deal["id"], "no-translation", "Цена прежняя")
         self.assertEqual(result["status"], "translation_failed")
+        self.assertEqual(result["error"], "protected_values_changed")
+        self.assertIn("reason=protected_values_changed", " ".join(captured.output))
+        self.assertNotIn("Цена прежняя", " ".join(captured.output))
+        self.assertNotIn("private fixture message", " ".join(captured.output))
         self.assertEqual(self.market.sends, 0)
 
     async def test_unknown_delivery_never_auto_repeats_after_restart(self):

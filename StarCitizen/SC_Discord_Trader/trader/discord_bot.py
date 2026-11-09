@@ -978,6 +978,10 @@ class TraderBot(discord.Client):
         labels = {"delivered": "UEX подтвердил запрос", "unknown": "Результат отправки неизвестен; автоповтор отключён",
                   "translation_failed": "Перевод недоступен, сообщение не отправлено", "failed": "UEX не подтвердил отправку"}
         label = labels.get(result["status"], "Обработка ещё не завершена")
+        if result["status"] == "translation_failed" and result.get("error") in {
+            "incomplete_result", "protected_values_changed", "numeric_values_changed", "output_truncated", "incomplete_completion"
+        }:
+            label = "Перевод не прошёл проверку точности, сообщение не отправлено"
         if self.settings.send_mode == "test":
             label = "🧪 Тестовый режим UEX · " + label
         feedback = label + ("\n" + result["translated"] if result["translated"] else "")

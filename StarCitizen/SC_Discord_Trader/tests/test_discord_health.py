@@ -111,6 +111,28 @@ class DiscordHealthTests(unittest.IsolatedAsyncioTestCase):
                             message.reply.assert_awaited_once()
                             self.assertIn("message=300", logs.output[0])
 
+    async def test_translation_validation_feedback_is_distinct_from_provider_unavailability(self):
+        """Владелец отличает отказ проверки перевода от недоступности провайдера; отправки не повторяются."""
+        with tempfile.TemporaryDirectory() as folder, closing(Store(Path(folder) / "state.sqlite3")) as store:
+            store.put("deal", {"id": "fixture", "owner_id": "123", "thread_id": "200"})
+            async with TraderBot(Settings(guild_id=1, channel_id=100), store) as bot:
+                message = Mock(id=300, guild=SimpleNamespace(id=1),
+                    channel=Mock(spec=discord.Thread, id=200, parent_id=100),
+                    author=SimpleNamespace(id=123, bot=False), attachments=[], content="Искусственный пример")
+                for reason, expected in (("provider_error", "недоступен"),
+                                         ("protected_values_changed", "проверку точности"),
+                                         ("output_truncated", "проверку точности")):
+                    with self.subTest(reason=reason):
+                        bot.service = SimpleNamespace(reply=AsyncMock(return_value={"status": "translation_failed",
+                            "translated": "", "error": reason}))
+                        message.reply = AsyncMock()
+                        await bot.on_message(message)
+                        bot.service.reply.assert_awaited_once()
+                        message.reply.assert_awaited_once()
+                        feedback = message.reply.await_args.args[0]
+                        self.assertIn(expected, feedback)
+                        self.assertIn("не отправлено", feedback)
+
     async def test_sdk_trace_counts_responses_without_retaining_private_urls_or_bodies(self):
         """Существующая сессия получает два ответа; счётчик не делает своих запросов."""
         async def reply(request):
