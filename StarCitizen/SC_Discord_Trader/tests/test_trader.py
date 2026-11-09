@@ -790,6 +790,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         thread = Mock(spec=discord.Thread)
         thread.parent_id = 456
         thread.is_private.return_value = True
+        thread.archived = False
         thread.locked = False
         thread.edit = AsyncMock()
         thread.delete = AsyncMock()
@@ -815,6 +816,19 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(discord.Forbidden):
                     await bot.archive({"thread_id": "888"})
             bot.fetch_channel.assert_awaited_once_with(888)
+
+    async def test_already_archived_thread_is_left_untouched_when_deal_closes(self):
+        """Закрытие сделки не открывает ручной архив и не вызывает запрещённый PATCH50083."""
+        for locked in (False, True):
+            bot = self.make_bot()
+            thread = Mock(spec=discord.Thread, id=888, parent_id=456)
+            thread.is_private.return_value = True
+            thread.archived, thread.locked = True, locked
+            thread.edit = AsyncMock(side_effect=discord.HTTPException(SimpleNamespace(status=400, reason="Bad Request"),
+                                        {"code": 50083, "message": "Thread is archived"}))
+            bot.fetch_channel = AsyncMock(return_value=thread)
+            await bot.archive({"thread_id": "888"})
+            thread.edit.assert_not_awaited()
 
     async def test_restore_only_unarchives_existing_unlocked_own_parent_thread(self):
         bot = self.make_bot()

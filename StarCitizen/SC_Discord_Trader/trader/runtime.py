@@ -121,7 +121,8 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
                             LOGGER.warning("UEX ограничил запросы: квота приложения owner=%s; следующая попытка при сверке", account["owner_id"])
                         else:
                             service.last_error = type(exc).__name__
-                            LOGGER.error("Сверка не выполнена owner=%s error_type=%s", account["owner_id"], type(exc).__name__)
+                            LOGGER.error("Сверка не выполнена owner=%s error_type=%s http=%s code=%s",
+                                         account["owner_id"], type(exc).__name__, getattr(exc, "status", None), getattr(exc, "code", None))
                 await asyncio.sleep(POLL_SECONDS)
 
         tasks = [asyncio.create_task(poll(), name="uex-poll")]

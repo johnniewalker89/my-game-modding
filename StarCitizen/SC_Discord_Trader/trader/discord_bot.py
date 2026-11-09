@@ -916,6 +916,9 @@ class TraderBot(discord.Client):
             raise PermissionError("Неверная приватная ветка для архива")
         if not locked and thread.locked:
             raise PermissionError("Ветка заблокирована: снять блокировку может модератор")
+        if thread.archived:
+            # Уже архивная ветка не требует повторного PATCH или открытия ради locked.
+            return
         await thread.edit(archived=True, locked=locked)
 
     async def _unarchive_thread(self, thread: discord.Thread) -> None:
