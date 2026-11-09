@@ -437,8 +437,8 @@ class TraderCommandTree(app_commands.CommandTree):
     async def on_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
         """Объясняет временную паузу Discord; остальные ошибки оставляет штатному обработчику."""
         original = getattr(error, "original", error)
-        if isinstance(original, DiscordBackoff):
-            await notice(interaction, str(original))
+        if isinstance(original, (DiscordBackoff, discord.RateLimited)):
+            await notice(interaction, str(DiscordBackoff(original.retry_after)))
             return
         await super().on_error(interaction, error)
 
@@ -452,13 +452,14 @@ class TraderBot(discord.Client):
         intents.message_content = True
         self.http_health = DiscordHttpHealth()
         super().__init__(intents=intents, max_messages=None, allowed_mentions=discord.AllowedMentions.none(),
-                         http_trace=self.http_health.trace)
+                         http_trace=self.http_health.trace, max_ratelimit_timeout=30)
         self.settings, self.store = settings, store
         self.service: TraderService
         self.listings: ListingService
         self.tree = TraderCommandTree(self)
         self._account_scan_tasks: dict[str, asyncio.Task] = {}
         self._access_cache: dict[str, tuple[float, bool]] = {}
+        self._thread_name_failures: dict[int, tuple[str, str, float]] = {}
         self.status_provider: Callable[[], dict[str, Any]] | None = None
         self._hosting_reminder = None
         if settings.hosting_reminder_user_id:
@@ -546,6 +547,8 @@ class TraderBot(discord.Client):
         """Читает свежую роль owner_id; временный429 не выдаёт за потерю доступа."""
         try:
             return await guild.fetch_member(int(owner_id))
+        except discord.RateLimited as exc:
+            raise DiscordBackoff(exc.retry_after) from None
         except discord.HTTPException as exc:
             if exc.status == 429:
                 delay = retry_seconds(exc.response.headers)
@@ -825,18 +828,22 @@ class TraderBot(discord.Client):
         if thread is not None:
             if not isinstance(thread, discord.Thread) or not thread.is_private() or thread.parent_id != parent.id:
                 raise PermissionError("Неверная приватная ветка")
-            if thread.name != trade_thread_name(deal):
-                await thread.edit(name=trade_thread_name(deal))
+            active = not thread.archived
             if thread.archived and not thread.locked and not (deal["own_closed"] or deal.get("peer_closed")):
                 await self._unarchive_thread(thread)
+                # SDK edit возвращает новый объект; прежний thread.archived не меняется.
+                active = True
+            if active:
+                await self._refresh_thread_name(thread, deal)
         else:
             thread = await parent.create_thread(name=trade_thread_name(deal), type=discord.ChannelType.private_thread,
                                                 invitable=False, auto_archive_duration=1440)
             deal["thread_id"] = str(thread.id)
             self.store.put("deal", deal)
-        if not deal.get("archived"):
+            active = True
+        if active and not deal.get("archived"):
             await thread.add_user(owner)
-        if not deal.get("card_sent"):
+        if active and not deal.get("card_sent"):
             view = DealView(self, deal)
             for piece in chunks(deal_card_text(deal)):
                 card = await thread.send(piece, view=view)
@@ -844,9 +851,32 @@ class TraderBot(discord.Client):
                     deal["card_message_id"] = str(card.id)
             deal["card_sent"] = True
             self.store.put("deal", deal)
-        elif not thread.archived and not thread.locked:
+        elif active and not thread.locked:
             await self._refresh_deal_card(thread, deal)
         return str(thread.id)
+
+    async def _refresh_thread_name(self, thread: discord.Thread, deal: dict[str, Any]) -> None:
+        """Обновляет только активную ветку; отказ названия не мешает доставке сообщений."""
+        wanted = trade_thread_name(deal)
+        failed = self._thread_name_failures.get(thread.id)
+        if thread.name == wanted:
+            self._thread_name_failures.pop(thread.id, None)
+            return
+        if failed and failed[:2] == (thread.name, wanted) and failed[2] > time.monotonic():
+            return
+        try:
+            await thread.edit(name=wanted)
+        except (discord.HTTPException, discord.RateLimited, DiscordBackoff) as exc:
+            retry = getattr(exc, "retry_after", None)
+            if retry is None and getattr(exc, "status", None) == 429:
+                retry = retry_seconds(exc.response.headers)
+            # Одинаковый ошибочный ввод400/403 не повторяется до изменения имени/перезапуска.
+            delay = retry if retry is not None else (float("inf") if getattr(exc, "status", 0) in {400, 403} else 60)
+            self._thread_name_failures[thread.id] = (thread.name, wanted, time.monotonic() + delay)
+            LOGGER.warning("Название ветки не обновлено thread=%s http=%s code=%s error_type=%s; доставка продолжается",
+                           thread.id, getattr(exc, "status", None), getattr(exc, "code", None), type(exc).__name__)
+        else:
+            self._thread_name_failures.pop(thread.id, None)
 
     async def _refresh_deal_card(self, thread: discord.Thread, deal: dict[str, Any]) -> None:
         """Обновляет прежнюю карточку в thread; отказ Discord не блокирует переписку."""
@@ -859,8 +889,9 @@ class TraderBot(discord.Client):
                 await card.edit(content=content, allowed_mentions=discord.AllowedMentions.none())
         except discord.NotFound:
             return
-        except discord.HTTPException as exc:
-            LOGGER.warning("Карточка не обновлена thread=%s http=%s", thread.id, exc.status)
+        except (discord.HTTPException, discord.RateLimited, DiscordBackoff) as exc:
+            LOGGER.warning("Карточка не обновлена thread=%s http=%s error_type=%s",
+                           thread.id, getattr(exc, "status", None), type(exc).__name__)
 
     async def incoming(self, deal: dict[str, Any], message: dict[str, Any]) -> str:
         """Отправляет message в уже подготовленную сервисом ветку deal, сохраняя авторство и оригинал."""
@@ -914,7 +945,7 @@ class TraderBot(discord.Client):
         """Отвечает на message; отказ Discord фиксирует без повторной отправки сообщения в UEX."""
         try:
             await message.reply(text, mention_author=False)
-        except (DiscordBackoff, discord.HTTPException) as exc:
+        except (DiscordBackoff, discord.RateLimited, discord.HTTPException) as exc:
             LOGGER.warning("Уведомление Discord не доставлено message=%s error_type=%s http=%s", message.id, type(exc).__name__, getattr(exc, "status", None))
 
     async def on_message(self, message: discord.Message) -> None:

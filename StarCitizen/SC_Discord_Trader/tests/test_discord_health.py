@@ -242,6 +242,38 @@ class DiscordHealthTests(unittest.IsolatedAsyncioTestCase):
                             self.assertNotIn("paused_until", bot.http_health.snapshot())
                         self.assertGreater(len(calls), wire_calls)
 
+    async def test_shared_channel_limit_does_not_sleep_for_minutes_or_block_another_channel(self):
+        """Настоящий SDK отдаёт длинный429 сразу; повтор того же PATCH ждёт Retry-After без сетевых вызовов."""
+        calls = []
+
+        async def reply(request):
+            """Имитирует shared sublimit Discord только на одном канале."""
+            calls.append((request.method, request.path))
+            if request.method == "PATCH":
+                return web.Response(body=json.dumps({"message": "The resource is being rate limited.",
+                    "retry_after": 90.0, "global": False}).encode(), status=429, content_type="application/json",
+                    headers={"Retry-After": "90", "X-RateLimit-Scope": "shared", "Via": "fixture",
+                             "X-RateLimit-Bucket": "fixture-bucket", "X-RateLimit-Limit": "10",
+                             "X-RateLimit-Remaining": "9", "X-RateLimit-Reset-After": "15"})
+            return web.Response(body=json.dumps({"id": "100" if request.path.endswith("@me") else "201"}).encode(),
+                                content_type="application/json")
+
+        app = web.Application()
+        app.router.add_route("*", "/{path:.*}", reply)
+        async with TraderBot(Settings(), Mock()) as bot, TestServer(app) as server:
+            with patch("discord.http.Route.BASE", str(server.make_url("/api/v10"))):
+                await bot.http.static_login("private-fixture-token")
+                with self.assertLogs("trader.discord_health", level="WARNING"):
+                    with self.assertRaises(discord.RateLimited) as limited:
+                        await asyncio.wait_for(bot.http.edit_channel(200, name="New title"), 1)
+                self.assertEqual(limited.exception.retry_after, 90)
+                for _ in range(3):
+                    with self.assertRaises((DiscordBackoff, discord.RateLimited)):
+                        await asyncio.wait_for(bot.http.edit_channel(200, name="New title"), 1)
+                self.assertEqual(sum(method == "PATCH" for method, path in calls), 1)
+                self.assertEqual((await bot.http.get_channel(201))["id"], "201")
+                self.assertEqual(bot.http_health.snapshot()["errors"], {"429": 1})
+
     async def test_interaction_trace_separates_age_before_request_and_http_duration(self):
         """Реальные callback-запросы сохраняют оба замера при HTTP- и сетевом отказе."""
         async def reply(request):

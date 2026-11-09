@@ -26,7 +26,9 @@ STATUSES = {"created": "Создано · проверь модерацию", "a
 
 async def report_error(interaction: discord.Interaction, error: Exception) -> None:
     """Показывает безопасную причину, отдельно предупреждая о неизвестном результате записи."""
-    if isinstance(error, (ValueError, PermissionError, DiscordBackoff)):
+    if isinstance(error, discord.RateLimited):
+        text = str(DiscordBackoff(error.retry_after))
+    elif isinstance(error, (ValueError, PermissionError, DiscordBackoff)):
         text = str(error)
     elif isinstance(error, MarketError) and error.uncertain:
         text = "UEX не подтвердил результат. Запрос мог выполниться: проверь свои объявления на сайте. Автоматического повтора не будет."

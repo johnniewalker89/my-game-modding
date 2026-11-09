@@ -707,6 +707,84 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 thread.edit.assert_awaited_once_with(archived=False)
                 self.assertIn("Ветка возвращена из архива", thread.send.await_args.args[0])
 
+    async def test_archived_thread_with_changed_title_opens_before_rename_and_delivery(self):
+        """Контракт Discord отклоняет rename архивной ветки; SDK edit не меняет прежний объект."""
+        bot = self.make_bot()
+        owner = SimpleNamespace(roles=[SimpleNamespace(id=789)])
+        parent = Mock(spec=discord.TextChannel, id=456)
+        parent.guild = SimpleNamespace(id=123, fetch_member=AsyncMock(return_value=owner))
+        thread = Mock(spec=discord.Thread, id=888, parent_id=456)
+        thread.is_private.return_value = True
+        thread.archived, thread.locked, thread.name = True, False, "Old title"
+        remote = {"archived": True, "name": thread.name}
+        edits = []
+
+        async def edit(**changes):
+            """Повторяет реальный отказ API без записи в Discord."""
+            if remote["archived"] and "name" in changes and changes.get("archived") is not False:
+                raise discord.HTTPException(SimpleNamespace(status=400, reason="Bad Request"),
+                                            {"code": 50083, "message": "Thread is archived"})
+            edits.append(changes)
+            remote.update(changes)
+            return Mock(spec=discord.Thread, id=888, parent_id=456, **remote)
+
+        thread.edit = AsyncMock(side_effect=edit)
+        thread.add_user, thread.send = AsyncMock(), AsyncMock()
+        bot.fetch_channel = AsyncMock(side_effect=lambda channel_id: parent if channel_id == 456 else thread)
+        deal = {"id": "d", "owner_id": "1234", "title": "Janalite", "peer": "Seller",
+                "own_closed": False, "peer_closed": False, "paused": True,
+                "thread_id": "888", "card_sent": True}
+        self.assertEqual(await bot.thread(deal), "888")
+        self.assertEqual(edits, [{"archived": False}, {"name": trade_thread_name(deal)}])
+        self.assertFalse(remote["archived"])
+        self.assertTrue(thread.archived)
+        deal["account"] = "Owner"
+        await bot.incoming(deal, {"id": "incoming-fixture", "translated": "Перевод"})
+        self.assertIn("Перевод", thread.send.await_args.args[0])
+
+    async def test_closed_or_locked_archive_is_not_renamed_or_given_new_members(self):
+        """Обновление заголовка закрытой/заблокированной архивной ветки не вызывает PATCH или add-user."""
+        for closed, locked in ((True, False), (False, True)):
+            bot = self.make_bot()
+            owner = SimpleNamespace(roles=[SimpleNamespace(id=789)])
+            parent = Mock(spec=discord.TextChannel, id=456)
+            parent.guild = SimpleNamespace(id=123, fetch_member=AsyncMock(return_value=owner))
+            thread = Mock(spec=discord.Thread, id=888, parent_id=456)
+            thread.is_private.return_value = True
+            thread.archived, thread.locked, thread.name = True, locked, "Old title"
+            thread.edit, thread.add_user, thread.send = AsyncMock(), AsyncMock(), AsyncMock()
+            bot.fetch_channel = AsyncMock(side_effect=[parent, thread])
+            deal = {"id": "d", "owner_id": "1234", "title": "Janalite", "peer": "Seller",
+                    "own_closed": closed, "peer_closed": False, "thread_id": "888", "card_sent": True}
+            await bot.thread(deal)
+            thread.edit.assert_not_awaited()
+            thread.add_user.assert_not_awaited()
+            thread.send.assert_not_awaited()
+
+    async def test_failed_cosmetic_rename_does_not_block_messages_or_repeat_same_bad_request(self):
+        """Недоступное название не блокирует переписку; одинаковый400 не отправляется каждый опрос."""
+        bot = self.make_bot()
+        owner = SimpleNamespace(roles=[SimpleNamespace(id=789)])
+        parent = Mock(spec=discord.TextChannel, id=456)
+        parent.guild = SimpleNamespace(id=123, fetch_member=AsyncMock(return_value=owner))
+        thread = Mock(spec=discord.Thread, id=888, parent_id=456)
+        thread.is_private.return_value = True
+        thread.archived, thread.locked, thread.name = False, False, "Old title"
+        thread.edit = AsyncMock(side_effect=discord.HTTPException(SimpleNamespace(status=400, reason="Bad Request"),
+                                                                 {"code": 50035, "message": "private-fixture"}))
+        thread.add_user, thread.send = AsyncMock(), AsyncMock()
+        bot.fetch_channel = AsyncMock(side_effect=lambda channel_id: parent if channel_id == 456 else thread)
+        deal = {"id": "d", "owner_id": "1234", "title": "Janalite", "peer": "Seller",
+                "own_closed": False, "thread_id": "888", "card_sent": True}
+        with self.assertLogs("trader.discord_bot", level="WARNING") as logs:
+            self.assertEqual(await bot.thread(deal), "888")
+        self.assertNotIn("private-fixture", str(logs.output))
+        self.assertEqual(await bot.thread(deal), "888")
+        thread.edit.assert_awaited_once()
+        deal["account"] = "Owner"
+        await bot.incoming(deal, {"id": "incoming-fixture", "translated": "Перевод"})
+        self.assertIn("Перевод", thread.send.await_args.args[0])
+
     async def test_archive_locks_private_thread_without_deleting_or_recreating_it(self):
         bot = self.make_bot()
         thread = Mock(spec=discord.Thread)
