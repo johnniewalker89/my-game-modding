@@ -648,8 +648,16 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         bot = self.make_bot()
         bot.tree.sync = AsyncMock(return_value=[])
         channel = Mock(spec=discord.TextChannel)
+        channel.id = 456
         channel.guild.id = 123
-        channel.send = AsyncMock()
+        channel.send = AsyncMock(return_value=SimpleNamespace(id=999))
+
+        async def empty_history(**kwargs):
+            """Даёт пустую историю для размещения первой панели администратором."""
+            for message in ():
+                yield message
+
+        channel.history = Mock(side_effect=empty_history)
         bot.fetch_channel = AsyncMock(return_value=channel)
         await bot.setup_hook()
         command = bot.tree.get_command("панель", guild=discord.Object(id=123))
@@ -671,6 +679,75 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await command.callback(interaction)
         channel.send.assert_awaited_once()
         self.assertIsInstance(channel.send.await_args.kwargs["view"], PanelView)
+
+    async def test_legacy_public_panel_is_updated_in_place_and_saved_without_repeated_patch(self):
+        """Старая панель мигрирует по своим кнопкам; чужие сообщения и повторный запуск безопасны."""
+        bot = self.make_bot()
+        bot._connection.user = SimpleNamespace(id=900)
+        legacy = discord.ActionRow({"type": 1, "components": [
+            {"type": 2, "style": 1, "custom_id": "scdt:connect", "label": "Подключить UEX"},
+            {"type": 2, "style": 2, "custom_id": "scdt:deals", "label": "Мои сделки"},
+            {"type": 2, "style": 2, "custom_id": "scdt:listings", "label": "Объявления"}]})
+        panel = SimpleNamespace(id=111, author=bot.user, content="Старые подсказки",
+                                components=[legacy], edit=AsyncMock())
+        foreign = SimpleNamespace(id=222, author=SimpleNamespace(id=901),
+                                  content="Не трогать", components=[legacy], edit=AsyncMock())
+        own_other = SimpleNamespace(id=333, author=bot.user, content="Другая карточка",
+                                    components=[], edit=AsyncMock())
+        channel = Mock(spec=discord.TextChannel, id=456)
+        channel.guild.id = 123
+        channel.send = AsyncMock()
+
+        async def history(**kwargs):
+            """Возвращает чужую панель и своё другое сообщение перед старой панелью."""
+            for message in (foreign, own_other, panel):
+                yield message
+
+        channel.history = Mock(side_effect=history)
+        channel.fetch_message = AsyncMock(return_value=panel)
+        bot.fetch_channel = AsyncMock(return_value=channel)
+        self.assertTrue(await bot.refresh_panel())
+        panel.edit.assert_awaited_once()
+        update = panel.edit.await_args.kwargs
+        self.assertIn("**Отключить UEX**", update["content"])
+        self.assertIn("**Найти товар**", update["content"])
+        self.assertEqual(update["allowed_mentions"].to_dict(), {"parse": []})
+        self.assertEqual(bot.store.get("discord_panel", "456"),
+                         {"id": "456", "owner_id": "123", "message_id": "111"})
+        panel.content = update["content"]
+        panel.components = [discord.ActionRow(row) for row in update["view"].to_components()]
+        channel.history.reset_mock()
+        self.assertTrue(await bot.refresh_panel(create=True))
+        channel.fetch_message.assert_awaited_once_with(111)
+        channel.history.assert_not_called()
+        panel.edit.assert_awaited_once()
+        channel.send.assert_not_awaited()
+        foreign.edit.assert_not_awaited()
+        own_other.edit.assert_not_awaited()
+
+    async def test_startup_does_not_publish_missing_panel_or_retry_failed_refresh_on_ready(self):
+        """Без панели старт ничего не публикует; reconnect не повторяет отказавший PATCH."""
+        bot = self.make_bot()
+        bot._connection.user = SimpleNamespace(id=900)
+        channel = Mock(spec=discord.TextChannel, id=456)
+        channel.guild.id = 123
+        channel.send = AsyncMock()
+
+        async def empty_history(**kwargs):
+            """Возвращает пустую историю без внешнего Discord."""
+            for message in ():
+                yield message
+
+        channel.history = Mock(side_effect=empty_history)
+        bot.fetch_channel = AsyncMock(return_value=channel)
+        self.assertFalse(await bot.refresh_panel())
+        channel.send.assert_not_awaited()
+        self.assertIsNone(bot.store.get("discord_panel", "456"))
+        bot.refresh_panel = AsyncMock(side_effect=RuntimeError("synthetic failure"))
+        with self.assertLogs("trader.discord_bot", level="WARNING"):
+            await bot.on_ready()
+        await bot.on_ready()
+        bot.refresh_panel.assert_awaited_once_with()
 
     async def test_manual_archive_button_uses_private_ack_and_actual_actor_and_channel(self):
         core = SimpleNamespace(archive_thread=AsyncMock())
@@ -947,7 +1024,8 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         stranger = SimpleNamespace(user=SimpleNamespace(id=9999), response=response)
         self.assertFalse(await guide.interaction_check(stranger))
         self.assertIsNone(store.get("account", "1234"))
-        self.assertEqual([b.custom_id for b in PanelView(bot).children], ["scdt:connect", "scdt:deals", "scdt:listings", "scdt:search"])
+        self.assertEqual([b.custom_id for b in PanelView(bot).children],
+                         ["scdt:connect", "scdt:disconnect", "scdt:deals", "scdt:search", "scdt:listings"])
         bot.start_account_scan("1234")
         bot.start_account_scan("1234")
         await asyncio.sleep(0)

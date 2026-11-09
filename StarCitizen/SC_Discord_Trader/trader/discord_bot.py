@@ -33,6 +33,7 @@ ACCESS_CACHE_SECONDS = 300
 def panel_text(send_mode: str) -> str:
     """Даёт короткие подсказки к кнопкам без повтора имени бота."""
     text = ("**Подключить UEX** — подключить свой аккаунт.\n"
+            "**Отключить UEX** — отключить свой аккаунт, сохранив переписки.\n"
             "**Мои сделки** — открыть свои переписки.\n"
             "**Найти товар** — посмотреть продажи на UEX.\n"
             "**Объявления** — создать или удалить своё объявление.\n\n"
@@ -173,10 +174,6 @@ class PanelView(EphemeralView):
         """Создаёт общую панель либо личное меню owner_id с отключением UEX."""
         super().__init__(timeout=None)
         self.bot, self.owner_id = bot, owner_id
-        if owner_id is not None:
-            button = discord.ui.Button(label="Отключить UEX", row=1)
-            button.callback = bot.begin_disconnect
-            self.add_item(button)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Проверяет рабочий канал и владельца личного меню."""
@@ -188,25 +185,31 @@ class PanelView(EphemeralView):
         return await super().interaction_check(interaction)
 
     @discord.ui.button(label="Подключить UEX", style=discord.ButtonStyle.primary,
-                       custom_id="scdt:connect")
+                       custom_id="scdt:connect", row=0)
     async def connect_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         """Открывает подключение личного аккаунта после проверки роли."""
         await self.bot.begin_connect(interaction)
 
-    @discord.ui.button(label="Мои сделки", custom_id="scdt:deals")
+    @discord.ui.button(label="Отключить UEX", style=discord.ButtonStyle.danger,
+                       custom_id="scdt:disconnect", row=0)
+    async def disconnect_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        """Открывает личное подтверждение, не отключая аккаунт одним нажатием."""
+        await self.bot.begin_disconnect(interaction)
+
+    @discord.ui.button(label="Мои сделки", custom_id="scdt:deals", row=1)
     async def deals_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         """Показывает только список сделок нажавшего участника."""
         await self.bot.show_deals(interaction)
 
-    @discord.ui.button(label="Объявления", custom_id="scdt:listings")
-    async def listings_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        """Открывает личный мастер объявлений после проверки подключения."""
-        await self.bot.show_listings(interaction)
-
-    @discord.ui.button(label="Найти товар", custom_id="scdt:search")
+    @discord.ui.button(label="Найти товар", custom_id="scdt:search", row=1)
     async def search_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         """Сразу открывает личную форму поиска чужих предложений."""
         await self.bot.begin_search(interaction)
+
+    @discord.ui.button(label="Объявления", custom_id="scdt:listings", row=1)
+    async def listings_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        """Открывает личный мастер объявлений после проверки подключения."""
+        await self.bot.show_listings(interaction)
 
 
 class DisconnectView(EphemeralView):
@@ -467,6 +470,8 @@ class TraderBot(discord.Client):
         self._account_scan_tasks: dict[str, asyncio.Task] = {}
         self._access_cache: dict[str, tuple[float, bool]] = {}
         self._thread_name_failures: dict[int, tuple[str, str, float]] = {}
+        self._panel_lock = asyncio.Lock()
+        self._panel_ready_attempted = False
         self.status_provider: Callable[[], dict[str, Any]] | None = None
         self._hosting_reminder = None
         if settings.hosting_reminder_user_id:
@@ -776,12 +781,8 @@ class TraderBot(discord.Client):
                     or not interaction.user.guild_permissions.administrator):
                 await notice(interaction, "Размещать панель может только администратор сервера.")
                 return
-            channel = await self.fetch_channel(self.settings.channel_id)
-            if not isinstance(channel, discord.TextChannel) or channel.guild.id != self.settings.guild_id:
-                await notice(interaction, "Неверно настроен канал панели.")
-                return
-            await channel.send(panel_text(self.settings.send_mode), view=PanelView(self))
-            await notice(interaction, "Панель размещена.")
+            await self.refresh_panel(create=True)
+            await notice(interaction, "Панель готова.")
 
         @self.tree.command(name="статус", description="Показать техническое состояние бота администратору", guild=guild)
         @app_commands.default_permissions(administrator=True)
@@ -821,8 +822,73 @@ class TraderBot(discord.Client):
         await self.tree.sync(guild=guild)
 
     async def on_ready(self) -> None:
-        """Фиксирует подтверждённое подключение, не публикуя сообщения автоматически."""
+        """Обновляет существующую общую панель один раз за запуск без новых публикаций."""
         LOGGER.info("Discord подключён guild=%s bot=%s", self.settings.guild_id, self.user.id)
+        if self._panel_ready_attempted:
+            return
+        self._panel_ready_attempted = True
+        try:
+            await self.refresh_panel()
+        except Exception as exc:
+            LOGGER.warning("Общая панель не обновлена error_type=%s", type(exc).__name__)
+
+    @staticmethod
+    def _panel_layout(message: discord.Message) -> list[list[tuple[str, str, int]]]:
+        """Сравнивает значимые свойства кнопок без служебных ID компонентов Discord."""
+        if any(not isinstance(row, discord.ActionRow) for row in message.components):
+            return []
+        return [[(getattr(child, "custom_id", None), getattr(child, "label", None),
+                  getattr(getattr(child, "style", None), "value", None)) for child in row.children]
+                for row in message.components]
+
+    def _is_public_panel(self, message: discord.Message) -> bool:
+        """Узнаёт только собственную панель с известным набором служебных кнопок."""
+        if message.author.id != self.user.id:
+            return False
+        ids = [item[0] for row in self._panel_layout(message) for item in row]
+        legacy = {"scdt:connect", "scdt:deals", "scdt:listings"}
+        return (len(ids) == len(set(ids))
+                and legacy <= set(ids) <= legacy | {"scdt:search", "scdt:disconnect"})
+
+    async def refresh_panel(self, *, create: bool = False) -> bool:
+        """Обновляет найденную панель; создавать новую разрешено только команде администратора."""
+        async with self._panel_lock:
+            channel = await self.fetch_channel(self.settings.channel_id)
+            if not isinstance(channel, discord.TextChannel) or channel.guild.id != self.settings.guild_id:
+                raise PermissionError("Неверно настроен канал панели")
+            key, owner = str(channel.id), str(self.settings.guild_id)
+            saved = self.store.get("discord_panel", key)
+            message = None
+            if saved and saved["owner_id"] == owner:
+                try:
+                    candidate = await channel.fetch_message(int(saved["message_id"]))
+                except discord.NotFound:
+                    pass
+                else:
+                    if self._is_public_panel(candidate):
+                        message = candidate
+            if message is None:
+                # Миграция старой панели без ID: ограниченный поиск только в рабочем канале.
+                async for candidate in channel.history(limit=100):
+                    if self._is_public_panel(candidate):
+                        message = candidate
+                        break
+            view, text = PanelView(self), panel_text(self.settings.send_mode)
+            if message is None:
+                if not create:
+                    LOGGER.info("Общая панель не найдена среди последних 100 сообщений channel=%s", key)
+                    return False
+                message = await channel.send(text, view=view)
+            else:
+                expected = [[(item["custom_id"], item["label"], item["style"])
+                             for item in row["components"]] for row in view.to_components()]
+                if message.content != text or self._panel_layout(message) != expected:
+                    await message.edit(content=text, view=view, allowed_mentions=discord.AllowedMentions.none())
+                    LOGGER.info("Общая панель обновлена channel=%s message=%s", key, message.id)
+            record = {"id": key, "owner_id": owner, "message_id": str(message.id)}
+            if saved != record:
+                self.store.put("discord_panel", record)
+            return True
 
     async def on_disconnect(self) -> None:
         """Отмечает потерю связи; повторное подключение остаётся за Discord SDK."""

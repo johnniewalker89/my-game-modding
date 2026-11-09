@@ -306,7 +306,7 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         second.edit_original_response.assert_not_awaited()
         self.assertTrue(public.is_persistent())
         self.assertEqual([item.custom_id for item in public.children],
-                         ["scdt:connect", "scdt:deals", "scdt:listings", "scdt:search"])
+                         ["scdt:connect", "scdt:disconnect", "scdt:deals", "scdt:search", "scdt:listings"])
         self.assertIs(EphemeralView._active[20], other)
 
     async def test_commands_and_panel_use_only_configured_channel_and_its_threads(self):
@@ -360,7 +360,11 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         await bot.show_menu(interaction)
         panel = self.visible[10]
         self.views.append(panel)
-        self.assertNotIn("Отключить UEX", [item.label for item in PanelView(bot).children])
+        public = PanelView(bot)
+        self.views.append(public)
+        self.assertEqual([[item["label"] for item in row["components"]] for row in public.to_components()],
+                         [["Подключить UEX", "Отключить UEX"], ["Мои сделки", "Найти товар", "Объявления"]])
+        self.assertEqual(public.disconnect_button.style, discord.ButtonStyle.danger)
         disconnect = next(item for item in panel.children if item.label == "Отключить UEX")
 
         interaction = self.interaction(source=True)
@@ -373,6 +377,15 @@ class EphemeralWindowTests(unittest.IsolatedAsyncioTestCase):
         await confirmation.cancel.callback(interaction)
         bot.service.disconnect.assert_not_called()
         self.views.append(self.visible[10])
+
+        interaction = self.interaction()
+        interaction.user = SimpleNamespace(id=123)
+        await public.disconnect_button.callback(interaction)
+        confirmation = self.visible[10]
+        self.views.append(confirmation)
+        self.assertIsInstance(confirmation, DisconnectView)
+        self.assertTrue(interaction.response.send_message.await_args.kwargs["ephemeral"])
+        bot.service.disconnect.assert_not_called()
 
         command = bot.tree.get_command("отключить", guild=discord.Object(id=1))
         await command.callback(interaction)
