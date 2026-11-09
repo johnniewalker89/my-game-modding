@@ -681,7 +681,8 @@ class TraderBot(discord.Client):
             mode = "Публикация на UEX — после твоего подтверждения." if self.settings.listing_mode == "production" else "Сейчас тест: реальные объявления не создаются и не удаляются."
             await render(interaction, content=f"**Твои объявления · {discord.utils.escape_markdown(account['username'])}**\n"
                          "**Создать объявление** — введи название и выбери товар.\n"
-                         "Категория подставится автоматически.\n\n" + mode,
+                         "Категория подставится автоматически.\n"
+                         "**Подпись** — сохрани ссылку на магазин и текст для новых объявлений.\n\n" + mode,
                          view=ListingsHome(self, owner))
         except Exception as exc:
             await report_error(interaction, exc)

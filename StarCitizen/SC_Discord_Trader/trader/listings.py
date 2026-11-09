@@ -7,6 +7,7 @@ import re
 import time
 import uuid
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote, urlsplit
 
 from trader.catalog import category_label
 from trader.marketplace import MarketError
@@ -23,6 +24,18 @@ UNITS = {"scu": "SCU", "cscu": "cSCU", "unit": "Штука", "box": "Короб�
 HOURS = (0, 1, 2, 3, 5, 12, 24, 48, 72, 120, 168, 336, 720)
 MAX_PHOTO = 7 * 1024 * 1024
 DEFAULT_LOCATION = "By arrangement"
+STORE_LINK_LABEL = "View my full selection in my store"
+
+
+def signature_text(signature: dict[str, Any]) -> str:
+    """Собирает необязательные блоки подписи в Markdown, принятом UEX и Discord."""
+    parts = []
+    if signature.get("store_url"):
+        url = quote(signature["store_url"], safe=":/?#@!$&'*+,;=%-._~")
+        parts.append(f"[{STORE_LINK_LABEL}]({url})")
+    if signature.get("text_en"):
+        parts.append(signature["text_en"])
+    return "\n\n".join(parts)
 
 
 def number(value: str, label: str, *, minimum: int = 0) -> int:
@@ -48,9 +61,13 @@ def listing_payload(draft: dict[str, Any]) -> dict[str, Any]:
     quality = f" Q{draft['quality']}" if draft["quality"] is not None else ""
     name = draft["item"]["name"]
     title = re.sub(r"[^A-Za-z0-9 -]", " ", f"{prefix} {name}{quality}")
-    description = (f"{prefix} {name}.\n"
-                   f"Quality: {draft['quality'] if draft['quality'] is not None else 'not specified'}.\n"
+    quality_line = f"Quality: {draft['quality']}.\n" if draft["quality"] is not None else ""
+    description = (f"{prefix} {name}.\n{quality_line}"
                    f"Trade location: {location}.\n{draft['description_en']}").strip()
+    if draft.get("signature"):
+        description = draft["signature"] + "\n\n" + description
+    if len(description) > 4096:
+        raise ValueError("Описание вместе с подписью длиннее 4096 символов. Сократи описание или подпись.")
     payload = {"id_category": draft["item"]["id_category"], "id_item": draft["item"]["id"],
                "operation": draft["operation"], "type": "item", "language": "en_US",
                "unit": draft["unit"], "price": draft["price"], "currency": "UEC",
@@ -90,6 +107,56 @@ class ListingService:
                     row["status"] = "unknown" if kind == "listing_draft" else "delete_unknown"
                     row.pop("photo", None)
                     self.store.put(kind, row)
+
+    def signature_snapshot(self, owner: str) -> dict[str, Any]:
+        """Открывает сохранённую подпись текущего UEX без сети перед ответом на кнопку."""
+        account = self.store.get("account", owner)
+        if not account or not account.get("secret"):
+            raise PermissionError("Сначала подключи свой аккаунт UEX.")
+        record_id = stable_id(owner, account["username"].casefold(), "listing-signature")
+        return self.store.get("listing_signature", record_id) or {
+            "id": record_id, "owner_id": owner, "account": account["username"],
+            "revision": 0, "store_url": "", "text_ru": "", "text_en": ""}
+
+    async def save_signature(self, owner: str, account_name: str, revision: int,
+                             store_url: str, text: str) -> dict[str, Any]:
+        """Переводит один раз и атомарно сохраняет оба поля, защищая новые данные от старой формы."""
+        async with self._locks.setdefault(owner, asyncio.Lock()):
+            account = await self.core.account(owner)
+            if account["username"] != account_name:
+                raise PermissionError("Аккаунт UEX изменился. Открой подпись заново.")
+            current = self.signature_snapshot(owner)
+            if current["revision"] != revision:
+                raise ValueError("Подпись уже изменена в другом окне. Открой её заново.")
+            store_url, text = store_url.strip(), text.strip()
+            if len(store_url) > 500 or len(text) > 1000:
+                raise ValueError("Ссылка — до 500 символов, текст подписи — до 1000.")
+            if store_url:
+                try:
+                    url = urlsplit(store_url)
+                    valid = (url.scheme in {"https", "http"} and url.hostname and not url.username
+                             and not url.password and (url.port is None or 0 < url.port < 65536)
+                             and not re.search(r"[\s\\\x00-\x1f\x7f]", store_url))
+                    if not valid:
+                        raise ValueError
+                except ValueError:
+                    raise ValueError("Укажи полную ссылку на магазин с https:// без пробелов и данных входа.") from None
+            if text == current["text_ru"]:
+                text_en = current["text_en"]
+            else:
+                text_en = (await self.core.translator.translate(text, "ru", "en")) if re.search(r"[А-Яа-яЁё]", text) else text
+            if len(text_en) > 3000:
+                raise ValueError("Перевод подписи слишком длинный. Сократи текст.")
+            if len(signature_text({"store_url": store_url, "text_en": text_en})) > 4096:
+                raise ValueError("Подпись слишком длинная для предпросмотра. Сократи ссылку или текст.")
+            account = await self.core.account(owner)
+            if account["username"] != account_name:
+                raise PermissionError("Аккаунт UEX изменился. Открой подпись заново.")
+            saved = {**current, "account": account_name, "revision": revision + 1,
+                     "store_url": store_url, "text_ru": text, "text_en": text_en,
+                     "updated_at": time.time()}
+            self.store.put("listing_signature", saved)
+            return saved
 
     async def categories(self, owner: str) -> list[dict[str, Any]]:
         """Возвращает только категории товаров для подключённого участника."""
@@ -236,11 +303,19 @@ class ListingService:
             return updated
 
     async def review(self, owner: str, draft_id: str, revision: int) -> dict[str, Any]:
-        """Проверяет версию и полноту карточки перед показом подтверждения."""
-        draft = await self.draft(owner, draft_id)
-        self._editable(draft, revision)
-        listing_payload(draft)
-        return draft
+        """Фиксирует подпись в подтверждаемой версии и проверяет полный текст карточки."""
+        async with self._locks.setdefault(owner, asyncio.Lock()):
+            draft = await self.draft(owner, draft_id)
+            self._editable(draft, revision)
+            signature = self.signature_snapshot(owner)
+            text = signature_text(signature)
+            changed = (draft.get("signature", "") != text
+                       or draft.get("signature_revision", 0) != signature["revision"])
+            reviewed = {**draft, "signature": text, "signature_revision": signature["revision"],
+                        "revision": revision + int(changed)}
+            listing_payload(reviewed)
+            self.store.put("listing_draft", reviewed)
+            return reviewed
 
     @staticmethod
     def _editable(draft: dict[str, Any], revision: int) -> None:
@@ -255,6 +330,10 @@ class ListingService:
         async with self._locks.setdefault(owner, asyncio.Lock()):
             draft = await self.draft(owner, draft_id)
             self._editable(draft, revision)
+            signature = self.signature_snapshot(owner)
+            if (draft.get("signature_revision", 0) != signature["revision"]
+                    or draft.get("signature", "") != signature_text(signature)):
+                raise ValueError("Подпись изменилась. Открой предпросмотр и проверь карточку заново.")
             payload = listing_payload(draft)
             account = await self.core.account(owner)
             if account["username"] != draft["account"]:

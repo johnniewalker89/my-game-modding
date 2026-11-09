@@ -10,7 +10,7 @@ import discord
 
 from trader.discord_health import DiscordBackoff
 from trader.discord_ui import EphemeralView, render
-from trader.listings import DEFAULT_LOCATION, HOURS, MAX_PHOTO, OPERATIONS, UNITS, listing_payload
+from trader.listings import DEFAULT_LOCATION, HOURS, MAX_PHOTO, OPERATIONS, UNITS, listing_payload, signature_text
 from trader.marketplace import MarketError
 from trader.translation import TranslationError
 
@@ -94,6 +94,7 @@ class ListingsHome(PersonalView):
         super().__init__(bot, owner)
         self.button("Создать объявление", self.create, row=0, style=discord.ButtonStyle.primary)
         self.button("Мои объявления", self.own, row=0)
+        self.button("Подпись", self.signature, row=0)
         self.add_item(discord.ui.Button(label="Все объявления на UEX", url=MANAGE_URL, row=1))
         self.menu_button(1)
 
@@ -104,6 +105,11 @@ class ListingsHome(PersonalView):
     async def own(self, interaction: discord.Interaction) -> None:
         """Показывает только объявления текущего подключённого аккаунта."""
         await show_own(self.bot, interaction, self.owner)
+
+    async def signature(self, interaction: discord.Interaction) -> None:
+        """Сразу открывает два сохранённых необязательных поля текущего UEX."""
+        current = self.bot.listings.signature_snapshot(self.owner)
+        await interaction.response.send_modal(SignatureModal(self.bot, current))
 
 
 class CatalogView(PersonalView):
@@ -172,6 +178,65 @@ class PersonalModal(discord.ui.Modal):
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         """Показывает ошибку формы лично участнику."""
         await report_error(interaction, error)
+
+
+class SignatureModal(PersonalModal):
+    """Редактирует постоянную подпись текущего аккаунта, без создания объявления."""
+
+    def __init__(self, bot: "TraderBot", signature: dict[str, Any], *, values: dict[str, str] | None = None):
+        """Подставляет сохранённые поля; пустые значения отключают соответствующие блоки."""
+        super().__init__(bot, signature["owner_id"], "Подпись объявлений")
+        self.signature = signature
+        self.fields = {}
+        for key, label, limit in (("store_url", "Ссылка на магазин (необязательно)", 500),
+                                  ("text_ru", "Текст подписи (необязательно)", 1000)):
+            value = values[key] if values is not None else signature[key]
+            field = discord.ui.TextInput(label=label, default=value or None, required=False, max_length=limit,
+                style=discord.TextStyle.paragraph if key == "text_ru" else discord.TextStyle.short,
+                placeholder="Переведу на английский. Пусто — убрать текст." if key == "text_ru"
+                            else "https://uexcorp.space/@YourName?tab=marketplace")
+            self.fields[key] = field
+            self.add_item(field)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        """Сохраняет перевод один раз и показывает готовое начало будущих описаний."""
+        await interaction.response.defer()
+        values = {key: str(field) for key, field in self.fields.items()}
+        try:
+            saved = await self.bot.listings.save_signature(self.owner, self.signature["account"],
+                self.signature["revision"], values["store_url"], values["text_ru"])
+        except TranslationError:
+            await render(interaction, content="Переводчик временно недоступен. Прежняя подпись сохранена. "
+                         "Введённые поля остались в этом окне: нажми «Повторить подпись».",
+                         view=SignatureView(self.bot, self.signature, values=values))
+            return
+        embed = discord.Embed(title="Подпись сохранена" if signature_text(saved) else "Подпись отключена",
+                              description=signature_text(saved) or "Новые объявления будут без подписи.",
+                              colour=discord.Colour.green())
+        await render(interaction, content="Это начало описания твоих новых объявлений. "
+                     "Чтобы убрать блок, очисти его поле. Чтобы убрать подпись целиком — очисти оба поля.",
+                     embed=embed, view=SignatureView(self.bot, saved))
+
+
+class SignatureView(PersonalView):
+    """Позволяет изменить подпись или повторить неудавшийся перевод без потери ввода."""
+
+    def __init__(self, bot: "TraderBot", signature: dict[str, Any], *, values: dict[str, str] | None = None):
+        """Повтор хранит исходную версию, чтобы старая форма не заменила более новую подпись."""
+        super().__init__(bot, signature["owner_id"])
+        self.signature, self.values = signature, values
+        self.button("Повторить подпись" if values is not None else "Изменить подпись", self.edit, row=0,
+                    style=discord.ButtonStyle.primary)
+        self.button("К объявлениям", self.back, row=0)
+
+    async def edit(self, interaction: discord.Interaction) -> None:
+        """Открывает форму сразу, без ожидания сетевого запроса после кнопки."""
+        current = self.signature if self.values is not None else self.bot.listings.signature_snapshot(self.owner)
+        await interaction.response.send_modal(SignatureModal(self.bot, current, values=self.values))
+
+    async def back(self, interaction: discord.Interaction) -> None:
+        """Возвращает личный раздел объявлений."""
+        await self.bot.show_listings(interaction)
 
 
 class SearchModal(PersonalModal):

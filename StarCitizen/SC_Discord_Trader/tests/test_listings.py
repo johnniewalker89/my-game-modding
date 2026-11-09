@@ -15,8 +15,8 @@ import httpx
 
 from trader.config import Settings
 from trader.discord_bot import PanelView, TraderBot
-from trader.listings import ListingService, listing_payload
-from trader.listing_ui import CatalogView, ConditionsModal, DraftView, ListingsHome, ManageView, PhotoModal, PreviewView, SearchAgain, SearchModal, draft_embed, render
+from trader.listings import ListingService, listing_payload, signature_text
+from trader.listing_ui import CatalogView, ConditionsModal, DraftView, ListingsHome, ManageView, PhotoModal, PreviewView, SearchAgain, SearchModal, SignatureModal, draft_embed, render
 from trader.marketplace import MarketError, UexMarketplace
 from trader.service import DemoSink, TraderService
 from trader.store import Store, Vault
@@ -99,6 +99,154 @@ class ListingTests(unittest.IsolatedAsyncioTestCase):
     def writes(self, method="POST"):
         """Возвращает только фактические внешние попытки записи выбранного метода."""
         return [r for r in self.requests if r.method == method]
+
+    async def test_signature_survives_sqlite_reopen_and_stays_with_owner_and_uex(self):
+        """Одна настройка переживает перезапуск; другой участник и другой UEX получают свою подпись."""
+        saved = await self.service.save_signature("demo-1", "One", 0,
+            "https://uexcorp.space/@One?tab=marketplace", "Bulk orders welcome.")
+        self.store.close()
+        self.store = Store(Path(self.temp.name) / "state.sqlite3")
+        self.core.store = self.store
+        self.service = ListingService(self.core, "production")
+        self.assertEqual(self.service.signature_snapshot("demo-1"), saved)
+        self.assertEqual(self.service.signature_snapshot("demo-2")["text_en"], "")
+        await self.core.connect("demo-1", "secret-two", "application-two")
+        self.assertEqual(self.service.signature_snapshot("demo-1")["text_en"], "")
+        await self.core.connect("demo-1", "secret-one", "application-one")
+        self.assertEqual(self.service.signature_snapshot("demo-1"), saved)
+        self.assertEqual(self.writes(), [])
+
+    async def test_signature_translation_preview_and_published_description_are_identical(self):
+        """Русская подпись переводится при сохранении один раз, весь итог виден до отправки."""
+        self.core.translator.translate.side_effect = None
+        self.core.translator.translate.return_value = "Bulk orders welcome."
+        await self.service.save_signature("demo-1", "One", 0,
+            "https://uexcorp.space/@One?tab=marketplace", "Оптовые заказы приветствуются.")
+        draft = await self.ready()
+        reviewed = await self.service.review("demo-1", draft["id"], draft["revision"])
+        preview = draft_embed(reviewed, preview=True).description
+        self.assertTrue(preview.startswith(
+            "[View my full selection in my store](https://uexcorp.space/@One?tab=marketplace)\n\n"
+            "Bulk orders welcome.\n\nWTB Copper."))
+        self.core.translator.translate.assert_awaited_once_with("Оптовые заказы приветствуются.", "ru", "en")
+        again = await self.service.review("demo-1", draft["id"], reviewed["revision"])
+        self.assertEqual(again, reviewed)
+        await self.service.publish("demo-1", draft["id"], reviewed["revision"])
+        self.assertEqual(json.loads(self.writes()[0].content)["description"], preview)
+        self.core.translator.translate.assert_awaited_once_with("Оптовые заказы приветствуются.", "ru", "en")
+        await self.service.save_signature("demo-1", "One", 1, "", "Оптовые заказы приветствуются.")
+        self.core.translator.translate.assert_awaited_once()
+
+    async def test_signature_fields_are_optional_and_changes_require_a_new_preview(self):
+        """Удаление любого блока не оставляет пустую ссылку; старое подтверждение не публикуется."""
+        link = await self.service.save_signature("demo-1", "One", 0, "https://uexcorp.space/@One", "")
+        self.assertEqual(signature_text(link), "[View my full selection in my store](https://uexcorp.space/@One)")
+        draft = await self.ready()
+        reviewed = await self.service.review("demo-1", draft["id"], draft["revision"])
+        text = await self.service.save_signature("demo-1", "One", 1, "", "Bulk orders welcome.")
+        self.assertEqual(signature_text(text), "Bulk orders welcome.")
+        with self.assertRaisesRegex(ValueError, "Подпись изменилась"):
+            await self.service.publish("demo-1", draft["id"], reviewed["revision"])
+        self.assertEqual(self.writes(), [])
+        fresh = await self.service.review("demo-1", draft["id"], reviewed["revision"])
+        self.assertNotIn("https://", listing_payload(fresh)["description"])
+        cleared = await self.service.save_signature("demo-1", "One", 2, "", "")
+        self.assertEqual(signature_text(cleared), "")
+        with self.assertRaises(ValueError):
+            await self.service.publish("demo-1", draft["id"], fresh["revision"])
+        fresh = await self.service.review("demo-1", draft["id"], fresh["revision"])
+        self.assertTrue(listing_payload(fresh)["description"].startswith("WTB Copper."))
+        self.core.translator.translate.assert_not_awaited()
+
+    async def test_signature_rejects_stale_form_bad_url_and_revoked_access_without_partial_save(self):
+        """Ошибки формы и перевода сохраняют прежнюю подпись и не отправляют объявления."""
+        saved = await self.service.save_signature("demo-1", "One", 0, "", "Original signature.")
+        with self.assertRaises(ValueError):
+            await self.service.save_signature("demo-1", "One", 0, "", "Stale signature.")
+        for url in ("javascript:alert(1)", "https://", "https://user:secret@example.com/", "https://uexcorp.space/a b",
+                    "https://uexcorp.space:bad/", "https://uexcorp.space/" + "x" * 500):
+            with self.subTest(url=url[:50]), self.assertRaises(ValueError):
+                await self.service.save_signature("demo-1", "One", 1, url, "")
+        self.core.translator.translate.side_effect = TranslationError("fixture unavailable")
+        with self.assertRaises(TranslationError):
+            await self.service.save_signature("demo-1", "One", 1, "", "Новая подпись")
+        self.assertEqual(self.service.signature_snapshot("demo-1"), saved)
+
+        def revoke(*args, **kwargs):
+            """Снимает роль во время перевода."""
+            self.denied.add("demo-1")
+            return "New signature."
+
+        self.core.translator.translate.side_effect = revoke
+        with self.assertRaises(PermissionError):
+            await self.service.save_signature("demo-1", "One", 1, "", "Новая подпись")
+        self.assertEqual(self.service.signature_snapshot("demo-1"), saved)
+        self.denied.clear()
+        await self.core.connect("demo-1", "secret-two", "application-two")
+        with self.assertRaises(PermissionError):
+            await self.service.save_signature("demo-1", "One", 1, "", "Wrong account.")
+        self.assertEqual(self.writes(), [])
+
+    async def test_signature_link_escapes_markdown_delimiters_and_full_preview_limit_is_enforced(self):
+        """Скобки URL не закрывают ссылку; слишком длинный итог не обрезается перед подтверждением."""
+        saved = await self.service.save_signature("demo-1", "One", 0,
+            "https://uexcorp.space/@One?filter=(x)&tab=marketplace", "")
+        self.assertIn("filter=%28x%29&tab=marketplace)", signature_text(saved))
+        self.core.translator.translate.side_effect = None
+        self.core.translator.translate.return_value = "x" * 3000
+        saved = await self.service.save_signature("demo-1", "One", 1, "", "Большая подпись")
+        with self.assertRaisesRegex(ValueError, "Подпись слишком длинная"):
+            await self.service.save_signature("demo-1", "One", 2,
+                "https://uexcorp.space/" + "я" * 470, "Большая подпись")
+        self.assertEqual(self.service.signature_snapshot("demo-1"), saved)
+        draft = await self.ready()
+        draft["description_en"] = "y" * 2000
+        self.store.put("listing_draft", draft)
+        with self.assertRaisesRegex(ValueError, "4096"):
+            await self.service.review("demo-1", draft["id"], draft["revision"])
+        self.assertEqual(self.store.get("listing_draft", draft["id"]), draft)
+        self.assertEqual(self.writes(), [])
+
+    async def test_signature_modal_opens_without_network_and_preserves_input_on_translation_retry(self):
+        """Кнопка открывает форму сразу; оба поля необязательны и введённое не теряется при сбое Groq."""
+        bot = SimpleNamespace(listings=self.service)
+        opened = SimpleNamespace(response=SimpleNamespace(send_modal=AsyncMock()))
+        self.sink.allowed.reset_mock()
+        await ListingsHome(bot, "demo-1").signature(opened)
+        self.sink.allowed.assert_not_awaited()
+        modal = opened.response.send_modal.await_args.args[0]
+        self.assertIsInstance(modal, SignatureModal)
+        self.assertEqual(len(modal.children), 2)
+        self.assertTrue(all(not field.required for field in modal.fields.values()))
+        values = {"store_url": "https://uexcorp.space/@One", "text_ru": "Опт приветствуется"}
+        modal.fields = values
+        interaction = SimpleNamespace(response=SimpleNamespace(defer=AsyncMock(), is_done=lambda: True),
+                                      edit_original_response=AsyncMock())
+        self.core.translator.translate.side_effect = TranslationError("fixture unavailable")
+        await modal.on_submit(interaction)
+        self.assertEqual(self.service.signature_snapshot("demo-1")["revision"], 0)
+        retry = interaction.edit_original_response.await_args.kwargs["view"]
+        await retry.edit(opened)
+        repeated = opened.response.send_modal.await_args.args[0]
+        self.assertEqual({key: str(field) for key, field in repeated.fields.items()}, values)
+        self.core.translator.translate.side_effect = None
+        self.core.translator.translate.return_value = "Bulk orders welcome."
+        await repeated.on_submit(interaction)
+        self.assertIn("Bulk orders welcome.", interaction.edit_original_response.await_args.kwargs["embed"].description)
+        self.assertEqual(self.writes(), [])
+
+    async def test_missing_quality_is_omitted_from_description_and_payload(self):
+        """Без качества в UEX не отправляются ни свойство, ни служебная строка в описании."""
+        draft = await self.ready()
+        draft["quality"] = None
+        payload = listing_payload(draft)
+        self.assertNotIn("quality", payload)
+        self.assertNotIn("Quality:", payload["description"])
+        self.assertNotIn("not specified", payload["description"])
+        draft["quality"] = 958
+        payload = listing_payload(draft)
+        self.assertEqual(payload["quality"], 958)
+        self.assertIn("Quality: 958.", payload["description"])
 
     async def test_empty_category_null_is_cached_across_restart_without_masking_bad_catalog(self):
         """Настоящий ok/null — пустой каталог; кеш переживает restart, но сохраняет срок годности."""
