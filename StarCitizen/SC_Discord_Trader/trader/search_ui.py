@@ -143,7 +143,7 @@ class ItemPicker(SearchView):
 
 
 def offer_embed(name: str, offer: Offer) -> discord.Embed:
-    """Собирает компактную карточку: название открывает объявление, ник — магазин продавца."""
+    """Собирает карточку с отдельной строкой места; название и ник сохраняют ссылки."""
     quality = f" · Q{offer.quality}" if offer.quality is not None else ""
     if offer.price is None:
         price = "Цена не указана"
@@ -153,15 +153,15 @@ def offer_embed(name: str, offer: Offer) -> discord.Embed:
             amount = amount.rstrip("0").rstrip(".")
         amount = amount.replace(",", " ").replace(".", ",")
         price = f"{amount} {offer.currency} / {UNITS.get(offer.unit, offer.unit)}"
-    details = []
+    lines = [f"**{price}**"]
     if offer.stock is not None:
-        details.append(f"Запас: {offer.stock}")
-    if offer.location:
-        details.append(discord.utils.escape_markdown(offer.location))
+        lines.append(f"Запас: {offer.stock}")
+    location = offer.location.strip()
+    lines.append(discord.utils.escape_markdown(location) if location else "Не указано")
     seller = discord.utils.escape_markdown(offer.seller[:60]).replace("[", r"\[").replace("]", r"\]")
-    lines = [f"**{price}**", " · ".join(details), f"[{seller}]({offer.store_url})"]
+    lines.append(f"[{seller}]({offer.store_url})")
     embed = discord.Embed(title=discord.utils.escape_markdown(name)[:200] + quality, url=offer.url,
-                          description="\n".join(line for line in lines if line), colour=discord.Colour.blurple())
+                          description="\n".join(lines), colour=discord.Colour.blurple())
     if offer.photo:
         embed.set_thumbnail(url=offer.photo)
     return embed
