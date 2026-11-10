@@ -143,7 +143,7 @@ class ItemPicker(SearchView):
 
 
 def offer_embed(name: str, offer: Offer) -> discord.Embed:
-    """Собирает карточку с отдельной строкой места; название и ник сохраняют ссылки."""
+    """Собирает компактную карточку без места продажи; название и ник сохраняют ссылки."""
     quality = f" · Q{offer.quality}" if offer.quality is not None else ""
     if offer.price is None:
         price = "Цена не указана"
@@ -156,8 +156,6 @@ def offer_embed(name: str, offer: Offer) -> discord.Embed:
     lines = [f"**{price}**"]
     if offer.stock is not None:
         lines.append(f"Запас: {offer.stock}")
-    location = offer.location.strip()
-    lines.append(discord.utils.escape_markdown(location) if location else "Не указано")
     seller = discord.utils.escape_markdown(offer.seller[:60]).replace("[", r"\[").replace("]", r"\]")
     lines.append(f"[{seller}]({offer.store_url})")
     embed = discord.Embed(title=discord.utils.escape_markdown(name)[:200] + quality, url=offer.url,
