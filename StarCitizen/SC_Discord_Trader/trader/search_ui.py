@@ -2,11 +2,12 @@
 
 import logging
 from typing import TYPE_CHECKING, Any
+from weakref import WeakValueDictionary
 
 import discord
 
 from trader.discord_health import DiscordBackoff
-from trader.discord_ui import render
+from trader.discord_ui import EphemeralView, render
 from trader.listing_ui import PersonalModal, PersonalView
 from trader.listings import UNITS
 from trader.marketplace import MarketError
@@ -169,6 +170,8 @@ def offer_embed(name: str, offer: Offer) -> discord.Embed:
 class OffersView(SearchView):
     """Показывает пять объявлений, список сортировки и стрелки отдельной строкой."""
 
+    _photo_requests: WeakValueDictionary[int, "OffersView"] = WeakValueDictionary()
+
     def __init__(self, bot: "TraderBot", owner: str, result: SearchResult,
                  mode: str = "price_asc", page: int = 0):
         """Листает неизменный result без дополнительных GET; mode и page — состояние окна."""
@@ -196,6 +199,18 @@ class OffersView(SearchView):
         if result.received >= UEX_ROWS_LIMIT:
             content += "\nUEX вернул предельные 1000 строк: часть предложений может не попасть в ответ."
         offers = result.ordered(self.mode)[self.page * PAGE_SIZE:(self.page + 1) * PAGE_SIZE]
+        photos = getattr(self.bot, "search_photos", None)
+        if photos is not None:
+            source_id = getattr(interaction.message, "id", None)
+            source = EphemeralView._active.get(source_id)
+            if isinstance(source_id, int):
+                self._photo_requests[source_id] = self
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+            offers = await photos.page(offers)
+            if isinstance(source_id, int) and (self._photo_requests.get(source_id) is not self
+                    or EphemeralView._active.get(source_id) is not source):
+                return
         await render(interaction, content=content, embeds=[offer_embed(result.item_name, offer) for offer in offers], view=self)
 
     async def previous(self, interaction: discord.Interaction) -> None:

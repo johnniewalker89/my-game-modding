@@ -18,6 +18,7 @@ from trader.diagnostics import status_path, write_status
 from trader.listings import ListingService
 from trader.marketplace import DemoMarketplace, MarketError, UexMarketplace
 from trader.service import DemoSink, TraderService
+from trader.search_photos import ListingPhotos
 from trader.store import Store, Vault
 from trader.translation import Translator
 
@@ -77,6 +78,7 @@ async def open_runtime(settings: Settings, *, http_transport: httpx.AsyncBaseTra
         if bot:
             bot.service = service
             bot.listings = ListingService(service, settings.listing_mode)
+            bot.search_photos = ListingPhotos(client)
         else:
             for owner in ("demo-1", "demo-2"):
                 if not store.get("account", owner):

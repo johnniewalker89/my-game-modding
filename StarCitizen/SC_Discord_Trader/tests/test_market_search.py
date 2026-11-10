@@ -79,6 +79,7 @@ class SearchDataTests(unittest.IsolatedAsyncioTestCase):
                      listing(4, quality=0), listing(5, quality="invalid"), listing(6, quality=949)]
         result = await self.result()
         self.assertEqual([o.listing_id for o in result.ordered("quality_desc")], [3, 2, 6, 1, 4, 5])
+        self.assertEqual([o.listing_id for o in result.ordered("quality_asc")], [6, 2, 3, 1, 4, 5])
         filtered = await self.result(950)
         self.assertEqual({o.listing_id for o in filtered.offers}, {2, 3})
         self.assertEqual(filtered.quality_from, 950)
@@ -117,6 +118,8 @@ class SearchDataTests(unittest.IsolatedAsyncioTestCase):
         """Разделитель UEX не входит в адрес фото; разные форматы не обходят проверку домена."""
         expected = "https://cdn.uexcorp.space/synthetic-photo.jpg"
         formats = [expected, expected + ",", " " + expected + ", \n",
+                   expected + ",,https://cdn.uexcorp.space/second.jpg,",
+                   expected + ", , https://cdn.uexcorp.space/second.jpg,",
                    "https://example.invalid/no.jpg, " + expected + ",",
                    "https://user:pass@cdn.uexcorp.space/no.jpg," + expected + ",",
                    json.dumps(expected), json.dumps([expected]), [expected]]
@@ -229,7 +232,7 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(sorting), 1)
         self.assertEqual(sorting[0]["type"], 3)
         self.assertEqual([option["value"] for option in sorting[0]["options"]],
-                         ["price_asc", "price_desc", "quality_desc"])
+                         ["price_asc", "price_desc", "quality_desc", "quality_asc"])
         self.assertEqual([option["value"] for option in sorting[0]["options"] if option["default"]], ["price_asc"])
         self.assertEqual([b["label"] for b in self.serialized["components"][1]["components"]],
                          ["← Назад", "Далее →"])
@@ -253,8 +256,62 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         await self.dispatch(self.visible["view"].sorting, "quality_desc")
         self.assertEqual(self.visible["view"].mode, "quality_desc")
         self.assertEqual(self.visible["view"].page, 0)
+        await self.dispatch(self.visible["view"].sorting, "quality_asc")
+        self.assertEqual(self.visible["view"].mode, "quality_asc")
+        self.assertIn("Q902", self.visible["embeds"][0].title)
         await render(self.interaction(private=True), content="Меню", view=PanelView(self.bot, "42"))
         self.assertEqual(self.serialized["embeds"], [])
+
+    async def test_original_photos_are_loaded_after_ack_only_for_visible_page(self):
+        """Уточнение фото не просрочивает interaction и не получает все объявления сразу."""
+        from dataclasses import replace
+        click = self.interaction()
+
+        async def originals(offers):
+            """Проверяет ACK до сети и возвращает вымышленное полное фото."""
+            click.response.defer.assert_awaited_once_with()
+            self.assertEqual(len(offers), 5)
+            self.assertEqual([offer.listing_id for offer in offers], list(range(1, 6)))
+            return [replace(offer, photo="https://cdn.uexcorp.space/synthetic-full.jpg") for offer in offers]
+
+        self.bot.search_photos = SimpleNamespace(page=AsyncMock(side_effect=originals))
+        await OffersView(self.bot, "42", self.result).show(click)
+        self.assertEqual(self.visible["embeds"][0].thumbnail.url, "https://cdn.uexcorp.space/synthetic-full.jpg")
+        self.assertTrue(self.visible["ephemeral"])
+        self.assertEqual(self.market.offers.await_count, 1)
+
+    async def test_slow_photo_result_does_not_overwrite_a_later_sort_or_menu(self):
+        """Задержавшиеся фото не возвращают старую сортировку поверх более нового выбора."""
+        await OffersView(self.bot, "42", self.result).show(self.interaction())
+        started, release = asyncio.Event(), asyncio.Event()
+        calls = 0
+
+        async def photos(offers):
+            """Задерживает только первое уточнение фото, как при медленном публичном сайте."""
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                started.set()
+                await release.wait()
+            return offers
+
+        self.bot.search_photos = SimpleNamespace(page=photos)
+        pending = asyncio.create_task(OffersView(self.bot, "42", self.result, "price_desc").show(self.interaction(private=True)))
+        await asyncio.wait_for(started.wait(), 1)
+        await OffersView(self.bot, "42", self.result, "quality_asc").show(self.interaction(private=True))
+        release.set()
+        await pending
+        self.assertEqual(self.visible["view"].mode, "quality_asc")
+
+        started.clear()
+        release.clear()
+        calls = 0
+        pending = asyncio.create_task(OffersView(self.bot, "42", self.result, "price_asc").show(self.interaction(private=True)))
+        await asyncio.wait_for(started.wait(), 1)
+        await render(self.interaction(private=True), content="Меню", view=PanelView(self.bot, "42"))
+        release.set()
+        await pending
+        self.assertIsInstance(self.visible["view"], PanelView)
 
     async def test_modal_defers_privately_and_keeps_quality_for_item_selection(self):
         """Даже форма из публичной панели создаёт только личный результат и сохраняет порог."""

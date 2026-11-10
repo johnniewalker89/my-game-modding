@@ -15,7 +15,7 @@ LOGGER = logging.getLogger(__name__)
 PAGE_SIZE = 5
 UEX_ROWS_LIMIT = 1000
 SORT_LABELS = {"price_asc": "Цена: сначала дешевле", "price_desc": "Цена: сначала дороже",
-               "quality_desc": "Качество: сначала выше"}
+               "quality_desc": "Качество: сначала выше", "quality_asc": "Качество: сначала ниже"}
 
 
 def whole_number(value: Any) -> int | None:
@@ -56,7 +56,7 @@ def _photo(value: Any) -> str | None:
         except ValueError:
             pass
         if isinstance(value, str):
-            value = re.split(r",\s*(?=https?://)", value.strip().rstrip(", \t\r\n"))
+            value = re.split(r"(?:,\s*)+(?=https?://)", value.strip().rstrip(", \t\r\n"))
     if not isinstance(value, list):
         return None
     for candidate in value:
@@ -131,7 +131,8 @@ class SearchResult:
     @property
     def modes(self) -> tuple[str, ...]:
         """Предлагает качество только при наличии указанного Q во всей подходящей выдаче."""
-        return ("price_asc", "price_desc") + (("quality_desc",) if any(o.quality is not None for o in self.offers) else ())
+        return ("price_asc", "price_desc") + (("quality_desc", "quality_asc")
+                                             if any(o.quality is not None for o in self.offers) else ())
 
     def ordered(self, mode: str) -> list[Offer]:
         """Сортирует снимок; цены сравнивает внутри валюты/единицы, неизвестные значения ставит в конец."""
@@ -142,8 +143,10 @@ class SearchResult:
             """Строит устойчивый порядок для цены или качества одной карточки."""
             price = offer.price if offer.price is not None else Decimal(0)
             group = (offer.currency != "UEC", offer.currency, offer.unit)
-            if mode == "quality_desc":
-                return (offer.quality is None, -(offer.quality or 0), *group, offer.price is None, price, offer.listing_id)
+            if mode in {"quality_desc", "quality_asc"}:
+                quality = offer.quality or 0
+                return (offer.quality is None, -quality if mode == "quality_desc" else quality,
+                        *group, offer.price is None, price, offer.listing_id)
             return (*group, offer.price is None, -price if mode == "price_desc" else price, offer.listing_id)
 
         return sorted(self.offers, key=key)
