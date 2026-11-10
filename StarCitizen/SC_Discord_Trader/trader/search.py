@@ -14,7 +14,8 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 PAGE_SIZE = 5
 UEX_ROWS_LIMIT = 1000
-SORT_LABELS = {"price_asc": "Цена ↑", "price_desc": "Цена ↓", "quality_desc": "Качество ↓"}
+SORT_LABELS = {"price_asc": "Цена: сначала дешевле", "price_desc": "Цена: сначала дороже",
+               "quality_desc": "Качество: сначала выше"}
 
 
 def whole_number(value: Any) -> int | None:
@@ -48,17 +49,20 @@ def _price(value: Any) -> Decimal | None:
 
 
 def _photo(value: Any) -> str | None:
-    """Берёт первое HTTPS-фото UEX из массива, JSON-массива или одиночного URL."""
+    """Берёт первое HTTPS-фото UEX из массива, JSON либо списка URL через запятую."""
     if isinstance(value, str):
         try:
             value = json.loads(value)
         except ValueError:
-            value = [value]
+            pass
+        if isinstance(value, str):
+            value = re.split(r",\s*(?=https?://)", value.strip().rstrip(", \t\r\n"))
     if not isinstance(value, list):
         return None
     for candidate in value:
         if not isinstance(candidate, str) or len(candidate) > 2048:
             continue
+        candidate = candidate.strip()
         try:
             url = urlsplit(candidate)
             host = url.hostname or ""
@@ -111,7 +115,7 @@ def _offer(row: dict[str, Any], item_id: int, quality_from: int | None) -> Offer
     location = row.get("location")
     return Offer(listing_id, f"https://uexcorp.space/marketplace/item/info/{quote(slug, safe='')}/",
                  seller.strip(), quality, _price(row.get("price")), currency, unit,
-                 whole_number(row.get("in_stock")), location[:160] if isinstance(location, str) else "",
+                 whole_number(row.get("in_stock")) or None, location[:160] if isinstance(location, str) else "",
                  _photo(row.get("photos")))
 
 

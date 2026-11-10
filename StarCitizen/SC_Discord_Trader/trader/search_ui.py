@@ -1,4 +1,4 @@
-"""Личный поиск покупок: выбор товара, пять карточек и один ряд навигации."""
+"""Личный поиск покупок: пять карточек, список сортировки и навигация."""
 
 import logging
 from typing import TYPE_CHECKING, Any
@@ -167,7 +167,7 @@ def offer_embed(name: str, offer: Offer) -> discord.Embed:
 
 
 class OffersView(SearchView):
-    """Показывает пять объявлений и единственный ряд назад/сортировка/далее."""
+    """Показывает пять объявлений, список сортировки и стрелки отдельной строкой."""
 
     def __init__(self, bot: "TraderBot", owner: str, result: SearchResult,
                  mode: str = "price_asc", page: int = 0):
@@ -176,9 +176,13 @@ class OffersView(SearchView):
         self.result = result
         self.mode = mode if mode in result.modes else result.modes[0]
         self.page = max(0, min(page, max(0, (len(result.offers) - 1) // PAGE_SIZE)))
-        self.button("← Назад", self.previous, row=0, disabled=self.page == 0)
-        self.button(SORT_LABELS[self.mode], self.sort, row=0)
-        self.button("Далее →", self.following, row=0, disabled=(self.page + 1) * PAGE_SIZE >= len(result.offers))
+        self.sorting = discord.ui.Select(placeholder="Сортировка", row=0,
+            options=[discord.SelectOption(label=SORT_LABELS[mode], value=mode, default=mode == self.mode)
+                     for mode in result.modes])
+        self.sorting.callback = self.sort
+        self.add_item(self.sorting)
+        self.button("← Назад", self.previous, row=1, disabled=self.page == 0)
+        self.button("Далее →", self.following, row=1, disabled=(self.page + 1) * PAGE_SIZE >= len(result.offers))
 
     async def show(self, interaction: discord.Interaction) -> None:
         """Заменяет то же личное сообщение, сохраняя ссылки, фильтр и группировку цен."""
@@ -186,7 +190,7 @@ class OffersView(SearchView):
         page_count = max(1, (len(result.offers) + PAGE_SIZE - 1) // PAGE_SIZE)
         quality = f" · качество от {result.quality_from}" if result.quality_from is not None else ""
         content = (f"**{discord.utils.escape_markdown(result.item_name)}{quality}**\n"
-                   f"Стр. {self.page + 1}/{page_count} · предложений: {len(result.offers)} · новый поиск: /поиск")
+                   f"Стр. {self.page + 1}/{page_count} · предложений: {len(result.offers)}")
         if self.mode.startswith("price") and len({(o.currency, o.unit) for o in result.offers}) > 1:
             content += "\nЦены отсортированы отдельно для каждой валюты и единицы."
         if result.received >= UEX_ROWS_LIMIT:
@@ -203,9 +207,10 @@ class OffersView(SearchView):
         await OffersView(self.bot, self.owner, self.result, self.mode, self.page + 1).show(interaction)
 
     async def sort(self, interaction: discord.Interaction) -> None:
-        """Переключает доступные режимы и возвращает выдачу на первую страницу."""
-        modes = self.result.modes
-        mode = modes[(modes.index(self.mode) + 1) % len(modes)]
+        """Применяет выбранный режим и возвращает выдачу на первую страницу."""
+        mode = self.sorting.values[0] if self.sorting.values else None
+        if mode not in self.result.modes:
+            raise ValueError("Выбери сортировку из списка.")
         await OffersView(self.bot, self.owner, self.result, mode).show(interaction)
 
 

@@ -67,7 +67,8 @@ class SearchDataTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result.offers), 12)
         self.assertEqual(result.received, 18)
         self.assertEqual([o.listing_id for o in result.ordered("price_asc")], list(range(1, 13)))
-        self.assertEqual(result.offers[4].stock, 0)
+        self.assertIsNone(result.offers[4].stock)
+        self.assertNotIn("Запас", offer_embed(result.item_name, result.offers[4]).description)
         self.assertEqual(dict(self.requests[0].url.params), {"id_item": "7", "operation": "sell"})
         self.assertNotIn("secret-key", self.requests[0].headers)
         self.assertEqual(self.requests[0].headers["authorization"], "Bearer synthetic-app-token")
@@ -111,6 +112,20 @@ class SearchDataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("%5Bshop%5D%28name%29", offer.store_url)
         self.assertTrue(offer.url.startswith("https://uexcorp.space/marketplace/item/info/test%2Fwith%3F%23"))
         self.assertEqual(offer.photo, "https://cdn.uexcorp.space/synthetic-photo.png")
+
+    async def test_photo_csv_trailing_separator_and_json_formats_keep_a_valid_image_url(self):
+        """Разделитель UEX не входит в адрес фото; разные форматы не обходят проверку домена."""
+        expected = "https://cdn.uexcorp.space/synthetic-photo.jpg"
+        formats = [expected, expected + ",", " " + expected + ", \n",
+                   "https://example.invalid/no.jpg, " + expected + ",",
+                   "https://user:pass@cdn.uexcorp.space/no.jpg," + expected + ",",
+                   json.dumps(expected), json.dumps([expected]), [expected]]
+        for photos in formats:
+            with self.subTest(photos=photos):
+                self.rows = [listing(1, photos=photos)]
+                offer = (await self.result()).offers[0]
+                self.assertEqual(offer.photo, expected)
+                self.assertEqual(offer_embed(ITEM["name"], offer).thumbnail.url, expected)
 
     async def test_empty_response_is_distinct_from_an_invalid_response(self):
         """Штатное отсутствие продаж не скрывает повреждённую структуру ответа UEX."""
@@ -186,6 +201,16 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
                                       edit_original_response=AsyncMock(side_effect=save), followup=SimpleNamespace(send=AsyncMock()))
         return interaction
 
+    async def dispatch(self, item, value=None):
+        """Передаёт нажатие или выбор через настоящий SDK ViewStore, включая новые custom_id."""
+        self.changed.clear()
+        click = self.interaction(private=True)
+        click.data = {"custom_id": item.custom_id}
+        if value is not None:
+            click.data["values"] = [value]
+        self.client._connection._view_store.dispatch_view(3 if value is not None else 2, item.custom_id, click)
+        await asyncio.wait_for(self.changed.wait(), 1)
+
     async def test_five_cards_links_and_sdk_payload_fit_discord(self):
         """Реальные Embed содержат два назначения ссылок, фото только при наличии и укладываются в лимиты."""
         await OffersView(self.bot, "42", self.result).show(self.interaction())
@@ -198,28 +223,36 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("thumbnail", embeds[0].to_dict())
         self.assertTrue(self.visible["ephemeral"])
         self.assertEqual(len(self.serialized["embeds"]), 5)
-        self.assertEqual(len(self.serialized["components"]), 1)
-        self.assertEqual([b["label"] for b in self.serialized["components"][0]["components"]],
-                         ["← Назад", "Цена ↑", "Далее →"])
+        self.assertNotIn("/поиск", self.visible["content"])
+        self.assertEqual(len(self.serialized["components"]), 2)
+        sorting = self.serialized["components"][0]["components"]
+        self.assertEqual(len(sorting), 1)
+        self.assertEqual(sorting[0]["type"], 3)
+        self.assertEqual([option["value"] for option in sorting[0]["options"]],
+                         ["price_asc", "price_desc", "quality_desc"])
+        self.assertEqual([option["value"] for option in sorting[0]["options"] if option["default"]], ["price_asc"])
+        self.assertEqual([b["label"] for b in self.serialized["components"][1]["components"]],
+                         ["← Назад", "Далее →"])
 
-    async def test_sdk_buttons_work_after_sort_and_replace_without_uex_requests(self):
-        """Первое нажатие новых custom_id работает после замены окна; страницы содержат 5/5/2 карточки."""
+    async def test_sdk_select_and_buttons_work_after_replace_without_uex_requests(self):
+        """Новый select выбирает режим напрямую; первая попытка после замены работает, страницы5/5/2."""
         await OffersView(self.bot, "42", self.result).show(self.interaction())
         self.assertEqual(len(self.visible["embeds"]), 5)
-        for target, expected in ((2, 5), (2, 2), (1, 5)):
+        for expected in (5, 2):
             view = self.visible["view"]
-            button = view.children[target]
-            self.changed.clear()
-            click = self.interaction(private=True)
-            click.data = {"custom_id": button.custom_id}
-            self.client._connection._view_store.dispatch_view(2, button.custom_id, click)
-            await asyncio.wait_for(self.changed.wait(), 1)
+            await self.dispatch(view.children[2])
             self.assertEqual(len(self.visible["embeds"]), expected)
+        await self.dispatch(self.visible["view"].sorting, "price_desc")
         self.assertEqual(self.visible["view"].mode, "price_desc")
         self.assertEqual(self.visible["view"].page, 0)
+        await self.dispatch(self.visible["view"].children[2])
+        self.assertEqual(self.visible["view"].mode, "price_desc")
+        self.assertEqual(self.visible["view"].page, 1)
+        self.assertEqual([o.value for o in self.visible["view"].sorting.options if o.default], ["price_desc"])
         self.assertEqual(self.market.offers.await_count, 1)
-        await self.visible["view"].sort(self.interaction(private=True))
+        await self.dispatch(self.visible["view"].sorting, "quality_desc")
         self.assertEqual(self.visible["view"].mode, "quality_desc")
+        self.assertEqual(self.visible["view"].page, 0)
         await render(self.interaction(private=True), content="Меню", view=PanelView(self.bot, "42"))
         self.assertEqual(self.serialized["embeds"], [])
 
@@ -244,14 +277,15 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("950", self.visible["content"])
         self.assertEqual(self.serialized["embeds"], [])
 
-    async def test_no_quality_cycles_only_price_and_explicit_api_failure_stays_a_failure(self):
-        """Окно без качества пропускает режимQ; отказ UEX не выдаётся за отсутствие объявлений."""
+    async def test_no_quality_offers_only_price_sorting_and_api_failure_stays_a_failure(self):
+        """Окно без качества не предлагает Q; отказ UEX не выдаётся за отсутствие объявлений."""
         self.market.offers.return_value = [listing(1, quality=None), listing(2, quality=None)]
         result = await find_offers(self.bot.service, "42", ITEM, None)
         await OffersView(self.bot, "42", result).show(self.interaction())
-        await self.visible["view"].sort(self.interaction(private=True))
+        self.assertEqual([o.value for o in self.visible["view"].sorting.options], ["price_asc", "price_desc"])
+        await self.dispatch(self.visible["view"].sorting, "price_desc")
         self.assertEqual(self.visible["view"].mode, "price_desc")
-        await self.visible["view"].sort(self.interaction(private=True))
+        await self.dispatch(self.visible["view"].sorting, "price_asc")
         self.assertEqual(self.visible["view"].mode, "price_asc")
         self.market.offers.side_effect = MarketError("uex_network")
         click = self.interaction(deferred=True)
