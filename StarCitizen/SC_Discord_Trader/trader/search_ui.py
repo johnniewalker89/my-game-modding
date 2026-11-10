@@ -166,7 +166,7 @@ def offer_embed(name: str, offer: Offer) -> discord.Embed:
 
 
 class OffersView(SearchView):
-    """Показывает пять объявлений, список сортировки и стрелки отдельной строкой."""
+    """Показывает пять объявлений, список сортировки и ряд навигации."""
 
     _photo_requests: WeakValueDictionary[int, "OffersView"] = WeakValueDictionary()
 
@@ -183,6 +183,8 @@ class OffersView(SearchView):
         self.sorting.callback = self.sort
         self.add_item(self.sorting)
         self.button("← Назад", self.previous, row=1, disabled=self.page == 0)
+        self.button("Новый поиск", self.bot.begin_search, row=1)
+        self.menu_button(1)
         self.button("Далее →", self.following, row=1, disabled=(self.page + 1) * PAGE_SIZE >= len(result.offers))
 
     async def show(self, interaction: discord.Interaction) -> None:

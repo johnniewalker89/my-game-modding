@@ -164,7 +164,8 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         self.client = discord.Client(intents=discord.Intents.none())
         self.views, self.visible = [], {}
         self.changed = asyncio.Event()
-        self.bot = SimpleNamespace(interaction_allowed=Mock(return_value=True), show_menu=AsyncMock(), begin_disconnect=AsyncMock())
+        self.bot = SimpleNamespace(interaction_allowed=Mock(return_value=True), show_menu=AsyncMock(),
+                                   begin_search=AsyncMock(), begin_disconnect=AsyncMock())
         market = Mock()
         market.offers = AsyncMock(return_value=[listing(i, quality=None if i == 1 else 900 + i) for i in range(1, 13)])
         core = SimpleNamespace(account=AsyncMock(return_value={"username": "SyntheticOwner"}), market_for=Mock(return_value=market))
@@ -200,7 +201,7 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
                                       response=SimpleNamespace(is_done=Mock(return_value=deferred),
                                                                send_message=AsyncMock(side_effect=save),
                                                                edit_message=AsyncMock(side_effect=save),
-                                                               defer=AsyncMock(), send_modal=AsyncMock()),
+                                                                defer=AsyncMock(), send_modal=AsyncMock(side_effect=lambda modal: self.changed.set())),
                                       edit_original_response=AsyncMock(side_effect=save), followup=SimpleNamespace(send=AsyncMock()))
         return interaction
 
@@ -213,6 +214,7 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
             click.data["values"] = [value]
         self.client._connection._view_store.dispatch_view(3 if value is not None else 2, item.custom_id, click)
         await asyncio.wait_for(self.changed.wait(), 1)
+        return click
 
     async def test_five_cards_links_and_sdk_payload_fit_discord(self):
         """Реальные Embed содержат два назначения ссылок, фото только при наличии и укладываются в лимиты."""
@@ -235,7 +237,7 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
                          ["price_asc", "price_desc", "quality_desc", "quality_asc"])
         self.assertEqual([option["value"] for option in sorting[0]["options"] if option["default"]], ["price_asc"])
         self.assertEqual([b["label"] for b in self.serialized["components"][1]["components"]],
-                         ["← Назад", "Далее →"])
+                         ["← Назад", "Новый поиск", "В меню", "Далее →"])
 
     async def test_sdk_select_and_buttons_work_after_replace_without_uex_requests(self):
         """Новый select выбирает режим напрямую; первая попытка после замены работает, страницы5/5/2."""
@@ -243,12 +245,12 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.visible["embeds"]), 5)
         for expected in (5, 2):
             view = self.visible["view"]
-            await self.dispatch(view.children[2])
+            await self.dispatch(view.children[-1])
             self.assertEqual(len(self.visible["embeds"]), expected)
         await self.dispatch(self.visible["view"].sorting, "price_desc")
         self.assertEqual(self.visible["view"].mode, "price_desc")
         self.assertEqual(self.visible["view"].page, 0)
-        await self.dispatch(self.visible["view"].children[2])
+        await self.dispatch(self.visible["view"].children[-1])
         self.assertEqual(self.visible["view"].mode, "price_desc")
         self.assertEqual(self.visible["view"].page, 1)
         self.assertEqual([o.value for o in self.visible["view"].sorting.options if o.default], ["price_desc"])
@@ -376,14 +378,23 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await modal.interaction_check(click))
 
     async def test_modal_opens_without_waiting_for_uex_or_discord_http(self):
-        """Кнопка поиска использует локальные проверки до открытия формы, не теряя первый клик."""
+        """Новый поиск открывает пустую форму первым кликом SDK, меню заменяет выдачу на месте."""
         store = Mock()
         store.get.return_value = {"secret": "synthetic-ciphertext", "app_token": "synthetic-ciphertext"}
         async with TraderBot(Settings(), store) as bot:
             bot.interaction_allowed = Mock(return_value=True)
-            click = self.interaction()
-            await bot.begin_search(click)
-            self.assertIsInstance(click.response.send_modal.await_args.args[0], FindModal)
+            await OffersView(bot, "42", self.result).show(self.interaction())
+            button = next(child for child in self.visible["view"].children if getattr(child, "label", None) == "Новый поиск")
+            click = await self.dispatch(button)
+            modal = click.response.send_modal.await_args.args[0]
+            self.assertIsInstance(modal, FindModal)
+            self.assertFalse(modal.query.default)
+            self.assertFalse(modal.quality.default)
+            button = next(child for child in self.visible["view"].children if getattr(child, "label", None) == "В меню")
+            await self.dispatch(button)
+            self.assertIsInstance(self.visible["view"], PanelView)
+            self.assertEqual(self.serialized["embeds"], [])
+            self.assertEqual(self.market.offers.await_count, 1)
 
     def test_photo_quality_and_long_values_render_without_discord_overflow(self):
         """Пять крупных карточек сохраняют фото и укладываются в общий лимит текста SDK."""
