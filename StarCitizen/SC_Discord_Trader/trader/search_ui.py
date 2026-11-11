@@ -1,6 +1,8 @@
 """Личный поиск покупок: пять карточек, список сортировки и навигация."""
 
+import asyncio
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 from weakref import WeakValueDictionary
 
@@ -15,8 +17,14 @@ from trader.search import PAGE_SIZE, SORT_LABELS, UEX_ROWS_LIMIT, Offer, SearchR
 
 if TYPE_CHECKING:
     from trader.discord_bot import TraderBot
+    from trader.search_photos import ListingPhotos
 
 LOGGER = logging.getLogger(__name__)
+PAGE_CHECK_LIMIT = PAGE_SIZE * 2
+
+
+class PageCheckLimit(ValueError):
+    """Останавливает проверку слишком большого числа устаревших карточек за один клик."""
 
 
 async def report_search_error(interaction: discord.Interaction, error: Exception) -> None:
@@ -182,24 +190,36 @@ class OffersView(SearchView):
                      for mode in result.modes])
         self.sorting.callback = self.sort
         self.add_item(self.sorting)
-        self.button("← Назад", self.previous, row=1, disabled=self.page == 0)
+        self.previous_button = self.button("← Назад", self.previous, row=1, disabled=self.page == 0)
         self.button("Новый поиск", self.bot.begin_search, row=1)
         self.menu_button(1)
-        self.button("Далее →", self.following, row=1, disabled=(self.page + 1) * PAGE_SIZE >= len(result.offers))
+        self.following_button = self.button("Далее →", self.following, row=1, disabled=(self.page + 1) * PAGE_SIZE >= len(result.offers))
+
+    async def _available_page(self, pages: "ListingPhotos") -> list[Offer]:
+        """Заполняет страницу после удаления Sold Out, проверяя не больше десяти кандидатов."""
+        seen: set[int] = set()
+        checked: dict[int, Offer] = {}
+        while True:
+            self.page = min(self.page, max(0, (len(self.result.offers) - 1) // PAGE_SIZE))
+            if self.mode not in self.result.modes:
+                self.mode = self.result.modes[0]
+            offers = self.result.ordered(self.mode)[self.page * PAGE_SIZE:(self.page + 1) * PAGE_SIZE]
+            pending = [offer for offer in offers if offer.listing_id not in seen]
+            if not pending:
+                return [checked[offer.listing_id] for offer in offers]
+            if len(seen) + len(pending) > PAGE_CHECK_LIMIT:
+                raise PageCheckLimit()
+            loaded = await pages.page(pending)
+            seen.update(offer.listing_id for offer in pending)
+            checked.update((offer.listing_id, offer) for offer in loaded)
+            sold = {offer.listing_id for offer in pending} - {offer.listing_id for offer in loaded}
+            if sold:
+                self.result = replace(self.result, offers=tuple(offer for offer in self.result.offers if offer.listing_id not in sold))
 
     async def show(self, interaction: discord.Interaction) -> None:
         """Заменяет то же личное сообщение, сохраняя ссылки, фильтр и группировку цен."""
-        result = self.result
-        page_count = max(1, (len(result.offers) + PAGE_SIZE - 1) // PAGE_SIZE)
-        quality = f" · качество от {result.quality_from}" if result.quality_from is not None else ""
-        content = (f"**{discord.utils.escape_markdown(result.item_name)}{quality}**\n"
-                   f"Стр. {self.page + 1}/{page_count} · предложений: {len(result.offers)}")
-        if self.mode.startswith("price") and len({(o.currency, o.unit) for o in result.offers}) > 1:
-            content += "\nЦены отсортированы отдельно для каждой валюты и единицы."
-        if result.received >= UEX_ROWS_LIMIT:
-            content += "\nUEX вернул предельные 1000 строк: часть предложений может не попасть в ответ."
-        offers = result.ordered(self.mode)[self.page * PAGE_SIZE:(self.page + 1) * PAGE_SIZE]
         photos = getattr(self.bot, "search_photos", None)
+        offers = None
         if photos is not None:
             source_id = getattr(interaction.message, "id", None)
             source = EphemeralView._active.get(source_id)
@@ -207,10 +227,39 @@ class OffersView(SearchView):
                 self._photo_requests[source_id] = self
             if not interaction.response.is_done():
                 await interaction.response.defer()
-            offers = await photos.page(offers)
+            failed = False
+            try:
+                async with asyncio.timeout(8):
+                    offers = await self._available_page(photos)
+            except (PageCheckLimit, TimeoutError):
+                failed = True
             if isinstance(source_id, int) and (self._photo_requests.get(source_id) is not self
                     or EphemeralView._active.get(source_id) is not source):
                 return
+            if failed or not self.result.offers:
+                text = ("Не удалось проверить доступные предложения. Попробуй поиск ещё раз." if failed else
+                        "Подходящих непроданных предложений не осталось. Попробуй другой поиск.")
+                await render(interaction, content=text, embeds=[],
+                             view=FindAgain(self.bot, self.owner, self.result.item_name, str(self.result.quality_from or "")))
+                return
+        result = self.result
+        self.previous_button.disabled = self.page == 0
+        self.following_button.disabled = (self.page + 1) * PAGE_SIZE >= len(result.offers)
+        self.sorting.options = [discord.SelectOption(label=SORT_LABELS[mode], value=mode, default=mode == self.mode)
+                                for mode in result.modes]
+        page_count = max(1, (len(result.offers) + PAGE_SIZE - 1) // PAGE_SIZE)
+        quality = f" · качество от {result.quality_from}" if result.quality_from is not None else ""
+        content = (f"**{discord.utils.escape_markdown(result.item_name)}{quality}**\n"
+                   f"Стр. {self.page + 1}/{page_count} · предложений: {len(result.offers)}")
+        if self.mode.startswith("price"):
+            if len({o.currency for o in result.offers}) > 1:
+                content += "\nЦены отсортированы отдельно для каждой валюты."
+            if len({o.unit for o in result.offers}) > 1:
+                content += "\nПорядок по сумме в карточке; единицы цены различаются."
+        if result.received >= UEX_ROWS_LIMIT:
+            content += "\nUEX вернул предельные 1000 строк: часть предложений может не попасть в ответ."
+        if offers is None:
+            offers = result.ordered(self.mode)[self.page * PAGE_SIZE:(self.page + 1) * PAGE_SIZE]
         await render(interaction, content=content, embeds=[offer_embed(result.item_name, offer) for offer in offers], view=self)
 
     async def previous(self, interaction: discord.Interaction) -> None:

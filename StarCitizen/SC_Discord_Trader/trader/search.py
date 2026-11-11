@@ -135,19 +135,19 @@ class SearchResult:
                                              if any(o.quality is not None for o in self.offers) else ())
 
     def ordered(self, mode: str) -> list[Offer]:
-        """Сортирует снимок; цены сравнивает внутри валюты/единицы, неизвестные значения ставит в конец."""
+        """Сортирует суммы внутри валюты без пересчёта единиц; неизвестные цены ставит в конец валюты."""
         if mode not in self.modes:
             mode = "price_asc"
 
         def key(offer: Offer) -> tuple:
             """Строит устойчивый порядок для цены или качества одной карточки."""
             price = offer.price if offer.price is not None else Decimal(0)
-            group = (offer.currency != "UEC", offer.currency, offer.unit)
+            currency = (offer.currency != "UEC", offer.currency)
             if mode in {"quality_desc", "quality_asc"}:
                 quality = offer.quality or 0
                 return (offer.quality is None, -quality if mode == "quality_desc" else quality,
-                        *group, offer.price is None, price, offer.listing_id)
-            return (*group, offer.price is None, -price if mode == "price_desc" else price, offer.listing_id)
+                        *currency, offer.unit, offer.price is None, price, offer.listing_id)
+            return (*currency, offer.price is None, -price if mode == "price_desc" else price, offer.listing_id)
 
         return sorted(self.offers, key=key)
 

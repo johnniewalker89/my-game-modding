@@ -35,6 +35,34 @@ class PhotoTests(unittest.IsolatedAsyncioTestCase):
             <meta property="og:image" content="{original()}">''')
         self.assertEqual(parser.photo, original())
 
+    def test_sold_out_badge_is_read_after_photo_but_not_from_title_or_neighbours(self):
+        """Статус принадлежит основному заголовку UEX, а не словам описания или соседней карточке."""
+        badge = '<span class="label label-title label-red" title="Item Not Available"> SOLD\n OUT </span>'
+        sold = ListingImage(1)
+        sold.feed(f'<meta property="og:image" content="{original()}"><h2>{badge}Synthetic</h2>')
+        self.assertTrue(sold.sold_out)
+        self.assertEqual(sold.photo, original())
+        active = ListingImage(1)
+        active.feed(f'<h2><span class="label-title">WTS</span>Sold Out is only a title</h2>'
+                    f'<p>Sold Out</p><h2>{badge}Another listing</h2>')
+        self.assertFalse(active.sold_out)
+
+    async def test_explicit_page_sold_out_overrides_api_stock_and_is_cached(self):
+        """Неверный API-флаг и положительный запас не возвращают явно проданное объявление."""
+        requests = []
+
+        def respond(request):
+            requests.append(request)
+            return httpx.Response(200, headers={"content-type": "text/html"},
+                text='<h2><span class="label-title label-red" title="Item Not Available">Sold Out</span>Synthetic</h2>')
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            photos = ListingPhotos(client)
+            self.assertEqual(await photos.page([offer()]), [])
+            self.assertEqual(await photos.page([offer()]), [])
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(offer().stock, 2)
+
     async def test_public_get_has_no_auth_or_cookies_and_caches_original_without_api_photo(self):
         """Даже клиент с default-секретами делает чистый GET; отсутствие photos в API допустимо."""
         requests = []

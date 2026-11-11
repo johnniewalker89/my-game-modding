@@ -17,6 +17,7 @@ from trader.discord_bot import PanelView, TraderBot
 from trader.discord_ui import render
 from trader.marketplace import MarketError, UexMarketplace
 from trader.search import find_offers, minimum_quality
+from trader.search_photos import ListingPhotos
 from trader.search_ui import FindAgain, FindModal, ItemPicker, OffersView, offer_embed, show_offers
 
 ITEM = {"id": 7, "id_category": 10, "name": "Example Mining Head"}
@@ -93,13 +94,14 @@ class SearchDataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("quality_desc", result.modes)
         self.assertEqual(result.ordered("quality_desc")[0].listing_id, 12)
 
-    async def test_unknown_prices_are_last_and_different_units_are_not_compared(self):
-        """Договорные/невалидные цены идут последними внутри группы; валюты и единицы разделены."""
+    async def test_prices_follow_displayed_amount_across_units_and_unknown_prices_are_last(self):
+        """Разные единицы не разделяют суммы; неизвестные цены последние внутри своей валюты."""
         self.rows = [listing(1, price=10), listing(2, price=0), listing(3, price="NaN"),
-                     listing(4, price=30), listing(5, price=1, currency="WIF"), listing(6, price=1000, unit="set")]
+                     listing(4, price=30), listing(5, price=1, currency="WIF"), listing(6, price=1000, unit="set"),
+                     listing(7, price=5, unit="cscu"), listing(8, price=20, unit="scu")]
         result = await self.result()
-        self.assertEqual([o.listing_id for o in result.ordered("price_asc")], [6, 1, 4, 2, 3, 5])
-        self.assertEqual([o.listing_id for o in result.ordered("price_desc")], [6, 4, 1, 2, 3, 5])
+        self.assertEqual([o.listing_id for o in result.ordered("price_asc")], [7, 1, 8, 4, 6, 2, 3, 5])
+        self.assertEqual([o.listing_id for o in result.ordered("price_desc")], [6, 4, 8, 1, 7, 2, 3, 5])
 
     async def test_safe_links_keep_full_username_and_only_public_uex_photo(self):
         """Имя магазина не обрезается; подставные адреса фото и Markdown не становятся URL назначения."""
@@ -282,6 +284,68 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.visible["ephemeral"])
         self.assertEqual(self.market.offers.await_count, 1)
 
+    async def test_page_sold_out_is_removed_and_replacements_do_not_skip_on_next_page(self):
+        """Проверка HTML дополняет API, заполняет страницу и не теряет сдвинутые объявления."""
+        requests = []
+
+        def respond(request):
+            number = int(request.url.path.rstrip("/").rsplit("-", 1)[-1])
+            requests.append(number)
+            badge = ('<span class="label-title label-red" title="Item Not Available">Sold Out</span>'
+                     if number in {2, 4} else '<span class="label-title">WTS</span>')
+            return httpx.Response(200, headers={"content-type": "text/html"}, text=f'<h2>{badge}Synthetic</h2>')
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            self.bot.search_photos = ListingPhotos(client)
+            await OffersView(self.bot, "42", self.result).show(self.interaction())
+            available = [offer.url for offer in self.result.offers if offer.listing_id not in {2, 4}]
+            self.assertEqual([embed.url for embed in self.visible["embeds"]], available[:5])
+            self.assertEqual(len(self.visible["view"].result.offers), 10)
+            self.assertIn("предложений: 10", self.visible["content"])
+            self.assertEqual(len(requests), 7)
+            await self.dispatch(self.visible["view"].following_button)
+            self.assertEqual([embed.url for embed in self.visible["embeds"]], available[5:])
+            await self.dispatch(self.visible["view"].previous_button)
+            self.assertEqual([embed.url for embed in self.visible["embeds"]], available[:5])
+            self.assertEqual(len(requests), 12)
+        self.assertEqual(self.market.offers.await_count, 1)
+
+    async def test_sold_out_last_page_returns_to_existing_page_with_correct_buttons(self):
+        """Исчезновение последней страницы не оставляет пустую выдачу с неверными стрелками."""
+        from dataclasses import replace
+        result = replace(self.result, offers=self.result.offers[:6])
+        self.bot.search_photos = SimpleNamespace(page=AsyncMock(side_effect=lambda offers: [o for o in offers if o.listing_id != 6]))
+        await OffersView(self.bot, "42", result, page=1).show(self.interaction())
+        self.assertEqual(self.visible["view"].page, 0)
+        self.assertEqual(len(self.visible["embeds"]), 5)
+        self.assertTrue(self.visible["view"].previous_button.disabled)
+        self.assertTrue(self.visible["view"].following_button.disabled)
+        self.assertIn("Стр. 1/1", self.visible["content"])
+
+    async def test_all_sold_out_and_check_budget_return_private_search_instead_of_empty_cards(self):
+        """Пустая выдача и слишком много устаревших кандидатов имеют выход без массового HTML-сканирования."""
+        from dataclasses import replace
+        for count in (3, 12):
+            with self.subTest(count=count):
+                self.bot.search_photos = SimpleNamespace(page=AsyncMock(return_value=[]))
+                result = replace(self.result, offers=self.result.offers[:count])
+                await OffersView(self.bot, "42", result).show(self.interaction())
+                self.assertIsInstance(self.visible["view"], FindAgain)
+                self.assertEqual(self.serialized["embeds"], [])
+                inspected = sum(len(call.args[0]) for call in self.bot.search_photos.page.await_args_list)
+                self.assertLessEqual(inspected, 10)
+                self.assertIn("не осталось" if count == 3 else "Не удалось проверить", self.visible["content"])
+
+    async def test_removed_only_known_quality_resets_sort_to_an_available_mode(self):
+        """Удаление единственного указанного Q не оставляет недоступный выбранный режим."""
+        from dataclasses import replace
+        result = replace(self.result, offers=self.result.offers[:2])
+        self.bot.search_photos = SimpleNamespace(page=AsyncMock(side_effect=lambda offers: [o for o in offers if o.quality is None]))
+        await OffersView(self.bot, "42", result, "quality_desc").show(self.interaction())
+        self.assertEqual(self.visible["view"].mode, "price_asc")
+        self.assertEqual([option.value for option in self.visible["view"].sorting.options], ["price_asc", "price_desc"])
+        self.assertEqual(len(self.visible["embeds"]), 1)
+
     async def test_slow_photo_result_does_not_overwrite_a_later_sort_or_menu(self):
         """Задержавшиеся фото не возвращают старую сортировку поверх более нового выбора."""
         await OffersView(self.bot, "42", self.result).show(self.interaction())
@@ -362,7 +426,15 @@ class SearchWindowTests(unittest.IsolatedAsyncioTestCase):
         await OffersView(self.bot, "42", mixed).show(self.interaction())
         self.assertIn("1000", self.visible["content"])
         self.assertIn("часть предложений", self.visible["content"])
-        self.assertIn("каждой валюты и единицы", self.visible["content"])
+        self.assertIn("каждой валюты", self.visible["content"])
+        self.assertNotIn("единицы цены различаются", self.visible["content"])
+        mixed_units = replace(self.result, offers=(replace(self.result.offers[0], unit="cscu"), self.result.offers[1]))
+        await OffersView(self.bot, "42", mixed_units).show(self.interaction())
+        self.assertIn("по сумме в карточке", self.visible["content"])
+        self.assertIn("единицы цены различаются", self.visible["content"])
+        self.assertNotIn("каждой валюты", self.visible["content"])
+        await OffersView(self.bot, "42", mixed_units, "quality_desc").show(self.interaction())
+        self.assertNotIn("по сумме в карточке", self.visible["content"])
 
     async def test_foreign_owner_and_lost_role_cannot_use_search(self):
         """Проверка владельца и роли срабатывает до действий с выдачей и формой."""
