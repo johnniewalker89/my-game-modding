@@ -3247,7 +3247,8 @@ function Get-SCMiningPlanetCategoryOrder {
         (Get-SCMiningPlanetCategoryShipWeapons),
         (Get-SCMiningPlanetCategoryMiningEquipment),
         (Get-SCMiningPlanetCategoryArmor),
-        (Get-SCMiningPlanetCategoryWeapons)
+        (Get-SCMiningPlanetCategoryWeapons),
+        (Get-SCMiningPlanetCategoryConsumables)
     )
 }
 
@@ -3276,6 +3277,9 @@ function Get-SCMiningPlanetBlueprintCategory {
     if ($type -eq 'FPS Weapon') {
         return (Get-SCMiningPlanetCategoryWeapons)
     }
+    if ($type -eq 'Weapon Attachment' -and [string]$Blueprint.output.attachSubType -eq 'Magazine') {
+        return (Get-SCMiningPlanetCategoryConsumables)
+    }
     return $null
 }
 
@@ -3288,6 +3292,9 @@ function Get-SCMiningPlanetBlueprintSubcategory {
     $type = Get-SCMiningBlueprintOutputType -Blueprint $Blueprint
     $name = Get-SCMiningBlueprintOutputName -Blueprint $Blueprint -Reward $null
     $outputClass = Get-SCMiningBlueprintOutputClass -Blueprint $Blueprint -Reward $null
+    if ($Category -eq (Get-SCMiningPlanetCategoryConsumables)) {
+        return (Get-SCMiningPlanetSubcategoryMagazines)
+    }
     if ($Category -eq (Get-SCMiningPlanetCategoryShipComponents)) {
         $map = @{
             'Shield' = (Get-SCMiningPlanetSubcategoryShields)
@@ -3799,7 +3806,7 @@ function Get-SCMiningPlanetRecipeFamily {
     if ($label -match '^(\d+)-Series\s+(Longsword|Broadsword|Greatsword)\s+Cannon$') {
         return [pscustomobject]@{ Key = 'weapon:Sword Series Cannon'; Label = 'Sword-series Cannons'; Family = 'number-list'; Token = [int]$Matches[1] }
     }
-    if ($label -match '^M(\d+)A\s+Cannon$') {
+    if ($label -match '^M(\d+)A\s+Cannon(?: Raider Camo)?$') {
         return [pscustomobject]@{ Key = 'weapon:MA Cannon'; Label = 'M-series Cannons'; Family = 'suffix-list'; Token = "$($Matches[1])A" }
     }
     if ($label -match '^AD(\d+)B\s+Ballistic Gatling$') {
@@ -7393,4 +7400,12 @@ function Get-SCMiningPlanetSubcategoryShotguns {
 
 function Get-SCMiningPlanetSubcategoryRifles {
     return (ConvertFrom-SCCodePoints -CodePoints @(0x0412, 0x0438, 0x043D, 0x0442, 0x043E, 0x0432, 0x043A, 0x0438))
+}
+
+function Get-SCMiningPlanetCategoryConsumables {
+    return (ConvertFrom-SCCodePoints -CodePoints @(0x0421, 0x043D, 0x0430, 0x0440, 0x044F, 0x0436, 0x0435, 0x043D, 0x0438, 0x0435, 0x002F, 0x0440, 0x0430, 0x0441, 0x0445, 0x043E, 0x0434, 0x043D, 0x0438, 0x043A, 0x0438))
+}
+
+function Get-SCMiningPlanetSubcategoryMagazines {
+    return (ConvertFrom-SCCodePoints -CodePoints @(0x041C, 0x0430, 0x0433, 0x0430, 0x0437, 0x0438, 0x043D, 0x044B, 0x002F, 0x0431, 0x0430, 0x0442, 0x0430, 0x0440, 0x0435, 0x0438))
 }

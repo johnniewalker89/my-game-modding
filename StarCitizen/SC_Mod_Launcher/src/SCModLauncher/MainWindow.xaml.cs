@@ -40,7 +40,7 @@ public partial class MainWindow : Window
     private readonly List<RecipeFamilySection> _questCraftFamilySections = new();
     private readonly List<Button> _craftFamilyActionButtons = new();
     private readonly string _rootPath;
-    private const string CurrentLauncherVersion = "2.1.10";
+    private const string CurrentLauncherVersion = "2.1.11";
     private const string GitHubReleasesApiUrl = "https://api.github.com/repos/johnniewalker89/my-game-modding/releases?per_page=30";
     private const string RuScLatestReleaseApiUrl = "https://api.github.com/repos/n1ghter/StarCitizenRu/releases/latest";
     private const string RuScRawBaseUrl = "https://raw.githubusercontent.com/n1ghter/StarCitizenRu";
@@ -277,6 +277,9 @@ public partial class MainWindow : Window
             "exact:YellowJacket GT-210 Gatling" => "weapon:GT Gatling",
             "exact:Scorpion GT-215 Gatling" => "weapon:GT Gatling",
             "exact:Mantis GT-220 Gatling" => "weapon:GT Gatling",
+            "exact:M3A Cannon Raider Camo" => "weapon:MA Cannon",
+            "exact:M4A Cannon Raider Camo" => "weapon:MA Cannon",
+            "exact:M5A Cannon Raider Camo" => "weapon:MA Cannon",
             "armor:Arden-CL" => "armor:Arden",
             "armor:Arden-SL" => "armor:Arden",
             "armor:Aztalan Galena" => "armor:Aztalan",
@@ -899,7 +902,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var order = new[] { "Корабельные компоненты", "Корабельные орудия", "Добывающие лазеры", "Горное оборудование", "Броня/одежда", "FPS-оружие" };
+        var order = new[] { "Корабельные компоненты", "Корабельные орудия", "Добывающие лазеры", "Горное оборудование", "Броня/одежда", "FPS-оружие", "Снаряжение/расходники" };
         var groups = index.Families
             .Where(entry => !string.IsNullOrWhiteSpace(entry.OptionId) && (moduleId == "quest" || !entry.QuestOnly))
             .GroupBy(GetRecipeFamilyDisplayCategory)

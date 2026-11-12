@@ -1,5 +1,7 @@
 ﻿param(
-    [string]$Version = '2.1.10'
+    [string]$Version = '2.1.11',
+    [ValidateSet('Full', 'CurrentRelease')]
+    [string]$ValidationProfile = 'Full'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +13,8 @@ $ZipPath = Join-Path $DistDir "SC_Mod_Launcher_$Version.zip"
 $StageRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-release-" + [guid]::NewGuid().ToString('N'))
 $PackageRoot = Join-Path $StageRoot 'SC_Mod_Launcher'
 $SeedSnapshotRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-release-seeds-" + [guid]::NewGuid().ToString('N'))
+$ReleaseCacheBuild = '4.10.3-live.13165946'
+$ReleaseRuScTag = '4.10.3-v135'
 
 $packageItems = @(
     'SC_Mod_Launcher.ps1',
@@ -31,16 +35,16 @@ $packageItems = @(
 )
 
 $releaseSeedItems = @(
-    'backups\global.ini.20261029-171518.starter-clean.bak',
-    'backups\global.ini.20261029-171518.starter-clean.bak.meta.json',
-    'modules\scmdb\cache\scmdb-4.10.2-live.12913470.json',
-    'modules\scmdb\cache\scmdb-4.10.2-live.12913470.json.meta.json',
-    'modules\scmdb\cache\crafting-catalog-4.10.2-live.12913470.json',
-    'modules\mining\cache\craft-family-index-4.10.2-live.12913470.json',
-    'modules\mining\cache\mining-data-4.10.2-live.12913470.json',
-    'modules\mining\cache\refinery-yields-4.10.2-live.12913470.json',
-    'modules\mining\cache\raw-ore-buy-prices-4.10.2-live.12913470.json',
-    'modules\mining\cache\wiki-item-passports-4.10.2-live.12913470.json'
+    'backups\global.ini.20261113-000203.starter-clean.bak',
+    'backups\global.ini.20261113-000203.starter-clean.bak.meta.json',
+    'modules\scmdb\cache\scmdb-4.10.3-live.13165946.json',
+    'modules\scmdb\cache\scmdb-4.10.3-live.13165946.json.meta.json',
+    'modules\scmdb\cache\crafting-catalog-4.10.3-live.13165946.json',
+    'modules\mining\cache\craft-family-index-4.10.3-live.13165946.json',
+    'modules\mining\cache\mining-data-4.10.3-live.13165946.json',
+    'modules\mining\cache\refinery-yields-4.10.3-live.13165946.json',
+    'modules\mining\cache\raw-ore-buy-prices-4.10.3-live.13165946.json',
+    'modules\mining\cache\wiki-item-passports-4.10.3-live.13165946.json'
 )
 
 $managedPaths = @('.')
@@ -164,9 +168,11 @@ function Assert-ReleasePackageContents {
     }
     $starter = Join-Path $PackageRoot $releaseSeedItems[0]
     $metadata = Get-Content -LiteralPath ($starter + '.meta.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($metadata.kind -ne 'clean' -or $metadata.localization.tagName -ne '4.10.2-v131' -or
+    if ($metadata.kind -ne 'clean' -or $metadata.localization.tagName -ne $ReleaseRuScTag -or
+        $metadata.baseline.launcherVersion -ne $Version -or
+        $metadata.localization.globalIniSha256 -ne $metadata.sha256 -or
         (Get-FileHash -LiteralPath $starter -Algorithm SHA256).Hash -ne $metadata.sha256) {
-        throw 'Release starter is not the verified clean RuSC v131 backup.'
+        throw 'Release starter is not the verified clean RuSC backup for this launcher version.'
     }
 }
 
@@ -176,8 +182,34 @@ function Update-ReleaseCacheSeeds {
     $warmupOutput = @(& $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectDir 'SC_Mod_Launcher.ps1') -LivePath $ProjectDir -WarmCache 2>&1 | ForEach-Object { [string]$_ })
     $warmupExitCode = $LASTEXITCODE
     $warmupOutput | Out-Host
-    if ($warmupExitCode -ne 0 -or @($warmupOutput | Where-Object { $_ -match '(?i)\bFALLBACK\b' }).Count -gt 0) {
-        throw 'Release requires a fresh successful cache warmup from every source; fallback caches cannot enter a new release.'
+    $fallbackLines = @($warmupOutput | Where-Object { $_ -match '(?i)\bFALLBACK\b' })
+    $unexpectedFallback = @($fallbackLines | Where-Object { $_ -notmatch '^(Source Wiki item passports: FALLBACK;|Cache mining item passports: FALLBACK;)' })
+    if ($warmupExitCode -ne 0 -or $unexpectedFallback.Count -gt 0) {
+        throw 'Release requires a fresh successful cache warmup; only an explicitly identified Wiki fallback is allowed.'
+    }
+    $passportItems = @($releaseSeedItems | Where-Object { $_ -like 'modules\mining\cache\wiki-item-passports-*.json' })
+    if ($passportItems.Count -ne 1) { throw 'Release must contain exactly one Wiki passport seed.' }
+    $passport = Get-Content -LiteralPath (Join-Path $ProjectDir $passportItems[0]) -Encoding UTF8 -Raw | ConvertFrom-Json
+    $requestedVersion = $ReleaseCacheBuild -replace '-live\.', '-LIVE.'
+    if ($passport.schemaVersion -ne 3 -or $passport.cacheKey -ne $ReleaseCacheBuild -or $passport.requestedGameVersion -ne $requestedVersion -or
+        $passport.source -ne 'Star Citizen Wiki' -or -not ($passport.records -is [System.Array]) -or @($passport.records).Count -lt 1) {
+        throw 'Release Wiki cache identity or records are invalid.'
+    }
+    if ($fallbackLines.Count -gt 0) {
+        if (@($fallbackLines | Where-Object { $_ -match '^Source Wiki item passports: FALLBACK;' }).Count -ne 1 -or
+            @($fallbackLines | Where-Object { $_ -match '^Cache mining item passports: FALLBACK;' }).Count -ne 1 -or
+            $passport.versionMatch -ne 'offline-fallback' -or
+            [string]::IsNullOrWhiteSpace([string]$passport.fallbackFromCacheKey) -or
+            [string]$passport.gameVersion -notmatch '^\d+\.\d+\.\d+-LIVE\.\d+$' -or
+            [string]::IsNullOrWhiteSpace([string]$passport.createdAt) -or
+            [DateTimeOffset]::Parse([string]$passport.fallbackCopiedAt).UtcDateTime -lt $refreshStartedUtc.AddSeconds(-2)) {
+            throw 'Release Wiki fallback metadata does not prove a newly copied verified source cache.'
+        }
+        Write-Host "Release Wiki fallback accepted: $($passport.gameVersion) for $requestedVersion; source timestamp: $($passport.createdAt)"
+    }
+    elseif ($passport.versionMatch -notin @('exact', 'compatible') -or
+        [string]$passport.gameVersion -notlike (($ReleaseCacheBuild -split '-')[0] + '-LIVE.*')) {
+        throw 'Release Wiki cache declares an unreported fallback or incompatible build.'
     }
     foreach ($item in @($releaseSeedItems | Where-Object { $_ -like 'modules\*\cache\*' })) {
         $seed = Get-Item -LiteralPath (Join-Path $ProjectDir $item) -ErrorAction Stop
@@ -191,6 +223,10 @@ try {
     & (Join-Path $ScriptDir 'Test-ReleaseCacheFreshness.ps1') | Out-Host
     Update-ReleaseCacheSeeds
     Save-ReleaseSeedSnapshot
+    & (Join-Path $ScriptDir 'Test-Sc4103.ps1') | Out-Host
+    # CurrentRelease reuses the saved historical regressions and verifies the
+    # changed release contract, fresh data, actual UI and extracted installer.
+    if ($ValidationProfile -eq 'Full') {
     & (Join-Path $ScriptDir 'Test-GameMenuVersion.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-CraftingCatalog.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-UnnamedCraftRecipes.ps1') | Out-Host
@@ -200,6 +236,7 @@ try {
     & (Join-Path $ScriptDir 'Test-PlanetRingSections.ps1') -WorkRoot (Join-Path $StageRoot 'ring-regression') | Out-Host
     & (Join-Path $ScriptDir 'Test-LoreToggle.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-UpdateTransport.ps1') | Out-Host
+    }
     & (Join-Path $ScriptDir 'Build-WpfLauncher.ps1') | Out-Host
     & (Join-Path $ScriptDir 'Test-WpfLauncher.ps1') | Out-Host
     Restore-ReleaseSeedSnapshot

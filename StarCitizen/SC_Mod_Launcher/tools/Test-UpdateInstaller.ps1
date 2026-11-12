@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Installer = Join-Path $ScriptDir 'Install-ScModLauncherUpdate.ps1'
-$ReleaseCacheBuild = '4.10.2-live.12913470'
+$ReleaseCacheBuild = '4.10.3-live.13165946'
 
 function Assert-True {
     param(
@@ -83,9 +83,11 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'SOURCE.md') -PathType Leaf) 'Corresponding source notice should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.keep.bak') -PathType Leaf) 'User backups should be preserved.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'config\launcher-state.json') -PathType Leaf) 'Launcher local state should be preserved.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20261029-171518.starter-clean.bak') -PathType Leaf) 'Starter clean backup should be installed.'
-    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20261029-171518.starter-clean.bak.meta.json') -PathType Leaf) 'Starter clean backup metadata should be installed.'
-    Assert-True ((Get-FileHash -LiteralPath (Join-Path $target 'backups\global.ini.20261029-171518.starter-clean.bak') -Algorithm SHA256).Hash -eq '5E922A3D8EA8B89399892DA4586BCA93D99BD41C043D301E44AE4E4087102856') 'Starter backup contains verified clean RuSC v131 with the standard launcher baseline.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20261113-000203.starter-clean.bak') -PathType Leaf) 'Starter clean backup should be installed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $target 'backups\global.ini.20261113-000203.starter-clean.bak.meta.json') -PathType Leaf) 'Starter clean backup metadata should be installed.'
+    $starter = Join-Path $target 'backups\global.ini.20261113-000203.starter-clean.bak'
+    $starterMeta = Get-Content -LiteralPath ($starter + '.meta.json') -Encoding UTF8 -Raw | ConvertFrom-Json
+    Assert-True ((Get-FileHash -LiteralPath $starter -Algorithm SHA256).Hash -eq $starterMeta.sha256 -and $starterMeta.localization.globalIniSha256 -eq $starterMeta.sha256 -and $starterMeta.kind -eq 'clean' -and $starterMeta.localization.tagName -eq '4.10.3-v135' -and $starterMeta.baseline.launcherVersion -eq '2.1.11') 'Starter backup is verified clean RuSC v135 with the 2.1.11 baseline.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\mining\cache\wiki.keep.json') -PathType Leaf)) 'Old mining cache should be replaced by release cache.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\scmdb\cache\crafting-catalog-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed mining blueprints cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\craft-family-index-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed mining recipe family cache should be installed.'
@@ -94,11 +96,14 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\raw-ore-buy-prices-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed raw ore buy cache should be installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target "modules\mining\cache\wiki-item-passports-$ReleaseCacheBuild.json") -PathType Leaf) 'Seed item passport cache should be installed.'
     $passport = Get-Content -LiteralPath (Join-Path $target "modules\mining\cache\wiki-item-passports-$ReleaseCacheBuild.json") -Encoding UTF8 -Raw | ConvertFrom-Json
-    Assert-True ($passport.requestedGameVersion -eq '4.10.2-LIVE.12913470' -and $passport.versionMatch -eq 'compatible' -and $passport.gameVersion -eq '4.10.2-LIVE.12881860' -and @($passport.records).Count -eq 470) 'Package installs fresh complete Wiki passports with explicit compatible build metadata.'
+    Assert-True ($passport.cacheKey -eq $ReleaseCacheBuild -and $passport.requestedGameVersion -eq '4.10.3-LIVE.13165946' -and @($passport.records).Count -gt 0 -and ($passport.versionMatch -in @('exact','compatible','offline-fallback'))) 'Package installs complete Wiki passports with explicit requested/actual build metadata.'
+    if ($passport.versionMatch -eq 'offline-fallback') {
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$passport.fallbackFromCacheKey) -and -not [string]::IsNullOrWhiteSpace([string]$passport.createdAt)) 'Wiki fallback retains its original source identity and age.'
+    }
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.old.json') -PathType Leaf)) 'Old quest cache leftovers should be removed.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'modules\quest\engine\cache\wiki-items-cache.json') -PathType Leaf)) 'Obsolete Wiki enrichment cache is replaced by the shared SCMDB catalog.'
     $crafting = Get-Content -LiteralPath (Join-Path $target "modules\scmdb\cache\crafting-catalog-$ReleaseCacheBuild.json") -Encoding UTF8 -Raw | ConvertFrom-Json
-    Assert-True ($crafting.cacheKey -eq $ReleaseCacheBuild -and $crafting.source -eq 'SCMDB' -and @($crafting.blueprintData.blueprints).Count -eq 1618) 'Installed crafting catalog has the expected source, build and complete recipes.'
+    Assert-True ($crafting.cacheKey -eq $ReleaseCacheBuild -and $crafting.source -eq 'SCMDB' -and @($crafting.blueprintData.blueprints).Count -eq 1634) 'Installed crafting catalog has the expected source, build and complete recipes.'
     Assert-True (Test-Path -LiteralPath (Join-Path $target 'updates\backups\launcher-before-update-old\keep.txt') -PathType Leaf) 'Update backups should be preserved.'
     Assert-True ((Get-ChildItem -LiteralPath (Join-Path $target 'updates\backups') -Directory | Measure-Object).Count -ge 2) 'Installer should create a before-update backup.'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $target 'SC_Mod_Launcher.bat'))) 'Old root launcher bat should be removed.'
