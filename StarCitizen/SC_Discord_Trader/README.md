@@ -5,8 +5,8 @@ Discord-сервис для Star Citizen с отдельными модулям�
 - **SC Trader / SCT** — переписки UEX Marketplace с переводом, объявления и поиск.
   Каждый участник подключает свой аккаунт UEX; доступ разрешается выбранной роли сервера.
 - **SC Patches / SCP** — уведомления о LIVE-обновлениях и обслуживании.
-  [Локальный MVP](../SC_Patch_Alerts/README.md) пока показывает примеры и читает RSI Status;
-  автономная доставка и установка в общий облачный сервис ещё не подключены.
+  [Новостной модуль](../SC_Patch_Alerts/README.md) читает RSI Status и доставляет
+  новые события через webhook. Общая установка — [SC Companion](../SC_Companion/README.md).
 
 Прежнее имя общего проекта — SC Discord Trader. Эта папка содержит торговый модуль;
 существующие пути, Python package/CLI `sc-discord-trader`, Docker names и данные

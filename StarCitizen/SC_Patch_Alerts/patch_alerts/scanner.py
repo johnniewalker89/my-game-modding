@@ -56,7 +56,7 @@ def read_state(path: Path) -> dict:
 
 
 def observe(state: dict, records: list[tuple[str, Event | None]], now: datetime) -> tuple[dict, list[dict]]:
-    """Сравнивает records с state; первое чтение только запоминает историю."""
+    """Сравнивает records со state, сохраняя последний понятный этап; первое чтение молчит."""
     primed_at = state.get("primed_at")
     known = state.get("known", {})
     if not isinstance(known, dict) or not isinstance(state.get("notices", []), list):
@@ -70,7 +70,10 @@ def observe(state: dict, records: list[tuple[str, Event | None]], now: datetime)
     notices = []
     for key, event in records:
         before = known.get(key)
-        new_known[key] = asdict(event) if event else None
+        if event:
+            new_known[key] = asdict(event)
+        elif key not in new_known:
+            new_known[key] = None
         if not event or not primed_at:
             continue
         if before:

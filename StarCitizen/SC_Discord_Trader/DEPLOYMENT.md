@@ -1,7 +1,7 @@
 # Развёртывание SC Companion · торговый модуль SC Trader
 
-Эта инструкция относится к SC Trader. SC Patches пока отдельный локальный MVP;
-его перенос в этот runtime ещё не выполнен. Прежние CLI/Docker идентификаторы
+Эта инструкция относится к отдельному SC Trader. Общая установка с SC Patches —
+в [SC Companion/DEPLOYMENT.md](../SC_Companion/DEPLOYMENT.md). Прежние CLI/Docker идентификаторы
 `sc-discord-trader` сохранены, чтобы действующая установка оставалась совместимой.
 
 Первая установка и заполнение `.env` — в [README](README.md#установка-своего-бота).

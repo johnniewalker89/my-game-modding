@@ -133,10 +133,15 @@ def _event(item: ET.Element, url: str, now: datetime) -> Event | None:
         return None
     if published.tzinfo is None or published > now:
         return None
-    categories = " ".join(category.text or "" for category in item.findall("category"))
+    categories = [(category.text or "").strip() for category in item.findall("category")]
     title = item.findtext("title", "")
     body = plain_text(item.findtext("description", ""))
-    if "persistent universe" not in categories.lower() or re.search(r"\b(?:PTU|EPTU|Evocati)\b", title, re.I):
+    if re.search(r"\b(?:PTU|EPTU|Evocati)\b", title, re.I):
+        return None
+    # В RSS RSI category содержит дату обновления; явный LIVE-заголовок сохраняет область.
+    dated_categories = bool(categories) and all(re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", value) for value in categories)
+    if "persistent universe" not in " ".join(categories).lower() and not (
+            dated_categories and re.search(r"\blive (?:deployment|service maintenance)\b", title, re.I)):
         return None
     if not re.search(r"live (?:deployment|service maintenance)|hotfix", title, re.I):
         return None
@@ -149,7 +154,7 @@ def _event(item: ET.Element, url: str, now: datetime) -> Event | None:
     finished = timeline_time(body, r"maintenance complete|rollout complete|patch deployment complete|servers (?:online|open)|(?:was|has been) deployed", latest=True)
     resolved = bool(re.search(r"\[resolved\]", title, re.I))
     if resolved:
-        if version and re.search(r"(?:was|has been) deployed|patch deployment complete|patch download.*available", body, re.I):
+        if version and re.search(r"(?:was|has been) deployed|patch deployment complete|patch download.*available|available for download", body, re.I):
             return Event(url, "released", published.isoformat(), version, started,
                          duration_minutes=minutes, duration_kind=kind, finished_at=finished)
         if re.search(r"maintenance complete|servers (?:online|open)|rollout complete", body, re.I):

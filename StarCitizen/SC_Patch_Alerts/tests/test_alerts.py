@@ -24,6 +24,27 @@ def rss(title, body, published="Fri, 13 Nov 2026 10:00:00 +0000", category="Pers
 class FeedTests(unittest.TestCase):
     """Проверяет, какие официальные сигналы допустимо превращать в карточки."""
 
+    def test_captured_rsi_feed_with_date_categories(self):
+        """Реальная лента распознаёт выпуск LIVE, исключает Platform и будущую публикацию."""
+        raw = (Path(__file__).parent / "fixtures/rsi-status-2026-11-14.xml").read_bytes()
+        records = parse_feed(raw, datetime(2026, 11, 14, 0, tzinfo=timezone.utc))
+        events = [event for _, event in records if event]
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual((event.phase, event.version), ("released", "4.10.2"))
+        self.assertEqual(event.starts_at, "2026-10-09T10:00:00+00:00")
+        self.assertEqual(event.finished_at, "2026-10-09T14:00:00+00:00")
+
+    def test_date_category_requires_explicit_live_scope(self):
+        """Дата вместо категории не разрешает общий hotfix или неизвестную систему."""
+        for title, category in [("Critical Hotfix", "2026-11-13 10:00:00"),
+                                ("Live Service Maintenance", "Platform"),
+                                ("Live Service Maintenance", ""),
+                                ("Live Service Maintenance", "Unknown")]:
+            with self.subTest(title=title, category=category):
+                raw = rss(title, "A critical hotfix is being applied to the Live Environment.", category=category)
+                self.assertIsNone(parse_feed(raw, NOW)[0][1])
+
     def test_explicit_schedule_and_moscow_time(self):
         """Полная дата UTC даёт ожидаемое московское время в карточке."""
         event = parse_feed(rss("Live Service Maintenance", "The Live Service will be in a maintenance window starting on 2026-11-14 at 1400 UTC."), NOW)[0][1]
@@ -113,6 +134,15 @@ class StateTests(unittest.TestCase):
             write_json(path, state)
             restored = read_json(path, {})
         _, notices = observe(restored, [(URL, self.event)], NOW)
+        self.assertEqual(notices, [])
+
+    def test_unrecognized_revision_keeps_last_confirmed_event(self):
+        """Временно неразобранная запись не стирает историю и не создаёт повтор при возврате."""
+        state, _ = observe({}, [(URL, self.event)], NOW)
+        state, notices = observe(state, [(URL, None)], NOW)
+        self.assertEqual(notices, [])
+        self.assertEqual(state["known"][URL]["phase"], "scheduled")
+        _, notices = observe(state, [(URL, self.event)], NOW)
         self.assertEqual(notices, [])
 
     def test_time_change_and_release_create_new_notices(self):

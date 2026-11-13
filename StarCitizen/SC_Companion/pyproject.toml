@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sc-companion"
-version = "0.1.0"
+version = "0.1.1"
 description = "Общий запуск SC Trader и SC Patches в одном процессе"
 readme = "README.md"
 license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
-dependencies = ["sc-discord-trader==0.1.0", "sc-patch-alerts==0.1.0"]
+dependencies = ["sc-discord-trader==0.1.0", "sc-patch-alerts==0.1.1"]
 
 [project.scripts]
 sc-companion-worker = "companion.worker:main"
