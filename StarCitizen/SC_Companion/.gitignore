@@ -1,0 +1,12 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+operator-config.json
+patches-config.json
+data/
+trader-data/
+patches-data/
+private/
+*.url
+.env

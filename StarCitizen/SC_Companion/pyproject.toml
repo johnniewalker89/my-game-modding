@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sc-companion"
+version = "0.1.0"
+description = "Общий запуск SC Trader и SC Patches в одном процессе"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = ["sc-discord-trader==0.1.0", "sc-patch-alerts==0.1.0"]
+
+[project.scripts]
+sc-companion-worker = "companion.worker:main"
+sc-companion-status = "companion.status:main"
+sc-companion-check = "companion.worker:check"
+
+[tool.setuptools.packages.find]
+include = ["companion*"]

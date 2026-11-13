@@ -1,0 +1,27 @@
+name: sc-patch-alerts-mvp
+services:
+  preview:
+    image: sc-patch-alerts:mvp-local
+    build:
+      context: .
+      args:
+        SOURCE_FINGERPRINT: ${SC_NEWS_SOURCE_FINGERPRINT:-unknown}
+    ports:
+      - "127.0.0.1:8789:8080"
+    volumes:
+      - news_preview_data:/data
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    mem_limit: 128m
+    cpus: 0.5
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  news_preview_data:

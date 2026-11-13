@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sc-patch-alerts"
+version = "0.1.0"
+description = "SC Patches: уведомления о LIVE-обновлениях Star Citizen"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+sc-patch-alerts = "patch_alerts.app:main"
+
+[tool.setuptools.package-data]
+patch_alerts = ["preview.html"]
+
+[tool.setuptools.packages.find]
+include = ["patch_alerts*"]

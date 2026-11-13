@@ -1,0 +1,9 @@
+{
+  "enabled": false,
+  "data_dir": "patches-data",
+  "poll_seconds": 90,
+  "webhook_file": "private/sc-patches-webhook.url",
+  "webhook_id": "1570874461085769809",
+  "channel_id": "1526524629156364350",
+  "guild_id": "807963342739341342"
+}

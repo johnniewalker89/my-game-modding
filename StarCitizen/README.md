@@ -2,11 +2,14 @@
 
 Моды и инструменты для Star Citizen.
 
-## SC Discord Trader
+## SC Companion
 
-[SC Discord Trader](SC_Discord_Trader/README.md) — бот для переписок UEX Marketplace
-в приватных ветках Discord с переводом английский ↔ русский. Пока запускается
-локально через Docker; каждый участник подключает свой аккаунт UEX.
+[SC Companion](SC_Companion/README.md) — Discord-сервис для Star Citizen:
+**SC Trader** для торговли и переписок UEX и **SC Patches** для уведомлений о патчах.
+Торговый модуль работает в облаке; локальный Docker служит резервом.
+SC Patches подготовлен в [локальном модуле](SC_Patch_Alerts/README.md); его облачная доставка
+включается при установке общего пакета и отдельной настройке webhook.
+Прежние технические пути торгового модуля сохранены.
 
 Лицензия кода бота — [AGPL-3.0-only](SC_Discord_Trader/LICENSE-SCOPE.md);
 бренд и сторонние материалы имеют отдельные условия.

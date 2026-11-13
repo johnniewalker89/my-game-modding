@@ -1,9 +1,9 @@
-# SC Discord Trader license scope
+# SC Companion · SC Trader license scope
 
 Copyright (C) 2026 johnniewalker89.
 
 Unless a file carries a separate notice or is excluded below, the original
-SC Discord Trader source code, tests, scripts, configuration templates and
+SC Companion trading-module source code, tests, scripts, configuration templates and
 documentation in this directory are licensed under the GNU Affero General
 Public License version 3 only (`AGPL-3.0-only`). The complete, unmodified license
 text is in [LICENSE](LICENSE). This scope applies to this product directory,

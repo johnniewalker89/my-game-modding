@@ -1,6 +1,6 @@
 # Third-party material
 
-SC Discord Trader is an independent project. Its license covers its original
+SC Companion is an independent project. This module's license covers its original
 code and documentation, not third-party software, services, data or marks.
 
 Python dependencies are installed from `requirements.lock`; their own license
