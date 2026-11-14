@@ -57,9 +57,13 @@ class WebhookTarget:
 class WebhookClient:
     """Читает/публикует только в одном WebhookTarget, с явным подтверждением сообщения."""
 
-    def __init__(self, target: WebhookTarget, opener=None):
-        """Принимает target и необязательный тестовый opener без скрытой отправки."""
+    def __init__(self, target: WebhookTarget, opener=None, *, mention_role_id: str = ""):
+        """Привязывает target, разрешённую роль и тестовый opener без скрытой отправки."""
+        if not isinstance(mention_role_id, str) or (mention_role_id and (
+                not re.fullmatch(r"[1-9][0-9]{0,19}", mention_role_id) or mention_role_id == target.guild_id)):
+            raise ValueError("invalid_news_mention_role")
         self.target = target
+        self.mention_role_id = mention_role_id
         self.opener = opener or build_opener(NoRedirect())
 
     def _request(self, method: str, suffix: str = "", payload: dict | None = None) -> dict:
@@ -104,8 +108,12 @@ class WebhookClient:
             raise WebhookError("target_mismatch")
 
     def send(self, payload: dict) -> str:
-        """Публикует payload один раз с wait=true и возвращает проверенный message ID."""
-        if payload.get("allowed_mentions") != {"parse": []} or len(payload.get("embeds", [])) != 1:
+        """Публикует payload без пинга либо с одной настроенной ролью, проверяет message ID."""
+        no_ping = payload.get("allowed_mentions") == {"parse": []} and not payload.get("content")
+        role_ping = (bool(self.mention_role_id)
+                     and payload.get("allowed_mentions") == {"parse": [], "roles": [self.mention_role_id]}
+                     and payload.get("content") == f"<@&{self.mention_role_id}>")
+        if not (no_ping or role_ping) or len(payload.get("embeds", [])) != 1:
             raise ValueError("unsafe_webhook_payload")
         embed = payload["embeds"][0]
         if len(embed.get("title", "")) > 256 or len(embed.get("description", "")) > 4096:
@@ -124,12 +132,14 @@ class WebhookClient:
         return confirmed
 
     def _message_id(self, value: dict, payload: dict) -> str:
-        """Сверяет подтверждение value с target и видимыми полями payload."""
+        """Сверяет value с target, текстом, карточкой и точными упоминаниями payload."""
         identifier = str(value.get("id", ""))
         if (not re.fullmatch(r"[0-9]{1,20}", identifier)
                 or str(value.get("channel_id")) != self.target.channel_id
                 or str(value.get("webhook_id")) != self.target.webhook_id
-                or value.get("mentions") or value.get("mention_roles") or value.get("mention_everyone")):
+                or value.get("content", "") != payload.get("content", "")
+                or value.get("mention_roles", []) != payload.get("allowed_mentions", {}).get("roles", [])
+                or value.get("mentions") or value.get("mention_everyone")):
             raise WebhookError("message_mismatch")
         actual = value.get("embeds", [])
         expected = payload["embeds"]

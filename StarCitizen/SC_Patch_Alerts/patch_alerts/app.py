@@ -143,7 +143,7 @@ def main() -> None:
                     LOGGER.info("Новостной модуль выключен в конфиге")
                     return
                 raise ValueError("news_disabled")
-            client = WebhookClient(settings.target())
+            client = WebhookClient(settings.target(), mention_role_id=settings.mention_role_id)
             if args.command == "check-target":
                 client.verify()
                 print(json.dumps({"state": "verified", "webhook_id": settings.webhook_id,

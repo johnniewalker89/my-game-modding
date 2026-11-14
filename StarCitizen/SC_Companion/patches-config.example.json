@@ -5,5 +5,6 @@
   "webhook_file": "private/sc-patches-webhook.url",
   "webhook_id": "1570874461085769809",
   "channel_id": "1570904966560743665",
-  "guild_id": "807963342739341342"
+  "guild_id": "807963342739341342",
+  "mention_role_id": "1506239876511694928"
 }

@@ -19,7 +19,7 @@ from patch_alerts.events import Event, build_payload
 from patch_alerts.locking import state_lock
 from patch_alerts.notes import find_notes
 from patch_alerts.scanner import observe, read_json, scan_once, write_json
-from patch_alerts.worker import delivery_status, drain_once, reconcile
+from patch_alerts.worker import NewsWorker, delivery_status, drain_once, reconcile
 
 NOW = datetime(2026, 11, 13, 12, tzinfo=timezone.utc)
 URL = "https://status.robertsspaceindustries.com/issues/fixture/"
@@ -65,6 +65,47 @@ class QueueTests(unittest.TestCase):
         drain_once(self.data, self.client, NOW, stopped=stopped)
         self.client.send.assert_not_called()
         self.assertEqual(read_json(self.path, {})["notices"][0]["delivery"], "pending")
+
+    def test_configured_role_is_above_each_new_card_and_demo_stays_quiet(self):
+        """Все этапы сохраняют карточку и получают одну роль; демо и повторы не пингуют."""
+        for phase in ("scheduled", "installing", "completed", "released"):
+            for demo in (False, True):
+                with self.subTest(phase=phase, demo=demo):
+                    event = replace(SCHEDULED, phase=phase, demo=demo)
+                    state = queued(event)
+                    if phase == "scheduled":
+                        previous = replace(event, starts_at="2026-11-14T11:00:00+00:00")
+                        state["notices"][0]["payload"] = build_payload(event, previous)
+                    if phase == "released":
+                        state["notices"][0]["notes_lookup_done"] = True
+                    expected_embeds = state["notices"][0]["payload"]["embeds"]
+                    write_json(self.path, state)
+                    self.client.reset_mock()
+                    drain_once(self.data, self.client, NOW, mention_role_id="4")
+                    payload = self.client.send.call_args.args[0]
+                    self.assertEqual(payload["embeds"], expected_embeds)
+                    self.assertEqual(payload.get("content", ""), "" if demo else "<@&4>")
+                    self.assertEqual(payload["allowed_mentions"], {"parse": []} if demo else {"parse": [], "roles": ["4"]})
+                    drain_once(self.data, self.client, NOW, mention_role_id="4")
+                    self.client.send.assert_called_once()
+
+    def test_role_payload_is_durable_before_post_and_unknown_does_not_reping(self):
+        """Неизвестный ответ сохраняет точный отправленный пинг для сверки, без автоповтора."""
+        write_json(self.path, queued())
+
+        def interrupted(payload):
+            """Проверяет сохранённый inflight payload до имитации потери ответа Discord."""
+            notice = read_json(self.path, {})["notices"][0]
+            self.assertEqual(notice["delivery"], "inflight")
+            self.assertEqual(notice["payload"], payload)
+            self.assertEqual(payload["content"], "<@&4>")
+            raise WebhookError("network_or_invalid_response")
+
+        self.client.send.side_effect = interrupted
+        drain_once(self.data, self.client, NOW, mention_role_id="4")
+        drain_once(self.data, self.client, NOW + timedelta(hours=1), mention_role_id="4")
+        self.client.send.assert_called_once()
+        self.assertEqual(read_json(self.path, {})["notices"][0]["delivery"], "unknown")
 
     def test_network_unknown_and_interrupted_inflight_never_retry_automatically(self):
         """Обрыв ответа и падение после записи inflight сохраняют неизвестный исход."""
@@ -246,6 +287,56 @@ class TransportTests(unittest.TestCase):
             with self.assertRaisesRegex(WebhookError, "message_mismatch"):
                 client.send(build_payload(SCHEDULED))
             self.assertEqual(opener.open.call_count, 3)
+
+    def test_role_send_and_confirm_require_exact_content_and_receipt_mentions(self):
+        """POST/сверка принимают только настроенную роль и её точное подтверждение Discord."""
+        with tempfile.TemporaryDirectory() as folder:
+            target = self.target(folder)
+            payload = {**build_payload(SCHEDULED), "content": "<@&4>", "allowed_mentions": {"parse": [], "roles": ["4"]}}
+            receipt = {"id": "5", "webhook_id": "1", "channel_id": "2", "embeds": payload["embeds"],
+                       "content": "<@&4>", "mention_roles": ["4"], "mentions": [], "mention_everyone": False}
+            opener = Mock()
+            opener.open.side_effect = [self.response(receipt), self.response(receipt)]
+            client = WebhookClient(target, opener, mention_role_id="4")
+            self.assertEqual(client.send(payload), "5")
+            self.assertEqual(client.confirm("5", payload), "5")
+            self.assertEqual(json.loads(opener.open.call_args_list[0].args[0].data), payload)
+            for changed in ({"mention_roles": []}, {"mention_roles": ["4", "6"]},
+                            {"content": ""}, {"mentions": [{"id": "7"}]}, {"mention_everyone": True}):
+                with self.subTest(receipt=changed), self.assertRaisesRegex(WebhookError, "message_mismatch"):
+                    opener.open.side_effect = None
+                    opener.open.return_value = self.response({**receipt, **changed})
+                    client.confirm("5", payload)
+            for changed in ({"allowed_mentions": {"parse": ["roles"]}}, {"content": "@everyone"},
+                            {"content": "<@7>"}, {"content": "<@&6>", "allowed_mentions": {"parse": [], "roles": ["6"]}}):
+                opener.reset_mock()
+                with self.subTest(payload=changed), self.assertRaisesRegex(ValueError, "unsafe_webhook_payload"):
+                    client.send({**payload, **changed})
+                opener.open.assert_not_called()
+            with self.assertRaisesRegex(ValueError, "unsafe_webhook_payload"):
+                WebhookClient(target, opener).send(payload)
+
+    def test_role_config_is_optional_and_rejects_everyone_or_non_role_values(self):
+        """Старый конфиг не пингует; новый привязывает worker/client к одной корректной роли."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.target(folder)
+            config = root / "config.json"
+            value = {"enabled": True, "data_dir": "news", "poll_seconds": 600,
+                     "webhook_file": "hook.url", "webhook_id": "1", "channel_id": "2", "guild_id": "3"}
+            config.write_text(json.dumps(value), encoding="utf-8")
+            self.assertEqual(NewsSettings.from_file(config).mention_role_id, "")
+            config.write_text(json.dumps({**value, "mention_role_id": "4"}), encoding="utf-8")
+            settings = NewsSettings.from_file(config)
+            worker = NewsWorker(settings)
+            self.assertEqual(worker.client.mention_role_id, "4")
+            with patch("patch_alerts.worker.scan_once"), patch("patch_alerts.worker.drain_once") as drain:
+                worker.cycle()
+            self.assertEqual(drain.call_args.kwargs["mention_role_id"], "4")
+            for role in (None, True, 4, [], "@Космопират", "3", "0", "4 5", "1" * 21):
+                config.write_text(json.dumps({**value, "mention_role_id": role}), encoding="utf-8")
+                with self.subTest(role=role), self.assertRaisesRegex(ValueError, "invalid_news_mention_role"):
+                    NewsSettings.from_file(config)
 
     def test_config_and_secret_reject_unsafe_targets_without_network(self):
         """Опечатки/redirect-host/замаскированный ключ не превращаются в боевой target."""

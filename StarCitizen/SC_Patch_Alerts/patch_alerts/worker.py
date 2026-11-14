@@ -36,8 +36,8 @@ def _obsolete(notice: dict, state: dict, now: datetime) -> bool:
 
 
 def drain_once(data_dir: Path, client: WebhookClient, now: datetime | None = None,
-               *, stopped: threading.Event | None = None) -> None:
-    """Отправляет один пост data_dir, учитывая сигнал stopped перед началом POST."""
+               *, stopped: threading.Event | None = None, mention_role_id: str = "") -> None:
+    """Отправляет пост data_dir; роль закрепляет до первой попытки, stopped отменяет POST."""
     now = now or datetime.now(timezone.utc)
     if stopped is not None and stopped.is_set():
         return
@@ -94,6 +94,9 @@ def drain_once(data_dir: Path, client: WebhookClient, now: datetime | None = Non
         if stopped is not None and stopped.is_set():
             write_json(path, state)
             return
+        if not notice.get("attempts") and mention_role_id and not event.demo:
+            notice["payload"] = {**notice["payload"], "content": f"<@&{mention_role_id}>",
+                                 "allowed_mentions": {"parse": [], "roles": [mention_role_id]}}
         notice.update(delivery="inflight", attempted_at=now.isoformat(), attempts=notice.get("attempts", 0) + 1)
         state["delivery_error"] = None
         write_json(path, state)
@@ -164,14 +167,14 @@ class NewsWorker:
     def __init__(self, settings: NewsSettings, client: WebhookClient | None = None):
         """Получает settings и необязательный client для изолированной проверки."""
         self.settings = settings
-        self.client = client or WebhookClient(settings.target())
+        self.client = client or WebhookClient(settings.target(), mention_role_id=settings.mention_role_id)
         self.stopped = threading.Event()
         self.thread = threading.Thread(target=self._watch, name="sc-patches", daemon=True)
 
     def __enter__(self):
         """Запускает поток после локальной проверки конфига и файла ключа."""
         self.thread.start()
-        LOGGER.info("Новостной модуль запущен state=starting poll_seconds=%s", self.settings.poll_seconds)
+        LOGGER.info("Новостной модуль запущен state=starting poll_seconds=%s mention_role_id=%s", self.settings.poll_seconds, self.settings.mention_role_id or "none")
         return self
 
     def __exit__(self, *_args):
@@ -198,7 +201,8 @@ class NewsWorker:
             error = type(exc).__name__
             record_failure(self.settings.data_dir, exc, mode="delivery")
         try:
-            drain_once(self.settings.data_dir, self.client, stopped=self.stopped)
+            drain_once(self.settings.data_dir, self.client, stopped=self.stopped,
+                       mention_role_id=self.settings.mention_role_id)
             delivery = delivery_status(self.settings.data_dir)
         except Exception as exc:
             error = type(exc).__name__
