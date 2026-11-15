@@ -101,7 +101,7 @@ Add-Type -AssemblyName UIAutomationTypes
 
 $process = $null
 try {
-    $process = Start-Process -FilePath $AppPath -WorkingDirectory (Split-Path -Parent $AppPath) -PassThru
+    $process = Start-Process -FilePath $AppPath -WorkingDirectory (Split-Path -Parent $AppPath) -WindowStyle Hidden -PassThru
     try {
         [void]$process.WaitForInputIdle(7000)
     }

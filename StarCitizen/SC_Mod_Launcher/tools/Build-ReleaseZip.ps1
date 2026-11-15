@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = '2.1.11',
+    [string]$Version = '2.1.12',
     [ValidateSet('Full', 'CurrentRelease')]
     [string]$ValidationProfile = 'Full'
 )
@@ -14,7 +14,7 @@ $StageRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-relea
 $PackageRoot = Join-Path $StageRoot 'SC_Mod_Launcher'
 $SeedSnapshotRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sc-mod-launcher-release-seeds-" + [guid]::NewGuid().ToString('N'))
 $ReleaseCacheBuild = '4.10.3-live.13165946'
-$ReleaseRuScTag = '4.10.3-v135'
+$ReleaseRuScTag = '4.10.3-v136'
 
 $packageItems = @(
     'SC_Mod_Launcher.ps1',
@@ -35,8 +35,8 @@ $packageItems = @(
 )
 
 $releaseSeedItems = @(
-    'backups\global.ini.20261113-000203.starter-clean.bak',
-    'backups\global.ini.20261113-000203.starter-clean.bak.meta.json',
+    'backups\global.ini.20261115-180404.starter-clean.bak',
+    'backups\global.ini.20261115-180404.starter-clean.bak.meta.json',
     'modules\scmdb\cache\scmdb-4.10.3-live.13165946.json',
     'modules\scmdb\cache\scmdb-4.10.3-live.13165946.json.meta.json',
     'modules\scmdb\cache\crafting-catalog-4.10.3-live.13165946.json',

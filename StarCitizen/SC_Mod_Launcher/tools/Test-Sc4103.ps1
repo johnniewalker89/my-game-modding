@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$LauncherRoot = (Split-Path -Parent $PSScriptRoot),
     [string]$CacheKey = '4.10.3-live.13165946'
 )
@@ -17,14 +17,13 @@ $expected = @(
 )
 foreach ($name in $expected) {
     $record = @($recipes | Where-Object { $_.output_name -ceq $name })
-    Assert-True ($record.Count -eq 1 -and $map.ContainsKey([string]$record[0].uuid)) ('Missing new recipe in selectable catalog: ' + $name)
+    Assert-True ($record.Count -eq 1) ('Missing new recipe in source catalog: ' + $name)
+    Assert-True ($map.ContainsKey([string]$record[0].uuid) -eq ($name -ne 'Skarnov Rifle Battery (30 cap)')) ('Only ammunition must be excluded from selectable recipes: ' + $name)
 }
 Assert-True ((New-SCMiningPlanetCraftMap -Blueprints @()).Count -eq 0) 'Empty input must remain empty.'
 $battery = @($recipes | Where-Object { $_.output_name -eq 'Skarnov Rifle Battery (30 cap)' })[0]
 $single = New-SCMiningPlanetCraftMap -Blueprints @($battery)
-$row = $single[[string]$battery.uuid]
-Assert-True ($single.Count -eq 1 -and $row.Category -eq (Get-SCMiningPlanetCategoryConsumables)) 'A single battery must reach the consumables category.'
-Assert-True ($row.Subcategory -eq (Get-SCMiningPlanetSubcategoryMagazines)) 'Magazine/battery subcategory must be explicit.'
+Assert-True ($single.Count -eq 0) 'Ammunition must not create a selectable group, including a single battery.'
 Assert-True (@($battery.ingredients).Count -eq 2) 'Battery ingredients must not be dropped.'
 Assert-True (@($battery.ingredients | Where-Object { $_.name -eq 'Hephaestanite' -and [decimal]$_.quantity_scu -eq [decimal]0.02 }).Count -eq 1) 'Skarnov battery needs 0.02 SCU Hephaestanite.'
 Assert-True (@($battery.ingredients | Where-Object { $_.name -eq 'Gold' -and [decimal]$_.quantity_scu -eq [decimal]0.01 }).Count -eq 1) 'Skarnov battery needs 0.01 SCU Gold.'
@@ -42,21 +41,22 @@ foreach ($number in 3..5) {
 $index = Get-SCMiningCraftFamilyIndex
 Assert-True ([string]$index.cacheKey -eq $CacheKey) 'Family index must use the tested build.'
 foreach ($name in $expected) {
-    Assert-True (@($index.families | Where-Object { @($_.names) -ccontains $name }).Count -eq 1) ('New recipe must have exactly one checkbox: ' + $name)
+    $expectedCount = if ($name -eq $battery.output_name) { 0 } else { 1 }
+    Assert-True (@($index.families | Where-Object { @($_.names) -ccontains $name }).Count -eq $expectedCount) ('Selectable recipe checkbox count: ' + $name)
 }
-$family = @($index.families | Where-Object { @($_.names) -contains $battery.output_name })[0]
-Assert-True (-not $family.defaultSelected) 'New ammunition choices must be opt-in.'
-$filter = Get-SCMiningCraftFilter -SelectedOptions @([string]$family.optionId)
-Assert-True (Test-SCMiningIncludePlanetRecipe -Recipe $row -CraftFilter $filter) 'Selecting the battery must include its mining recipe.'
-Assert-True (-not (Test-SCMiningIncludePlanetRecipe -Recipe $row -CraftFilter (Get-SCMiningCraftFilter -SelectedOptions @()))) 'Unselected ammunition must stay disabled.'
-$questId = [string]$family.optionId -replace '^craftFamily\|', 'questCraftFamily|'
 $category = Get-SCMiningPlanetCategoryConsumables
-Assert-True (@(Get-SCQuestSelectableCategoryNames) -contains $category) 'Consumables must be selectable by the quest adapter.'
-Assert-True (@(Get-SCQuestSelectedCategoryNames -SelectedOptions @($questId)) -contains $category) 'Quest selection must use the engine consumables category.'
+$oldId = 'craftFamily|' + $category + '|Магазины/батареи|battery:Skarnov Rifle'
+$questId = $oldId -replace '^craftFamily\|', 'questCraftFamily|'
+$oldRow = [pscustomobject]@{ Category=$category; Subcategory='Магазины/батареи'; Family=[pscustomobject]@{Key='battery:Skarnov Rifle'} }
+Assert-True (-not (Test-SCMiningIncludePlanetRecipe -Recipe $oldRow -CraftFilter (Get-SCMiningCraftFilter -SelectedOptions @($oldId)))) 'Old saved ammunition choices must not reactivate mining hints.'
+Assert-True (@($index.families | Where-Object { $_.category -eq $category }).Count -eq 0) 'Fresh indexes must contain no ammunition section.'
+Assert-True (@(Get-SCQuestSelectableCategoryNames) -notcontains $category) 'Consumables must not be selectable by the quest adapter.'
+Assert-True (@(Get-SCQuestSelectedCategoryNames -SelectedOptions @('equipmentAndConsumables', $questId)).Count -eq 0) 'Old quest ammunition settings must be ignored.'
+Assert-True (@(Get-SCQuestSelectedFamilyOptionIds -SelectedOptions @($questId)).Count -eq 0) 'Old ammunition family IDs must not activate a quest family filter.'
 $header = '<EM4>' + (-join ([char[]]@(0x0414,0x043E,0x0441,0x0442,0x0443,0x043F,0x043D,0x044B,0x0435,0x0020,0x0447,0x0435,0x0440,0x0442,0x0435,0x0436,0x0438))) + '</EM4>'
 $block = 'Lore\n\n' + $header + '\n<EM4>' + $category + '</EM4>\n- Skarnov Rifle Battery (30 cap)\n- P4-AR Magazine (30 cap)'
 $filtered = Select-SCQuestRewardBlockCategories -Value $block -SelectedCategoryNames @($category) -SelectedFamilyOptionIds @($questId) -FamilyIndex $index
-Assert-True ($filtered.Contains('Skarnov Rifle Battery (30 cap)') -and -not $filtered.Contains('P4-AR Magazine')) 'Quest reward filtering must keep only the selected battery.'
+Assert-True ($filtered -ceq 'Lore') 'Even an old index and explicit old selection must remove ammunition rewards and preserve lore.'
 $none = Select-SCQuestRewardBlockCategories -Value $block -SelectedCategoryNames @() -SelectedFamilyOptionIds @() -FamilyIndex $index
 Assert-True ($none -ceq 'Lore') 'Disabling consumables must remove the reward block and preserve lore.'
-Write-Host ('SC 4.10.3 recipe regressions PASS; 16 new recipes; ' + @($index.families).Count + ' selectable families.')
+Write-Host ('SC 4.10.3 recipe regressions PASS; 16 source recipes / 15 selectable; ammunition retired; ' + @($index.families).Count + ' selectable families.')

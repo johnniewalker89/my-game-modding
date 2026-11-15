@@ -1045,11 +1045,10 @@ function Get-SCQuestSelectedCategoryNames {
         miningLasers = 'Добывающие лазеры'
         armorAndClothing = 'Броня/одежда'
         fpsWeapons = 'Оружие'
-        equipmentAndConsumables = 'Снаряжение/расходники'
     }
 
     $names = @()
-    foreach ($option in @('shipComponents', 'shipWeapons', 'miningLasers', 'armorAndClothing', 'fpsWeapons', 'equipmentAndConsumables')) {
+    foreach ($option in @('shipComponents', 'shipWeapons', 'miningLasers', 'armorAndClothing', 'fpsWeapons')) {
         if ($SelectedOptions -contains $option) {
             $names += $map[$option]
         }
@@ -1071,7 +1070,10 @@ function Get-SCQuestSelectedFamilyOptionIds {
     $optionIds = @(
         @($SelectedOptions) |
             ForEach-Object { [string]$_ } |
-            Where-Object { $_.StartsWith('questCraftFamily|', [System.StringComparison]::OrdinalIgnoreCase) }
+            Where-Object {
+                $_.StartsWith('questCraftFamily|', [System.StringComparison]::OrdinalIgnoreCase) -and
+                -not $_.StartsWith('questCraftFamily|Снаряжение/расходники|', [System.StringComparison]::OrdinalIgnoreCase)
+            }
     )
 
     $expanded = New-Object System.Collections.Generic.List[string]
@@ -1290,8 +1292,7 @@ function Get-SCQuestSelectableCategoryNames {
         'Корабельные орудия',
         'Горное оборудование',
         'Броня/одежда',
-        'Оружие',
-        'Снаряжение/расходники'
+        'Оружие'
     )
 }
 
@@ -1338,7 +1339,8 @@ function Select-SCQuestRewardBlockCategories {
 
     $selected = @{}
     foreach ($name in @($SelectedCategoryNames)) {
-        $selected[$name] = $true
+        # Keep the heading recognizable so old generated blocks can be removed.
+        if ($name -ne 'Снаряжение/расходники') { $selected[$name] = $true }
     }
 
     $selectedFamilies = @{}
