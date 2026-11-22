@@ -29,6 +29,96 @@ from trader.store import Store, Vault
 class DiscordHealthTests(unittest.IsolatedAsyncioTestCase):
     """Не подключается к Discord/UEX; HTTP-сервер доступен только на loopback."""
 
+    async def test_outgoing_reply_from_uncached_discord_thread(self):
+        """Событие SDK без ветки в кэше доходит до отправки после проверки её ID и владельца."""
+        with tempfile.TemporaryDirectory() as folder, closing(Store(Path(folder) / "state.sqlite3")) as store:
+            store.put("deal", {"id": "fixture", "owner_id": "123", "thread_id": "200"})
+            async with TraderBot(Settings(guild_id=1, channel_id=100), store) as bot:
+                state = bot._connection
+                event = {"id": "300", "channel_id": "200", "guild_id": "1", "type": 0,
+                         "author": {"id": "123", "username": "Fixture", "discriminator": "0", "avatar": None},
+                         "content": "Искусственный ответ", "attachments": [], "embeds": [], "mentions": [],
+                         "mention_roles": [], "pinned": False, "tts": False, "mention_everyone": False}
+                state.dispatch = Mock()
+                state.parse_message_create(event)
+                message = state.dispatch.call_args.args[1]
+                self.assertIsInstance(message.channel, discord.PartialMessageable)
+                self.assertIsNone(message.guild)
+                bot.service = SimpleNamespace(reply=AsyncMock(
+                    return_value={"status": "delivered", "translated": "Fixture reply"}))
+                channel = Mock(spec=discord.Thread, id=200, parent_id=100, guild=SimpleNamespace(id=1))
+                channel.is_private.return_value = True
+                bot.fetch_channel = AsyncMock(return_value=channel)
+                bot._reply_feedback = AsyncMock()
+
+                await bot.on_message(message)
+
+                bot.fetch_channel.assert_awaited_once_with(200)
+                bot.service.reply.assert_awaited_once_with("123", "fixture", "300", event["content"])
+                bot._reply_feedback.assert_awaited_once_with(
+                    message, "🧪 Тестовый режим UEX · UEX подтвердил запрос\nFixture reply")
+
+                for changes in ({"channel_id": "201"}, {"guild_id": "2"},
+                                {"author": {**event["author"], "id": "124"}}):
+                    with self.subTest(changes=changes):
+                        bot.fetch_channel.reset_mock()
+                        bot.service.reply.reset_mock()
+                        state.parse_message_create({**event, **changes})
+                        await bot.on_message(state.dispatch.call_args.args[1])
+                        bot.fetch_channel.assert_not_awaited()
+                        bot.service.reply.assert_not_awaited()
+
+                channel.parent_id = 101
+                with self.assertLogs("trader.discord_bot", level="WARNING") as logs:
+                    await bot.on_message(message)
+                bot.service.reply.assert_not_awaited()
+                self.assertIn("message=300 thread=200", logs.output[0])
+
+                bot.fetch_channel.side_effect = discord.NotFound(SimpleNamespace(status=404, reason="Fixture"), "")
+                bot._reply_feedback.reset_mock()
+                with self.assertLogs("trader.discord_bot", level="WARNING") as logs:
+                    await bot.on_message(message)
+                bot.service.reply.assert_not_awaited()
+                self.assertIn("error_type=NotFound http=404", logs.output[0])
+                self.assertNotIn(event["content"], logs.output[0])
+                bot._reply_feedback.assert_awaited_once_with(
+                    message, "Не удалось проверить ветку Discord. Ответ в UEX не отправлен.")
+
+    async def test_cached_reply_waits_for_earlier_uncached_reply_in_the_same_thread(self):
+        """Запрос метаданных не меняет порядок ответов владельца в одной сделке."""
+        with tempfile.TemporaryDirectory() as folder, closing(Store(Path(folder) / "state.sqlite3")) as store:
+            store.put("deal", {"id": "fixture", "owner_id": "123", "thread_id": "200"})
+            async with TraderBot(Settings(guild_id=1, channel_id=100), store) as bot:
+                guild = SimpleNamespace(id=1)
+                author = SimpleNamespace(id=123, bot=False)
+                channel = Mock(spec=discord.Thread, id=200, parent_id=100, guild=guild)
+                channel.is_private.return_value = True
+                first = SimpleNamespace(id=300, guild=guild, author=author, attachments=[], content="Первый",
+                                        channel=bot.get_partial_messageable(200, guild_id=1))
+                second = SimpleNamespace(id=301, guild=guild, author=author, attachments=[], content="Второй",
+                                         channel=channel)
+                lookup_started = asyncio.Event()
+                finish_lookup = asyncio.Event()
+
+                async def resolve(thread_id):
+                    """Останавливает проверку первого ответа до поступления второго."""
+                    lookup_started.set()
+                    await finish_lookup.wait()
+                    return channel
+
+                bot.fetch_channel = AsyncMock(side_effect=resolve)
+                bot.service = SimpleNamespace(reply=AsyncMock(return_value={"status": "delivered", "translated": ""}))
+                bot._reply_feedback = AsyncMock()
+                async with asyncio.TaskGroup() as replies:
+                    replies.create_task(bot.on_message(first))
+                    await asyncio.wait_for(lookup_started.wait(), 1)
+                    replies.create_task(bot.on_message(second))
+                    await asyncio.sleep(0)
+                    bot.service.reply.assert_not_awaited()
+                    finish_lookup.set()
+                self.assertEqual([call.args[2] for call in bot.service.reply.await_args_list], ["300", "301"])
+                bot.fetch_channel.assert_awaited_once_with(200)
+
     async def test_idle_scans_reuse_roles_but_actions_and_delivery_check_fresh_access(self):
         """Тридцать пустых сверок используют одну проверку; снятая роль блокирует действия и входящее."""
         with tempfile.TemporaryDirectory() as folder, closing(Store(Path(folder) / "state.sqlite3")) as store:

@@ -8,6 +8,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Callable
 from urllib.parse import quote
+from weakref import WeakValueDictionary
 
 import aiohttp
 import discord
@@ -470,6 +471,7 @@ class TraderBot(discord.Client):
         self._account_scan_tasks: dict[str, asyncio.Task] = {}
         self._access_cache: dict[str, tuple[float, bool]] = {}
         self._thread_name_failures: dict[int, tuple[str, str, float]] = {}
+        self._outgoing_locks: WeakValueDictionary[int, asyncio.Lock] = WeakValueDictionary()
         self._panel_lock = asyncio.Lock()
         self._panel_ready_attempted = False
         self.status_provider: Callable[[], dict[str, Any]] | None = None
@@ -1043,21 +1045,56 @@ class TraderBot(discord.Client):
 
     async def on_message(self, message: discord.Message) -> None:
         """Переводит обычный ответ владельца только в его активной приватной ветке."""
-        if message.author.bot or not message.guild or message.guild.id != self.settings.guild_id:
+        if message.author.bot:
             return
-        if not isinstance(message.channel, discord.Thread) or message.channel.parent_id != self.settings.channel_id:
+        channel = message.channel
+        if isinstance(channel, discord.Thread):
+            if (not message.guild or message.guild.id != self.settings.guild_id
+                    or channel.parent_id != self.settings.channel_id or not channel.is_private()):
+                return
+        elif not isinstance(channel, discord.PartialMessageable) or channel.guild_id != self.settings.guild_id:
             return
-        matches = [deal for deal in self.store.all("deal") if deal.get("thread_id") == str(message.channel.id)]
-        if not matches:
+        owner_id = str(message.author.id)
+        thread_id = str(channel.id)
+        deal = next((row for row in self.store.all("deal", owner_id) if row.get("thread_id") == thread_id), None)
+        if not deal:
             return
-        deal = matches[0]
-        if deal["owner_id"] != str(message.author.id):
-            return
+        # При запросе метаданных Discord следующие ответы ждут в порядке прихода.
+        async with self._outgoing_locks.setdefault(channel.id, asyncio.Lock()):
+            if isinstance(channel, discord.PartialMessageable) and not await self._verify_uncached_reply_thread(message):
+                return
+            current = self.store.get("deal", deal["id"])
+            if not current or current.get("thread_id") != thread_id:
+                LOGGER.warning("Привязка ответа Discord изменилась message=%s thread=%s", message.id, thread_id)
+                return
+            await self._send_thread_reply(message, owner_id, deal["id"])
+
+    async def _verify_uncached_reply_thread(self, message: discord.Message) -> bool:
+        """Проверяет сервер, родителя и приватность ветки, известной по ID сделки."""
+        thread_id = message.channel.id
+        try:
+            channel = self.get_channel(thread_id) or await self.fetch_channel(thread_id)
+        except (DiscordBackoff, discord.RateLimited, discord.HTTPException, discord.InvalidData,
+                aiohttp.ClientError, TimeoutError) as exc:
+            LOGGER.warning("Не удалось проверить ветку Discord message=%s thread=%s error_type=%s http=%s",
+                           message.id, thread_id, type(exc).__name__, getattr(exc, "status", None))
+            await self._reply_feedback(message, "Не удалось проверить ветку Discord. Ответ в UEX не отправлен.")
+            return False
+        if (not isinstance(channel, discord.Thread) or channel.id != thread_id
+                or channel.guild.id != self.settings.guild_id or channel.parent_id != self.settings.channel_id
+                or not channel.is_private()):
+            LOGGER.warning("Ответ вне торговой ветки message=%s thread=%s", message.id, thread_id)
+            return False
+        LOGGER.info("Ветка ответа Discord проверена по ID message=%s thread=%s", message.id, thread_id)
+        return True
+
+    async def _send_thread_reply(self, message: discord.Message, owner_id: str, deal_id: str) -> None:
+        """Передаёт текст ответа в сделку владельца и показывает результат рядом с сообщением."""
         if message.attachments and not message.content:
             await self._reply_feedback(message, "Пока поддерживаются текстовые ответы.")
             return
         try:
-            result = await self.service.reply(str(message.author.id), deal["id"], str(message.id), message.content)
+            result = await self.service.reply(owner_id, deal_id, str(message.id), message.content)
         except (PermissionError, ValueError, DiscordBackoff) as exc:
             await self._reply_feedback(message, str(exc))
             return

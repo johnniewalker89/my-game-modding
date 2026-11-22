@@ -6,6 +6,8 @@ import json
 import zipfile
 from pathlib import Path
 
+from companion import __version__
+
 
 def payload_files(star_citizen: Path) -> dict[str, Path]:
     """Возвращает закрытый набор исходников и документов из трёх соседних модулей."""
@@ -35,7 +37,7 @@ def build(destination: Path) -> dict:
     manifest = {name: hashlib.sha256(data).hexdigest() for name, data in contents.items()}
     material = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     fingerprint = hashlib.sha256(material).hexdigest()
-    contents["release-manifest.json"] = json.dumps({"release": "SC Companion 0.1.2", "code_only": True,
+    contents["release-manifest.json"] = json.dumps({"release": f"SC Companion {__version__}", "code_only": True,
         "payload_fingerprint": fingerprint, "files": manifest}, ensure_ascii=False, indent=2).encode()
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
